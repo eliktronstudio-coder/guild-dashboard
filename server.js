@@ -150,9 +150,9 @@ app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'publi
 app.get('/admin.html', requireAuth, requireOfficer, (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'admin.html'))
 );
-app.use('/app.js', requireAuth, express.static(path.join(__dirname, 'public', 'app.js')));
-app.use('/admin.js', requireAuth, requireOfficer, express.static(path.join(__dirname, 'public', 'admin.js')));
-app.use('/styles.css', express.static(path.join(__dirname, 'public', 'styles.css')));
+app.get('/app.js', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'app.js')));
+app.get('/admin.js', requireAuth, requireOfficer, (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.js')));
+app.get('/styles.css', (req, res) => res.sendFile(path.join(__dirname, 'public', 'styles.css')));
 
 const PORT = process.env.PORT || 3000;
 ensureSchema()
