@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Первичная настройка — Дашборд гильдии</title>
+<link rel="stylesheet" href="/styles.css">
+<style>body{font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:#f9f9f7;}</style>
+</head>
+<body>
+<div class="app"><div class="auth-wrap">
+  <div class="auth-card">
+    <h1>Создание первого аккаунта</h1>
+    <p class="sub">Этот аккаунт получит роль офицера и сможет добавлять остальных участников.</p>
+    <div class="auth-error" id="err"></div>
+    <div class="locked-note" id="lockedNote" style="display:none;margin-bottom:14px;">
+      Аккаунты уже созданы. <a href="/login.html" style="color:var(--series-1);">Перейти ко входу →</a>
+    </div>
+    <form id="setupForm">
+      <div class="auth-field">
+        <label for="username">Логин</label>
+        <input id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="auth-field">
+        <label for="password">Пароль (мин. 6 символов)</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" minlength="6" required>
+      </div>
+      <button class="auth-submit" type="submit" id="submitBtn">Создать аккаунт офицера</button>
+    </form>
+  </div>
+</div></div>
+<script>
+(function(){
+  var form = document.getElementById('setupForm');
+  var err = document.getElementById('err');
+  var btn = document.getElementById('submitBtn');
+
+  fetch('/api/setup-status').then(function(r){ return r.json(); }).then(function(d){
+    if (!d.needsSetup){
+      document.getElementById('lockedNote').style.display = 'flex';
+      form.style.display = 'none';
+    }
+  }).catch(function(){});
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    err.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Создаём…';
+    fetch('/api/setup', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if (!res.ok){
+          err.textContent = res.d.message || 'Не удалось создать аккаунт.';
+          err.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = 'Создать аккаунт офицера';
+          return;
+        }
+        location.href = '/';
+      }).catch(function(){
+        err.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Создать аккаунт офицера';
+      });
+  });
+})();
+</script>
+</body>
+</html>

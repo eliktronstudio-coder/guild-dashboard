@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Гильдия — Дашборд</title>
+<link rel="stylesheet" href="/styles.css">
+<style>body{font-family: system-ui, -apple-system, "Segoe UI", sans-serif;}</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name" id="guildName">Загрузка…</div>
+      <div class="brand-sub" id="guildServer">&nbsp;</div>
+    </div>
+
+    <button class="nav-btn active" data-view="overview">📊 Обзор</button>
+
+    <div class="nav-group-label">Экономика</div>
+    <button class="nav-btn" data-view="treasury" id="navTreasury">💰 Казна</button>
+    <button class="nav-btn" data-view="auction">🔨 Аукцион</button>
+
+    <div class="nav-group-label">Гильдия</div>
+    <button class="nav-btn" data-view="members">👥 Участники</button>
+
+    <div class="nav-group-label">Инструменты</div>
+    <button class="nav-btn" data-view="raids">🧮 Калькулятор рейдов</button>
+
+    <div class="sidebar-footer">
+      <div class="user-chip" style="margin-bottom:10px;">
+        <span id="whoami">…</span>
+        <span class="role-badge" id="roleBadge"></span>
+      </div>
+      <a href="#" id="sheetLink" target="_blank" style="color:var(--series-1);">Открыть таблицу гильдии →</a><br>
+      <a href="/admin.html" id="adminLink" style="color:var(--series-1); display:none;">Управление участниками →</a><br>
+      <a href="#" id="logoutLink" style="color:var(--critical);">Выйти →</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="viewTitle">Обзор</h1>
+      <div class="topbar-actions">
+        <span id="lastUpdated" style="font-size:12px;color:var(--text-muted);"></span>
+        <button class="btn icon" id="themeToggle" title="Тема">🌓</button>
+        <button class="btn" id="refreshBtn">Обновить данные</button>
+      </div>
+    </div>
+
+    <div id="statusArea"></div>
+
+    <!-- ===================== OVERVIEW ===================== -->
+    <section class="view active" id="view-overview">
+      <div class="grid cols-4" style="margin-bottom:16px;">
+        <div class="card stat-tile">
+          <h3>Казна гильдии</h3>
+          <div class="value" id="stat-treasury">—</div>
+          <div class="delta neutral" id="stat-treasury-delta">&nbsp;</div>
+        </div>
+        <div class="card stat-tile">
+          <h3>Активных участников</h3>
+          <div class="value" id="stat-active-members">—</div>
+          <div class="delta neutral" id="stat-active-members-sub">&nbsp;</div>
+        </div>
+        <div class="card stat-tile">
+          <h3>Ср. посещаемость (7д)</h3>
+          <div class="value" id="stat-attendance">—</div>
+          <div class="delta neutral">по активным участникам</div>
+        </div>
+        <div class="card stat-tile">
+          <h3>До след. выплаты</h3>
+          <div class="value" id="stat-payout">—</div>
+          <div class="delta neutral" id="stat-payout-sub">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-bottom:16px;">
+        <div class="card chart-card">
+          <div class="card-title-row">
+            <h3>Динамика казны</h3>
+            <button class="table-toggle" data-chart="treasury-dynamics">Таблица</button>
+          </div>
+          <div class="chart-wrap" id="chart-treasury-dynamics"></div>
+        </div>
+        <div class="card chart-card">
+          <div class="card-title-row">
+            <h3>Топ-5 по посещаемости (7д)</h3>
+            <button class="table-toggle" data-chart="top-attendance">Таблица</button>
+          </div>
+          <div class="chart-wrap" id="chart-top-attendance"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Последняя активность</h3>
+        <div id="activityFeed"><div class="empty-state">Нет данных</div></div>
+      </div>
+    </section>
+
+    <!-- ===================== TREASURY ===================== -->
+    <section class="view" id="view-treasury">
+      <div id="treasuryLocked" class="locked-note" style="display:none; margin-bottom:16px;">
+        🔒 Раздел «Казна» виден только офицерам гильдии.
+      </div>
+      <div id="treasuryContent">
+        <div class="grid cols-4" style="margin-bottom:16px;">
+          <div class="card stat-tile">
+            <h3>Текущий баланс</h3>
+            <div class="value" id="tr-balance">—</div>
+          </div>
+          <div class="card stat-tile">
+            <h3>Доходы (всего)</h3>
+            <div class="value" id="tr-income">—</div>
+          </div>
+          <div class="card stat-tile">
+            <h3>Расходы (всего)</h3>
+            <div class="value" id="tr-expense">—</div>
+          </div>
+          <div class="card stat-tile">
+            <h3>Записей</h3>
+            <div class="value" id="tr-count">—</div>
+          </div>
+        </div>
+        <div class="card chart-card" style="margin-bottom:16px;">
+          <div class="card-title-row">
+            <h3>Баланс казны во времени</h3>
+            <button class="table-toggle" data-chart="treasury-full">Таблица</button>
+          </div>
+          <div class="chart-wrap" id="chart-treasury-full"></div>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:10px;">Все транзакции</h3>
+          <div style="max-height:480px; overflow:auto;">
+            <table>
+              <thead><tr><th>Дата</th><th>Тип</th><th>Категория</th><th>Сумма</th><th>Описание</th></tr></thead>
+              <tbody id="treasuryTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== MEMBERS ===================== -->
+    <section class="view" id="view-members">
+      <div class="grid cols-2" style="margin-bottom:16px;">
+        <div class="card">
+          <h3 style="margin-bottom:10px;">Топ по посещаемости (30д)</h3>
+          <table><thead><tr><th>#</th><th>Участник</th><th>30д</th></tr></thead><tbody id="topAttendance30Body"></tbody></table>
+        </div>
+        <div class="card">
+          <h3 style="margin-bottom:10px;">Топ по достижениям</h3>
+          <table><thead><tr><th>#</th><th>Участник</th><th>Достижения</th></tr></thead><tbody id="topAchievementsBody"></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Состав гильдии</h3>
+        <div style="max-height:560px; overflow:auto;">
+          <table>
+            <thead><tr><th>Имя</th><th>Класс</th><th>Роль</th><th>Статус</th><th>7д</th><th>30д</th><th>Достижения</th></tr></thead>
+            <tbody id="membersTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== AUCTION ===================== -->
+    <section class="view" id="view-auction">
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-bottom:12px;">Активные лоты</h3>
+        <div id="activeLots"><div class="empty-state">Нет данных</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:12px;">Завершённые / прочие лоты</h3>
+        <div id="otherLots"><div class="empty-state">Нет данных</div></div>
+      </div>
+    </section>
+
+    <!-- ===================== RAIDS / CALCULATOR ===================== -->
+    <section class="view" id="view-raids">
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-bottom:12px;">Калькулятор доли с рейда</h3>
+        <div class="calc-form">
+          <div class="field">
+            <label for="calcRaidSelect">Взять рейд из таблицы</label>
+            <select id="calcRaidSelect"><option value="">— вручную —</option></select>
+          </div>
+          <div class="field">
+            <label for="calcLoot">Общая ценность лута (золото)</label>
+            <input type="number" id="calcLoot" min="0" step="1" value="0">
+          </div>
+          <div class="field">
+            <label for="calcParticipants">Участников</label>
+            <input type="number" id="calcParticipants" min="1" step="1" value="1">
+          </div>
+          <div class="field">
+            <label for="calcGuildCut">Комиссия гильдии (%)</label>
+            <input type="number" id="calcGuildCut" min="0" max="100" step="1" value="10">
+          </div>
+        </div>
+        <div class="calc-result">
+          <div><div class="num" id="calcPerPerson">0</div><div class="lbl">золота на участника</div></div>
+          <div><div class="num" id="calcGuildShare">0</div><div class="lbl">в казну гильдии</div></div>
+          <div><div class="num" id="calcTotalOut">0</div><div class="lbl">распределено участникам</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:10px;">История рейдов</h3>
+        <table>
+          <thead><tr><th>Дата</th><th>Рейд</th><th>Ценность лута</th><th>Участников</th><th>На участника</th></tr></thead>
+          <tbody id="raidsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

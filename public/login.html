@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Вход — Дашборд гильдии</title>
+<link rel="stylesheet" href="/styles.css">
+<style>body{font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:#f9f9f7;}</style>
+</head>
+<body>
+<div class="app"><div class="auth-wrap">
+  <div class="auth-card">
+    <h1>Вход в дашборд гильдии</h1>
+    <p class="sub">Введите свой логин и пароль участника.</p>
+    <div class="auth-error" id="err"></div>
+    <form id="loginForm">
+      <div class="auth-field">
+        <label for="username">Логин</label>
+        <input id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="auth-field">
+        <label for="password">Пароль</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="auth-submit" type="submit" id="submitBtn">Войти</button>
+    </form>
+    <div class="auth-hint" id="setupHint" style="display:none;">
+      Аккаунтов ещё нет. <a href="/setup.html">Создать первый аккаунт офицера →</a>
+    </div>
+  </div>
+</div></div>
+<script>
+(function(){
+  var form = document.getElementById('loginForm');
+  var err = document.getElementById('err');
+  var btn = document.getElementById('submitBtn');
+
+  fetch('/api/setup-status').then(function(r){ return r.json(); }).then(function(d){
+    if (d.needsSetup) document.getElementById('setupHint').style.display = 'block';
+  }).catch(function(){});
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    err.classList.remove('show');
+    btn.disabled = true;
+    btn.textContent = 'Входим…';
+    fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+      }),
+    }).then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if (!res.ok){
+          err.textContent = res.d.message || 'Не удалось войти.';
+          err.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = 'Войти';
+          return;
+        }
+        location.href = '/';
+      }).catch(function(){
+        err.textContent = 'Ошибка сети. Попробуйте ещё раз.';
+        err.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Войти';
+      });
+  });
+})();
+</script>
+</body>
+</html>

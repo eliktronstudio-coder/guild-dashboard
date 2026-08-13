@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Управление участниками — Дашборд гильдии</title>
+<link rel="stylesheet" href="/styles.css">
+<style>body{font-family: system-ui, -apple-system, "Segoe UI", sans-serif;}</style>
+</head>
+<body>
+<div class="app" id="app" style="display:block;">
+  <main class="main" style="max-width:900px; margin:0 auto;">
+    <div class="topbar">
+      <h1>Управление участниками</h1>
+      <div class="topbar-actions">
+        <a class="btn" href="/">← К дашборду</a>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <h3 style="margin-bottom:12px;">Добавить аккаунт</h3>
+      <div class="auth-error" id="addErr"></div>
+      <form id="addForm" class="calc-form" style="align-items:flex-end;">
+        <div class="field">
+          <label for="newUsername">Логин</label>
+          <input id="newUsername" required style="width:180px;">
+        </div>
+        <div class="field">
+          <label for="newPassword">Временный пароль</label>
+          <input id="newPassword" type="text" minlength="6" required style="width:180px;">
+        </div>
+        <div class="field">
+          <label for="newRole">Роль</label>
+          <select id="newRole">
+            <option value="member">Участник</option>
+            <option value="officer">Офицер</option>
+          </select>
+        </div>
+        <button class="btn primary" type="submit">Добавить</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-bottom:12px;">Все аккаунты</h3>
+      <table>
+        <thead><tr><th>Логин</th><th>Роль</th><th>Статус</th><th>Создан</th><th></th></tr></thead>
+        <tbody id="usersBody"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+<script src="/admin.js"></script>
+</body>
+</html>
