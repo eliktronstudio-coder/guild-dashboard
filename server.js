@@ -7,6 +7,11 @@ const { hashPassword, verifyPassword, requireAuth, requireOfficer } = require('.
 const { getGuildData, SHEET_ID } = require('./src/sheet');
 
 const app = express();
+// Render (and the Cloudflare edge in front of it) terminates TLS and forwards
+// plain HTTP internally, so without this Express thinks every request is
+// insecure and silently refuses to set the "Secure" session cookie below —
+// login appears to succeed but the session never sticks.
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(
   cookieSession({
@@ -66,27 +71,6 @@ app.post('/api/login', async (req, res) => {
 app.post('/api/logout', (req, res) => {
   req.session = null;
   res.json({ ok: true });
-});
-
-// ---------------------------------------------------------------------
-// TEMPORARY: one-off password reset for account recovery.
-// Protected by a secret env var; safe to delete once no longer needed.
-// ---------------------------------------------------------------------
-app.post('/api/admin-reset', async (req, res) => {
-  const { secret, username, newPassword } = req.body || {};
-  if (!process.env.ADMIN_RESET_SECRET || secret !== process.env.ADMIN_RESET_SECRET) {
-    return res.status(403).json({ error: 'forbidden' });
-  }
-  if (!username || !newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: 'invalid_input' });
-  }
-  const passwordHash = hashPassword(newPassword);
-  const result = await pool.query(
-    'UPDATE users SET password_hash = $1, active = true WHERE username = $2 RETURNING id, username, active',
-    [passwordHash, username.trim()]
-  );
-  if (!result.rows.length) return res.status(404).json({ error: 'not_found' });
-  res.json({ ok: true, user: result.rows[0] });
 });
 
 app.get('/api/me', requireAuth, (req, res) => {
