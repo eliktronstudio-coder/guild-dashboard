@@ -21,6 +21,9 @@ test("database: real PostgreSQL migration, permissions, applications and revocat
   await db.exec(
     await readFile("supabase/migrations/202610310001_foundation.sql", "utf8"),
   );
+  await db.exec(
+    await readFile("supabase/migrations/202610310002_members.sql", "utf8"),
+  );
   for (let n = 1; n <= 6; n++) {
     await db.query("insert into auth.users values($1,now())", [id(n)]);
     await db.query("insert into auth.sessions values($1,$2)", [sid(n), id(n)]);

@@ -62,7 +62,10 @@ export default async function Page() {
         <article className="panel stat">
           <p>{canReview ? "Заявок на рассмотрении" : "Ваш профиль"}</p>
           <strong>{canReview ? (pending?.count ?? 0) : "XD"}</strong>
-          <Link className="caption" href={canReview ? "/admin" : "/account"}>
+          <Link
+            className="caption"
+            href={canReview ? "/admin" : `/members/${membership!.id}`}
+          >
             {canReview ? "Перейти к заявкам →" : "Открыть аккаунт →"}
           </Link>
         </article>
@@ -73,15 +76,14 @@ export default async function Page() {
             <p className="eyebrow">КОМАНДНЫЙ ЦЕНТР</p>
             <h2>Начинаем с людей</h2>
           </div>
-          <span className="badge gold">Этап 1</span>
+          <span className="badge gold">Состав гильдии</span>
         </div>
         <p className="muted">
-          Уже доступны заявки, одобрение участников и управление доступом.
-          Дальше появятся персонажи, события и казна.
+          Уже доступны заявки, профили игроков, персонажи и управление доступом.
+          Дальше появятся события и казна.
         </p>
         <div className="module-grid">
           {[
-            ["02", "Персонажи", "Профили и основные персонажи"],
             ["03", "Активности", "События и посещаемость"],
             ["04", "Казна", "Имущество, продажи и выплаты"],
           ].map(([n, title, text]) => (

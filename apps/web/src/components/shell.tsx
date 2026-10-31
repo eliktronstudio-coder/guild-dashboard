@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MemberAvatar } from "@/components/members/avatar";
 import { signOut } from "@/app/actions";
 import { getAccess } from "@/lib/access";
 export function Brand() {
@@ -50,10 +51,13 @@ export async function GuildShell({
   current: string;
 }) {
   const a = await getAccess();
-  const canReview = await a.permission("applications.review");
+  const [canReview, canRead] = await Promise.all([
+    a.permission("applications.review"),
+    a.permission("members.read"),
+  ]);
   const links = [
     ["/dashboard", "Обзор", "◈"],
-    ["/members", "Состав", "◎"],
+    ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
     ["/account", "Аккаунт", "○"],
   ];
@@ -87,9 +91,10 @@ export async function GuildShell({
             Гильдия <strong>XD</strong>
           </span>
           <Link href="/account" className="user-chip">
-            <span className="avatar">
-              {a.membership?.nickname.slice(0, 1) ?? "X"}
-            </span>
+            <MemberAvatar
+              nickname={a.membership?.nickname ?? "XD"}
+              style={a.membership?.avatar_style}
+            />
             {a.membership?.nickname ?? "Новый игрок"}
           </Link>
         </header>
@@ -97,7 +102,7 @@ export async function GuildShell({
           {children}
         </main>
         <footer className="page-footer">
-          XD GUILD COMMAND CENTER <span>Этап 1 · Основа</span>
+          XD GUILD COMMAND CENTER <span>XD · Состав и персонажи</span>
         </footer>
       </div>
     </div>

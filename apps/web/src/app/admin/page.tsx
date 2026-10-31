@@ -6,6 +6,11 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "member.profile_changed": "Обновлён профиль",
+  "member.nickname_changed": "Изменён игровой ник",
+  "character.created": "Добавлен персонаж",
+  "character.updated": "Изменён персонаж",
+  "character.archived": "Персонаж перенесён в архив",
   "application.submitted": "Подана заявка",
   "application.approved": "Заявка одобрена",
   "application.rejected": "Заявка отклонена",

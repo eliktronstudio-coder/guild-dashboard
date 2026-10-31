@@ -46,9 +46,16 @@ export default async function Page({
             Изменить пароль
           </Link>
         )}
+        {a.membership?.status === "active" && (
+          <Link
+            className="button secondary inline"
+            href={`/members/${a.membership.id}`}
+          >
+            Мой профиль и персонажи
+          </Link>
+        )}
         <p className="caption">
-          Персонажи, смена ника с историей и управление привязками появятся в
-          следующих обновлениях.
+          Управление привязками Telegram появится в следующем обновлении.
         </p>
       </section>
       <section className="panel section-panel narrow">

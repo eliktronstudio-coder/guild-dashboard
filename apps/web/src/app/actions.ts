@@ -1,5 +1,5 @@
 "use server";
-import { headers } from "next/headers";
+import { checkOrigin, field } from "@/lib/mutations";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
@@ -12,12 +12,6 @@ import {
   type FormState,
 } from "@/lib/identity";
 
-async function checkOrigin() {
-  const origin = (await headers()).get("origin");
-  if (origin !== new URL(getConfig().origin).origin)
-    throw new Error("UNTRUSTED_ORIGIN");
-}
-const field = (form: FormData, key: string) => String(form.get(key) ?? "");
 export async function login(_: FormState, form: FormData): Promise<FormState> {
   await checkOrigin();
   const c = getConfig();
@@ -135,6 +129,7 @@ export async function manageMember(
         });
   if (error) return { error: messageFor(error) };
   revalidatePath("/members");
+  revalidatePath(`/members/${field(form, "memberId")}`);
   revalidatePath("/admin");
   return { success: "Изменение сохранено." };
 }

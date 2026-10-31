@@ -12,6 +12,8 @@ npm run dev
 
 `npm run check` проверяет TypeScript, выполняет тесты PostgreSQL/RLS в PGlite и production-сборку. PGlite проверяет настоящие SQL-функции и политики; auth.users/auth.sessions и claims в тесте — локальные fixtures, не действующая Supabase Auth.
 
-[Подключение с телефона](../../docs/SETUP.md) · [Результаты и ограничения](../../docs/STAGE1.md)
+[Подключение с телефона](../../docs/SETUP.md) · [Основа](../../docs/STAGE1.md) · [Профили и персонажи](../../docs/STAGE2.md)
 
 В Vercel Root Directory — `apps/web`, Node 24, build — `npm run build`. Проект создаётся отдельно от старого сайта. Миграция предназначена для нового Supabase-проекта. Service-role ключ веб-приложению не нужен.
+
+Нужны обе миграции из supabase/migrations в порядке имён. Если первая уже применена, выполнить только 202610310002_members.sql. Она не пересоздаёт существующее членство.

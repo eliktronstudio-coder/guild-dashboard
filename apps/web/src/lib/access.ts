@@ -22,7 +22,7 @@ export const getAccess = cache(async () => {
       .maybeSingle(),
     client
       .from("memberships")
-      .select("id,nickname,status,joined_at")
+      .select("id,nickname,status,joined_at,avatar_style")
       .eq("guild_id", GUILD_ID)
       .eq("user_id", user.id)
       .maybeSingle(),
