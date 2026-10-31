@@ -74,29 +74,32 @@ export default async function Page() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">КОМАНДНЫЙ ЦЕНТР</p>
-            <h2>Начинаем с людей</h2>
+            <h2>Гильдия в движении</h2>
           </div>
-          <span className="badge gold">Состав гильдии</span>
+          <span className="badge gold">Активности</span>
         </div>
         <p className="muted">
-          Уже доступны заявки, профили игроков, персонажи и управление доступом.
-          Дальше появятся события и казна.
+          Доступны заявки, профили, персонажи, календарь событий и проверка
+          посещаемости. Следующий модуль — казна.
         </p>
         <div className="module-grid">
-          {[
-            ["03", "Активности", "События и посещаемость"],
-            ["04", "Казна", "Имущество, продажи и выплаты"],
-          ].map(([n, title, text]) => (
-            <div className="module" key={n}>
-              <span className="eyebrow">СЛЕДУЮЩИЕ ЭТАПЫ · {n}</span>
-              <h3>{title}</h3>
-              <p>{text}</p>
-            </div>
-          ))}
+          <div className="module">
+            <span className="eyebrow">ДОСТУПНО</span>
+            <h3>Активности</h3>
+            <p>События, запись и подтверждение присутствия.</p>
+            <Link href="/events" className="text-button">
+              Открыть календарь →
+            </Link>
+          </div>
+          <div className="module">
+            <span className="eyebrow">СЛЕДУЮЩИЙ ЭТАП · 04</span>
+            <h3>Казна</h3>
+            <p>Имущество, продажи и выплаты.</p>
+          </div>
         </div>
         <p className="caption">
-          Статистика посещаемости и золота появится вместе с данными
-          соответствующих модулей.
+          <Link href="/attendance">Отчёт посещаемости →</Link> Общие графики и
+          финансовые показатели появятся в следующих модулях.
         </p>
       </section>
     </GuildShell>

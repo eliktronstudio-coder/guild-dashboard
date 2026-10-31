@@ -57,6 +57,7 @@ export async function GuildShell({
   ]);
   const links = [
     ["/dashboard", "Обзор", "◈"],
+    ["/events", "Активности", "◷"],
     ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
     ["/account", "Аккаунт", "○"],
