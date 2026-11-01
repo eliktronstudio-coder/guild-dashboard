@@ -75,7 +75,7 @@ try:
     assert result.returncode == 0, result.stderr
     started = True
     for _ in range(50):
-        if docker("exec", NAME, "pg_isready", "-U", "postgres", timeout=2).returncode == 0:
+        if docker("exec", NAME, "cat", "/proc/1/comm", timeout=2).stdout.strip() == "postgres" and docker("exec", NAME, "pg_isready", "-U", "postgres", timeout=2).returncode == 0:
             break
         time.sleep(0.2)
     else:
@@ -127,6 +127,41 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert second.returncode != 0 and "FORBIDDEN" in second.stderr
     verify(loot, 1, 0)
     print("PASS: permission revoked during lock wait prevents sale", flush=True)
+    e = event(); loot = add(e); request = str(uuid.uuid4())
+    sql(auth() + sale(loot, request))
+    sql(f"insert into public.attendance(guild_id,event_id,membership_id,mark) values('{GUILD}','{e}','{MEMBER}','present');")
+    sql(auth()+f"select public.finalize_attendance('{e}',1);")
+    allocation = str(uuid.uuid4())
+    allocate = f"select public.allocate_treasury_sale('{allocation}','{request}',array['{MEMBER}'::uuid],'Подтверждённая явка');"
+    first = held(allocate); sql(auth()+allocate); finish(first)
+    assert scalar(f"select count(*) from public.treasury_awards where allocation_id='{allocation}';") == '1'
+    second = sql(auth()+f"select public.allocate_treasury_sale('{uuid.uuid4()}','{request}',array['{MEMBER}'::uuid],'Повторное начисление');",check=False)
+    assert second.returncode and 'ALREADY_ALLOCATED' in second.stderr
+    print('PASS: concurrent allocation retry creates one award',flush=True)
+    award = scalar(f"select id from public.treasury_awards where allocation_id='{allocation}';")
+    payout = str(uuid.uuid4())
+    pay = f"select public.pay_treasury_award('{payout}','{award}',1,700000000,'Передано в игре');"
+    first = held(pay)
+    second = sql(auth()+f"select public.pay_treasury_award('{uuid.uuid4()}','{award}',1,700000000,'Вторая выплата');",check=False)
+    finish(first)
+    assert second.returncode and 'STALE_VERSION' in second.stderr
+    sql(auth()+pay)
+    assert scalar(f"select sum(amount_units) from public.treasury_payouts where award_id='{award}' and voided_at is null;")=='700000000'
+    print('PASS: competing payouts cannot pay one obligation twice',flush=True)
+    cancel = f"select public.void_treasury_payout('{payout}','Исправление ошибочной записи');"
+    first = held(cancel); sql(auth()+cancel); finish(first)
+    assert scalar(f"select count(*) from public.treasury_payouts where award_id='{award}' and voided_at is null;")=='0'
+    print('PASS: concurrent payout cancellations restore debt once',flush=True)
+    available = scalar(auth()+"select public.treasury_summary()->>'guild_units';")
+    expense = str(uuid.uuid4())
+    spend = f"select public.record_treasury_expense('{expense}',{available},'Расход гильдии');"
+    first = held(spend)
+    second = sql(auth()+f"select public.record_treasury_expense('{uuid.uuid4()}',1,'Лишний расход');",check=False)
+    finish(first)
+    assert second.returncode and 'INSUFFICIENT_FUNDS' in second.stderr
+    assert scalar(auth()+"select public.treasury_summary()->>'guild_units';")=='0'
+    print('PASS: concurrent expenses cannot overspend guild cash',flush=True)
+
 finally:
     if started:
         docker("stop", "-t", "1", NAME, timeout=15)

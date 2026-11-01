@@ -67,6 +67,11 @@ export type TreasuryTotals = {
   prime_gross_units: string;
   mini_units: string;
   guild_units: string;
+  prime_reserved_units: string;
+  mini_reserved_units: string;
+  prime_free_units: string;
+  mini_free_units: string;
+  guild_expense_units: string;
   inventory_units: string;
   general_units: string;
   xd_units: string;

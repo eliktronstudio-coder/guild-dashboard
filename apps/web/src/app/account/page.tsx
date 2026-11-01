@@ -57,6 +57,11 @@ export default async function Page({
         <p className="caption">
           Управление привязками Telegram появится в следующем обновлении.
         </p>
+        {a.membership?.status === "active" && (
+          <Link href="/treasury#my-payments" className="text-button">
+            Мои начисления и выплаты →
+          </Link>
+        )}
       </section>
       <section className="panel section-panel narrow">
         <h2>Сессии</h2>

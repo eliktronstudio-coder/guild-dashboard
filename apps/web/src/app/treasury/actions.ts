@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/access";
 import { field, checkOrigin } from "@/lib/mutations";
 import { isUuid } from "@/lib/members";
 import { parseGold, treasuryError } from "@/lib/treasury";
+import { settlementError } from "@/lib/settlements";
 import type { FormState } from "@/lib/identity";
 const integer = (form: FormData, key: string) => {
   const text = field(form, key);
@@ -155,7 +156,10 @@ export async function voidSale(
     p_id: id,
     p_reason: field(form, "reason"),
   });
-  if (error) return { error: treasuryError(error.message) };
+  if (error)
+    return {
+      error: settlementError(error.message) ?? treasuryError(error.message),
+    };
   revalidatePath("/treasury");
   return {
     success:

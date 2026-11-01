@@ -1603,3 +1603,59 @@ td details label {
     width: 100%;
   }
 }
+.personal-finance {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 20px 0;
+}
+.personal-finance > div {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-width: 0;
+}
+.personal-finance strong {
+  display: block;
+  color: var(--gold);
+  font-size: 22px;
+  overflow-wrap: anywhere;
+  margin-top: 10px;
+}
+.allocation-preview {
+  padding: 0;
+  list-style: none;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.allocation-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.allocation-preview li span {
+  min-width: 0;
+}
+.allocation-preview li strong {
+  flex-shrink: 0;
+  color: var(--gold);
+  font-weight: 500;
+}
+#settlements .character-details {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+#settlements .character-card h3 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .personal-finance {
+    grid-template-columns: 1fr;
+  }
+  .allocation-preview li {
+    flex-direction: column;
+    gap: 6px;
+  }
+}

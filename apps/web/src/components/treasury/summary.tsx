@@ -8,7 +8,11 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.prime_units)} <small>зол.</small>
         </strong>
-        <p>После отчисления гильдии</p>
+        <p>Остаток после выплат</p>
+        <p className="caption">
+          К выплате: {formatGold(t.prime_reserved_units)} · свободно:{" "}
+          {formatGold(t.prime_free_units)} зол.
+        </p>
         <span className="caption">
           Продано прайм-дропа на {formatGold(t.prime_gross_units)} зол.
         </span>
@@ -19,7 +23,7 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.mini_units)} <small>зол.</small>
         </strong>
-        <p>Вся выручка мини РБ</p>
+        <p>Выручка мини РБ сохраняется здесь</p>
       </article>
       <article className="panel treasury-total">
         <span className="eyebrow">ДОЛЯ ГИЛЬДИИ · 30%</span>
@@ -28,6 +32,9 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
           {formatGold(t.guild_units)} <small>зол.</small>
         </strong>
         <p>Отчисления только от прайма</p>
+        <span className="caption">
+          Расходы: {formatGold(t.guild_expense_units)} зол.
+        </span>
       </article>
       <article className="panel treasury-total stock">
         <span className="eyebrow">ДРОП В ДВУХ ИНВЕНТАРЯХ</span>

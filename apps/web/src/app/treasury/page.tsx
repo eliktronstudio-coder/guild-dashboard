@@ -18,6 +18,7 @@ import { ActionForm } from "@/components/action-form";
 import { TreasurySummary } from "@/components/treasury/summary";
 import { InventoryList, LootFields } from "@/components/treasury/inventory";
 import { addLoot, voidSale } from "./actions";
+import { SettlementPanel } from "@/components/settlements/panel";
 export const metadata = { title: "Казна" };
 const pageNumber = (s?: string) =>
   Math.max(1, Math.min(10000, parseInt(s ?? "1", 10) || 1));
@@ -35,7 +36,12 @@ export default async function Page({
     spage = pageNumber(queryValue(p.spage)),
     epage = pageNumber(queryValue(p.epage));
   const range = monthRange(queryValue(p.eventMonth));
-  const manage = await a.permission("treasury.manage");
+  const [manage, canAllocate, canPay, canSpend] = await Promise.all([
+    a.permission("treasury.manage"),
+    a.permission("treasury.allocate"),
+    a.permission("treasury.pay"),
+    a.permission("treasury.spend"),
+  ]);
   const href = (changes: Record<string, string | number>) => {
     const params = new URLSearchParams({
       inventory,
@@ -110,8 +116,8 @@ export default async function Page({
       </div>
       <TreasurySummary totals={totals} />
       <p className="caption treasury-explanation">
-        Первые три казны — поступления от продаж за всё время, за вычетом отмен.
-        Общая казна — оценка оставшегося имущества; она не складывается с
+        Первые три казны — остатки золота после продаж, выплат, расходов и
+        отмен. Общая казна — оценка оставшегося имущества; она не складывается с
         золотом. Фильтры ниже не меняют эти итоги.
       </p>
       {manage && (
@@ -271,6 +277,14 @@ export default async function Page({
                 <dd>{formatGold(s.guild_units)} зол.</dd>
               </dl>
               {s.note && <p className="profile-about">{s.note}</p>}
+              {canAllocate && !s.voided_at && s.source === "prime" && (
+                <Link
+                  className="text-button"
+                  href={`${href({ allocationSale: s.id })}#allocation`}
+                >
+                  Рассчитать доли по присутствовавшим →
+                </Link>
+              )}
               {s.voided_at ? (
                 <p className="notice">
                   Поступления сняты, товар возвращён. Причина: {s.void_reason}
@@ -314,10 +328,16 @@ export default async function Page({
           )}
         </nav>
       </section>
+      <SettlementPanel
+        client={a.client}
+        permissions={{ allocate: canAllocate, pay: canPay, spend: canSpend }}
+        p={p}
+      />
       <p className="caption">
         Все суммы в золоте, точность до 0,0001. При дробном отчислении доля
         гильдии округляется вниз до этой единицы, остаток сохраняется в прайме.
-        Выплаты игрокам и расходы пока не выполняются.
+        Передача золота происходит в игре; здесь ведётся учёт начислений,
+        фактических выплат и расходов.
       </p>
     </GuildShell>
   );
