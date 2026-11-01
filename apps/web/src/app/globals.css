@@ -1812,3 +1812,39 @@ td details label {
   border-radius: 8px;
   overflow-wrap: anywhere;
 }
+
+/* Telegram Mini App: retain XD typography and protect content from client safe areas. */
+.mini-app {
+  width: min(100%, 780px);
+  margin: 0 auto;
+  --mini-side: 20px;
+  padding: calc(24px + max(env(safe-area-inset-top, 0px), var(--tg-safe-area-inset-top, 0px)) + var(--tg-content-safe-area-inset-top, 0px))
+    calc(var(--mini-side) + max(env(safe-area-inset-right, 0px), var(--tg-safe-area-inset-right, 0px)) + var(--tg-content-safe-area-inset-right, 0px))
+    calc(32px + max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px)) + var(--tg-content-safe-area-inset-bottom, 0px))
+    calc(var(--mini-side) + max(env(safe-area-inset-left, 0px), var(--tg-safe-area-inset-left, 0px)) + var(--tg-content-safe-area-inset-left, 0px));
+  min-height: var(--tg-viewport-stable-height, 100dvh);
+}
+.mini-heading { display: grid; gap: 8px; margin-bottom: 24px; }
+.mini-toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
+.mini-toolbar .button { flex: 1; }
+.mini-toolbar [aria-pressed="true"] { border-color: var(--gold); color: #efce95; }
+.mini-content { display: grid; gap: 18px; }
+.mini-content .section-panel, .mini-message { margin: 0; }
+.mini-nickname, .mini-events h3 { overflow-wrap: anywhere; }
+.mini-numbers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 24px 0; }
+.mini-numbers dt { color: var(--muted); font-size: 14px; }
+.mini-numbers dd { margin: 6px 0 0; font-size: 26px; font-weight: 600; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.mini-balance { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 20px; }
+.mini-balance dd { color: var(--gold); }
+.mini-events { list-style: none; padding: 0; margin: 18px 0; }
+.mini-events li { display: grid; gap: 8px; padding: 18px 0; border-top: 1px solid var(--line); }
+.mini-empty { padding: 24px 0; color: var(--muted); }
+.mini-footer { display: grid; gap: 16px; margin-top: 28px; }
+.mini-message { display: grid; gap: 16px; }
+@media (max-width: 400px) {
+  .mini-app { --mini-side: 16px; }
+  .mini-app .section-panel { padding: 20px; }
+  .mini-numbers { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
+
+@media (max-width: 700px) { .mini-heading h1 { font-size: 36px; } }

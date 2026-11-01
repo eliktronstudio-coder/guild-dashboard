@@ -220,6 +220,33 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
     print('PASS: website session revoked during lock wait cannot create a signup',flush=True)
 
+
+    # The Mini App never needs a web session: signed Telegram identity is bound separately.
+    sql(f"insert into private.telegram_links(membership_id,telegram_id) values('{MEMBER}',123456789);")
+    sql("insert into private.telegram_mini_app_limits values(123456789,now(),19);")
+    report = "set role service_role;select public.telegram_mini_app_report(123456789,'month');"
+    first = held(report, identity=False)
+    second = sql(report);finish(first)
+    assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'rate_limited'}
+    assert scalar('select requests from private.telegram_mini_app_limits where telegram_id=123456789;') == '20'
+    print('PASS: concurrent Mini App reads cannot exceed the per-ID request window',flush=True)
+    sql('delete from private.telegram_mini_app_limits;')
+    first = held(f"select pg_advisory_xact_lock(751925,123456789);update public.profiles set blocked=true where id='{USER}';",identity=False)
+    second = sql(report);finish(first)
+    assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'forbidden'}
+    print('PASS: Mini App checks current blocking after waiting for the request lock',flush=True)
+
+
+    sql("insert into private.telegram_mini_app_limits values(222333444,now()-interval '2 days',1);")
+    first = held("select 1 from private.telegram_mini_app_limits where telegram_id=222333444 for update;",identity=False)
+    second = sql("set lock_timeout='200ms';"+report)
+    finish(first)
+    assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'forbidden'}
+    assert scalar('select count(*) from private.telegram_mini_app_limits where telegram_id=222333444;') == '1'
+    sql(report)
+    assert scalar('select count(*) from private.telegram_mini_app_limits where telegram_id=222333444;') == '0'
+    print('PASS: Mini App cleanup skips busy expired windows and removes them on a later request',flush=True)
+
 finally:
     if started:
         docker("stop", "-t", "1", NAME, timeout=15)
