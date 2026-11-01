@@ -1,4 +1,5 @@
 "use server";
+import { scheduleTelegram } from "@/lib/telegram/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
@@ -10,6 +11,7 @@ import type { FormState } from "@/lib/identity";
 const errorText = (s: string) => settlementError(s) ?? treasuryError(s);
 const confirmed = (f: FormData) => f.get("confirm") === "on";
 const refresh = () => {
+  scheduleTelegram();
   revalidatePath("/treasury");
   revalidatePath("/account");
 };

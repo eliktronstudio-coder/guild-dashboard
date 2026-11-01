@@ -22,3 +22,4 @@ jobs:
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run check
+      - run: python3 scripts/check-telegram-http.py

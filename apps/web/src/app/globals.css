@@ -1798,3 +1798,17 @@ td details label {
     margin: 8px 0 0;
   }
 }
+.telegram-steps {
+  list-style: decimal;
+  padding-left: 22px;
+}
+.telegram-steps li {
+  margin: 12px 0;
+}
+.telegram-candidate {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}

@@ -23,7 +23,7 @@ export default async function Page({
         <dl className="account-details">
           <dt>Почта</dt>
           <dd>{a.user.email ?? "Не привязана"}</dd>
-          <dt>Telegram</dt>
+          <dt>Вход через Telegram</dt>
           <dd>
             {a.user.identities?.some((i) => i.provider === "custom:telegram")
               ? "Подключён через подтверждённый аккаунт"
@@ -54,9 +54,13 @@ export default async function Page({
             Мой профиль и персонажи
           </Link>
         )}
-        <p className="caption">
-          Управление привязками Telegram появится в следующем обновлении.
-        </p>
+        {a.membership?.status === "active" && (
+          <p>
+            <Link href="/account/telegram" className="text-button">
+              Telegram-бот и уведомления →
+            </Link>
+          </p>
+        )}
         {a.membership?.status === "active" && (
           <Link href="/treasury#my-payments" className="text-button">
             Мои начисления и выплаты →
@@ -66,8 +70,9 @@ export default async function Page({
       <section className="panel section-panel narrow">
         <h2>Сессии</h2>
         <p className="muted">
-          Выход на всех устройствах немедленно закрывает доступ к данным
-          гильдии. Потребуется повторный вход.
+          Выход на всех устройствах немедленно закрывает доступ к данным гильдии
+          на сайте. Потребуется повторный вход. Привязка Telegram-бота
+          отключается отдельно в его настройках.
         </p>
         {notice === "revoke_failed" && (
           <p className="notice error" role="alert">

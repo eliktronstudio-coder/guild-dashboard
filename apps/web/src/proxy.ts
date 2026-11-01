@@ -5,6 +5,7 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   let response = NextResponse.next({ request });
   response.headers.set("Cache-Control", "private, no-store");
+  if (request.nextUrl.pathname.startsWith("/api/telegram/")) return response;
   if (!url || !key) return response;
   const client = createServerClient(url, key, {
     cookieOptions: {

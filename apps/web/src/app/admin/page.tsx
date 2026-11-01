@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
 import { GUILD_ID } from "@/lib/config";
@@ -6,6 +7,10 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "telegram.linked": "Привязан Telegram-бот",
+  "telegram.unlinked": "Отвязан Telegram-бот",
+  "telegram.unlinked_via_bot": "Бот отвязан через Telegram",
+  "telegram.preferences": "Изменены Telegram-уведомления",
   "member.profile_changed": "Обновлён профиль",
   "member.nickname_changed": "Изменён игровой ник",
   "character.created": "Добавлен персонаж",
@@ -20,6 +25,7 @@ const labels: Record<string, string> = {
 };
 export default async function Page() {
   const a = await requirePermission("applications.review");
+  const manageTelegram = await a.permission("telegram.manage");
   const { data, error, count } = await a.client
     .from("applications")
     .select("id,nickname,created_at,user_id", { count: "exact" })
@@ -48,6 +54,13 @@ export default async function Page() {
           одобрением.
         </p>
       </div>
+      {manageTelegram && (
+        <p>
+          <Link href="/admin/telegram" className="button secondary inline">
+            Telegram-бот и очередь →
+          </Link>
+        </p>
+      )}
       <div className="applications-grid">
         {data?.map((application) => (
           <article className="panel section-panel" key={application.id}>

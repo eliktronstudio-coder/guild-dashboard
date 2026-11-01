@@ -1,4 +1,5 @@
 "use server";
+import { scheduleTelegram } from "@/lib/telegram/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember, requirePermission } from "@/lib/access";
@@ -35,6 +36,7 @@ export async function tagEventTreasury(
     p_reason: field(form, "reason"),
   });
   if (error) return { error: treasuryError(error.message) };
+  scheduleTelegram();
   revalidatePath("/events", "layout");
   revalidatePath("/treasury");
   return { success: "Пометка активности сохранена." };
@@ -67,6 +69,7 @@ export async function createEvent(
     p_counts: form.get("counts") === "on",
   });
   if (error) return { error: eventError(error.message) };
+  scheduleTelegram();
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
@@ -90,6 +93,7 @@ export async function signupEvent(
       error:
         "Запись недоступна: событие уже началось, закрыто или ваши права изменились.",
     };
+  scheduleTelegram();
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
@@ -121,6 +125,7 @@ export async function changeEvent(
       error:
         "Изменение не сохранено. Возможно, событие уже изменено или ещё не началось. Обновите страницу и проверьте поля.",
     };
+  scheduleTelegram();
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
@@ -149,6 +154,7 @@ export async function editEvent(
     p_reason: field(form, "reason"),
   });
   if (error) return { error: eventError(error.message) };
+  scheduleTelegram();
   revalidatePath("/events", "layout");
   return { success: "Событие обновлено." };
 }
@@ -176,6 +182,7 @@ export async function markAttendance(
     p_reason: field(form, "reason"),
   });
   if (error) return { error: eventError(error.message) };
+  scheduleTelegram();
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
   return { success: "Отметка сохранена. Отчёт требует подтверждения." };
@@ -200,6 +207,7 @@ export async function finalizeAttendance(
     p_version: version,
   });
   if (error) return { error: eventError(error.message) };
+  scheduleTelegram();
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
   return { success: "Отчёт подтверждён." };

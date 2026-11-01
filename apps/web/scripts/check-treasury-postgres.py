@@ -80,7 +80,7 @@ try:
         time.sleep(0.2)
     else:
         raise AssertionError("Temporary PostgreSQL did not become ready")
-    sql("""create role anon; create role authenticated; create schema auth;
+    sql("""create role anon; create role authenticated; create role service_role; create schema auth;
 create table auth.users(id uuid primary key,email_confirmed_at timestamptz);
 create table auth.sessions(id uuid primary key,user_id uuid references auth.users);
 create table auth.identities(user_id uuid references auth.users,provider text);
@@ -161,6 +161,31 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert second.returncode and 'INSUFFICIENT_FUNDS' in second.stderr
     assert scalar(auth()+"select public.treasury_summary()->>'guild_units';")=='0'
     print('PASS: concurrent expenses cannot overspend guild cash',flush=True)
+
+
+    # Two independent database sessions exercise Telegram deduplication and worker leases.
+    command = "set role service_role; select public.receive_telegram_update(1001,123456,null,'help',null);"
+    first = held(command, identity=False); sql(command); finish(first)
+    assert scalar("select count(*) from private.telegram_outbox where dedupe='update:1001';") == '1'
+    print('PASS: concurrent Telegram update retries enqueue one reply', flush=True)
+    claim = "set role service_role; select public.claim_telegram_delivery();"
+    first = held(claim, identity=False)
+    second = sql(claim)
+    finish(first)
+    assert not second.stdout.strip()
+    assert scalar("select count(*) from private.telegram_outbox where status='sending';") == '1'
+    print('PASS: concurrent Telegram workers cannot claim a second in-flight delivery', flush=True)
+
+    other_member = scalar(f"select id from public.memberships where user_id='{treasurer}';")
+    first_request, second_request = str(uuid.uuid4()), str(uuid.uuid4())
+    sql(f"insert into private.telegram_requests(id,membership_id,token_hash,telegram_id) values('{first_request}','{MEMBER}',repeat('a',64),123456789),('{second_request}','{other_member}',repeat('b',64),123456789);")
+    first = held(f"select public.confirm_telegram_link('{first_request}',123456789,false);")
+    second = sql(auth(treasurer,session)+f"select public.confirm_telegram_link('{second_request}',123456789,false);",check=False)
+    finish(first)
+    assert second.returncode != 0
+    assert scalar("select count(*) from private.telegram_links where telegram_id=123456789;") == '1'
+    assert scalar(f"select membership_id from private.telegram_links where telegram_id=123456789;") == MEMBER
+    print('PASS: two website confirmations cannot bind one Telegram ID to two members', flush=True)
 
 finally:
     if started:
