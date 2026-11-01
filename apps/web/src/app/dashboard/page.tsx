@@ -80,7 +80,8 @@ export default async function Page() {
         </div>
         <p className="muted">
           Доступны заявки, профили, персонажи, календарь событий и проверка
-          посещаемости. Следующий модуль — казна.
+          посещаемости. Казна объединяет продажи прайма, мини РБ и два
+          инвентаря.
         </p>
         <div className="module-grid">
           <div className="module">
@@ -92,9 +93,12 @@ export default async function Page() {
             </Link>
           </div>
           <div className="module">
-            <span className="eyebrow">СЛЕДУЮЩИЙ ЭТАП · 04</span>
+            <span className="eyebrow">ДОСТУПНО</span>
             <h3>Казна</h3>
-            <p>Имущество, продажи и выплаты.</p>
+            <p>Дроп, продажи и распределение 70/30.</p>
+            <Link href="/treasury" className="text-button">
+              Открыть казну →
+            </Link>
           </div>
         </div>
         <p className="caption">

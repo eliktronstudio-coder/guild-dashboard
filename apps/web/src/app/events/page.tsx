@@ -14,6 +14,7 @@ import {
   queryValue,
 } from "@/lib/events";
 import { createEvent } from "./actions";
+import { sourceName } from "@/lib/treasury";
 export const metadata = { title: "Активности" };
 export default async function Page({
   searchParams,
@@ -27,9 +28,12 @@ export default async function Page({
   const status = Object.hasOwn(EVENT_STATUS, requested) ? requested : "";
   let query = a.client
     .from("events")
-    .select("id,title,kind,starts_at,status,attendance_finalized_at", {
-      count: "exact",
-    })
+    .select(
+      "id,title,kind,starts_at,status,attendance_finalized_at,treasury_source",
+      {
+        count: "exact",
+      },
+    )
     .eq("guild_id", GUILD_ID)
     .gte("starts_at", range.from)
     .lt("starts_at", range.until);
@@ -94,6 +98,11 @@ export default async function Page({
           {data.map((e) => (
             <article key={e.id} className="panel section-panel">
               <span className="badge gold">{EVENT_STATUS[e.status]}</span>
+              {e.treasury_source !== "none" && (
+                <span className="badge gold">
+                  {sourceName(e.treasury_source)}
+                </span>
+              )}
               <h2>
                 <Link href={`/events/${e.id}`}>{e.title}</Link>
               </h2>

@@ -5,7 +5,40 @@ import { requireMember, requirePermission } from "@/lib/access";
 import { checkOrigin, field } from "@/lib/mutations";
 import { isUuid } from "@/lib/members";
 import { utcInput, eventError } from "@/lib/events";
+import { treasuryError } from "@/lib/treasury";
 import type { FormState } from "@/lib/identity";
+export async function tagEventTreasury(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requireMember();
+  const [events, treasury] = await Promise.all([
+    a.permission("events.manage"),
+    a.permission("treasury.manage"),
+  ]);
+  if (!events && !treasury) return { error: "Недостаточно прав." };
+  const id = field(form, "eventId"),
+    version = Number(field(form, "version")),
+    source = field(form, "source");
+  if (
+    !isUuid(id) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !["none", "prime", "mini_rb"].includes(source)
+  )
+    return { error: "Проверьте пометку и обновите страницу." };
+  const { error } = await a.client.rpc("tag_event_treasury", {
+    p_id: id,
+    p_version: version,
+    p_source: source,
+    p_reason: field(form, "reason"),
+  });
+  if (error) return { error: treasuryError(error.message) };
+  revalidatePath("/events", "layout");
+  revalidatePath("/treasury");
+  return { success: "Пометка активности сохранена." };
+}
 export async function createEvent(
   _: FormState,
   form: FormData,

@@ -4,6 +4,7 @@ import { requireMember } from "@/lib/access";
 import { GUILD_ID } from "@/lib/config";
 import { isUuid } from "@/lib/members";
 import { EVENT_STATUS, ATTENDANCE_MARKS, nicknameOf } from "@/lib/events";
+import { TREASURY_SOURCES, sourceName } from "@/lib/treasury";
 import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { EventFields } from "@/components/events/fields";
@@ -13,6 +14,7 @@ import {
   changeEvent,
   markAttendance,
   finalizeAttendance,
+  tagEventTreasury,
 } from "../actions";
 export const metadata = { title: "Событие гильдии" };
 export default async function Page({
@@ -37,10 +39,11 @@ export default async function Page({
     1,
     Math.min(10000, parseInt((await searchParams).page ?? "1", 10) || 1),
   );
-  const [manage, attendanceManage, signups, roster, revisions] =
+  const [manage, attendanceManage, treasuryManage, signups, roster, revisions] =
     await Promise.all([
       a.permission("events.manage"),
       a.permission("attendance.manage"),
+      a.permission("treasury.manage"),
       a.client
         .from("event_signups")
         .select("membership_id,memberships(nickname)", { count: "exact" })
@@ -123,6 +126,17 @@ export default async function Page({
         </p>
         <p className="profile-about">{e.description}</p>
         <p className="caption">
+          Пометка дропа: {sourceName(e.treasury_source)}
+        </p>
+        {e.status === "completed" && e.treasury_source !== "none" && (
+          <Link
+            className="text-button"
+            href={`/treasury?inventory=${e.treasury_source}&eventMonth=${new Date(e.starts_at).toISOString().slice(0, 7)}`}
+          >
+            Казна и инвентарь →
+          </Link>
+        )}
+        <p className="caption">
           {e.counts_for_attendance
             ? "Учитывается в посещаемости"
             : "Не учитывается в посещаемости"}
@@ -139,6 +153,37 @@ export default async function Page({
           <p className="notice">Запись закрыта.</p>
         )}
       </section>
+      {(manage || treasuryManage) && e.status !== "cancelled" && (
+        <details className="panel section-panel">
+          <summary>Пометка дропа: прайм или мини РБ</summary>
+          <p className="muted">
+            Прайм направляет дроп в общий инвентарь, мини РБ — в инвентарь ХД.
+            После внесения первой партии пометка фиксируется.
+          </p>
+          <ActionForm
+            action={tagEventTreasury}
+            revision={e.version}
+            label="Сохранить пометку"
+          >
+            <input type="hidden" name="eventId" value={id} />
+            <input type="hidden" name="version" value={e.version} />
+            <label>
+              Источник дропа
+              <select name="source" defaultValue={e.treasury_source}>
+                {TREASURY_SOURCES.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Причина назначения или изменения
+              <textarea name="reason" minLength={3} maxLength={500} required />
+            </label>
+          </ActionForm>
+        </details>
+      )}
       <section className="panel section-panel">
         <h2>Записались · {signups.count ?? 0}</h2>
         {signups.data?.length ? (

@@ -51,13 +51,15 @@ export async function GuildShell({
   current: string;
 }) {
   const a = await getAccess();
-  const [canReview, canRead] = await Promise.all([
+  const [canReview, canRead, canReadTreasury] = await Promise.all([
     a.permission("applications.review"),
     a.permission("members.read"),
+    a.permission("treasury.read"),
   ]);
   const links = [
     ["/dashboard", "Обзор", "◈"],
     ["/events", "Активности", "◷"],
+    ...(canReadTreasury ? [["/treasury", "Казна", "◉"]] : []),
     ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
     ["/account", "Аккаунт", "○"],
@@ -72,10 +74,21 @@ export async function GuildShell({
             <Link
               key={href}
               href={href}
+              aria-label={label}
+              className={href === "/account" ? "nav-account" : undefined}
               aria-current={current === href ? "page" : undefined}
             >
               <span aria-hidden="true">{icon}</span>
-              {label}
+              <span className="nav-text nav-full" aria-hidden="true">
+                {label}
+              </span>
+              <span className="nav-text nav-short" aria-hidden="true">
+                {href === "/events"
+                  ? "События"
+                  : href === "/admin"
+                    ? "Админ"
+                    : label}
+              </span>
             </Link>
           ))}
         </nav>
@@ -91,7 +104,11 @@ export async function GuildShell({
           <span>
             Гильдия <strong>XD</strong>
           </span>
-          <Link href="/account" className="user-chip">
+          <Link
+            href="/account"
+            className="user-chip"
+            aria-label="Открыть аккаунт"
+          >
             <MemberAvatar
               nickname={a.membership?.nickname ?? "XD"}
               style={a.membership?.avatar_style}
