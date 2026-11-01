@@ -40,7 +40,7 @@ export function parseUpdate(input: unknown, botName: string, now = Date.now()) {
   )
     return null;
   const match =
-    /^\/(start|help|events|cabinet|stop|unlink|join|leave)(?:@([A-Za-z0-9_]+))?(?:\s+(\S+))?\s*$/.exec(
+    /^\/(start|help|events|cabinet|stop|unlink|join|leave|stats)(?:@([A-Za-z0-9_]+))?(?:\s+(\S+))?\s*$/.exec(
       m.text,
     );
   if (!match || (match[2] && match[2].toLowerCase() !== botName.toLowerCase()))
@@ -54,7 +54,15 @@ export function parseUpdate(input: unknown, botName: string, now = Date.now()) {
     command === "start" && match[3]
       ? /^(join|leave)_(.+)$/.exec(match[3])
       : null;
-  if (deepEvent) {
+  if (command === "stats") {
+    if (match[3] && !["week", "month"].includes(match[3])) return null;
+    command = `stats_${match[3] ?? "month"}`;
+  } else if (
+    command === "start" &&
+    /^stats_(week|month)$/.test(match[3] ?? "")
+  ) {
+    command = match[3];
+  } else if (deepEvent) {
     if (!eventId.test(deepEvent[2])) return null;
     command = deepEvent[1];
     event = deepEvent[2].toLowerCase();
@@ -116,6 +124,13 @@ export type DeliveryBody = {
   telegram_id?: string;
   amount_units?: string;
   pending_units?: string;
+  period_from?: string;
+  period_through?: string;
+  present?: number;
+  applicable?: number;
+  percentage?: number | null;
+  earned_units?: string;
+  paid_units?: string;
   signed_up?: boolean;
   id?: string;
   title?: string;
@@ -147,7 +162,7 @@ export function messageText(body: DeliveryBody, origin: string): string {
       text = `Ссылка истекла или уже использована. Создайте новую в кабинете: ${account}`;
       break;
     case "not_linked":
-      text = `Для доступа к событиям привяжите Telegram в кабинете участника XD: ${account}`;
+      text = `Для доступа к событиям и личной статистике привяжите Telegram в кабинете участника XD: ${account}`;
       break;
     case "stopped":
       text = `Уведомления отключены. Включить их снова можно в кабинете: ${account}`;
@@ -168,6 +183,10 @@ export function messageText(body: DeliveryBody, origin: string): string {
             )
             .join("\n\n")
         : "Предстоящих событий XD пока нет.";
+      break;
+    case "stats_week":
+    case "stats_month":
+      text = `XD · ваша статистика · ${body.code === "stats_week" ? "неделя" : "месяц"}\n${body.period_from} — ${body.period_through} · UTC\n\nПосещено: ${body.present} из ${body.applicable} учитываемых событий\nПосещаемость: ${body.percentage == null ? "Нет данных" : `${String(body.percentage).replace(".", ",")}%`}\nНачислено за период: ${formatGold(body.earned_units!)} золота\nВыплачено за период: ${formatGold(body.paid_units!)} золота\n\nОстаток к получению сейчас, за всё время: ${formatGold(body.pending_units!)} золота\n\nТолько подтверждённая посещаемость. Уважительные причины исключены. Отменённые начисления и выплаты исключены; исправления обновляют итог периода.\n/stats week — неделя; /stats month — месяц`;
       break;
     case "signup_help":
       text =
@@ -197,7 +216,7 @@ export function messageText(body: DeliveryBody, origin: string): string {
       break;
     default:
       text =
-        "XD · команды бота\n/events — ближайшие события\n/join ID — записаться\n/leave ID — отменить запись\n/cabinet — личный кабинет\n/stop — отключить уведомления\n/unlink — отвязать бота\n/help — помощь";
+        "XD · команды бота\n/events — ближайшие события\n/join ID — записаться\n/leave ID — отменить запись\n/stats — ваша статистика за месяц\n/stats week — за неделю\n/cabinet — личный кабинет\n/stop — отключить уведомления\n/unlink — отвязать бота\n/help — помощь";
   }
   return text.slice(0, 4000);
 }
@@ -209,6 +228,22 @@ export function messageMarkup(
 ) {
   if (!botName || !/^(?=.{5,32}$)[A-Za-z][A-Za-z0-9_]*bot$/i.test(botName))
     return undefined;
+  if (["stats_week", "stats_month", "help", "cabinet"].includes(body.code)) {
+    return {
+      inline_keyboard: [
+        [
+          {
+            text: "Моя неделя",
+            url: `https://t.me/${botName}?start=stats_week`,
+          },
+          {
+            text: "Мой месяц",
+            url: `https://t.me/${botName}?start=stats_month`,
+          },
+        ],
+      ],
+    };
+  }
   const events =
     body.code === "events"
       ? (body.events ?? [])

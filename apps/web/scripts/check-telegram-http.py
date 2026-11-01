@@ -55,8 +55,17 @@ try:
   assert request('/api/telegram/webhook',data=payload,headers=headers)[0]==200
   body=[b for p,b in calls if p.endswith('/receive_telegram_update')][-1]
   assert body['p_event']==event_id and body['p_command']==command and body['p_telegram']=='101'
+ for update_id,text,command in [(12,'/stats','stats_month'),(13,'/stats week','stats_week'),(14,'/start stats_month','stats_month')]:
+  payload={**private,'update_id':update_id,'message':{**private['message'],'text':text}}
+  assert request('/api/telegram/webhook',data=payload,headers=headers)[0]==200
+  body=[b for p,b in calls if p.endswith('/receive_telegram_update')][-1]
+  assert body['p_event'] is None and body['p_hash'] is None and body['p_command']==command and body['p_telegram']=='101'
+ count=len([b for p,b in calls if p.endswith('/receive_telegram_update')])
+ payload={**private,'update_id':15,'message':{**private['message'],'text':'/stats week 301'}}
+ assert request('/api/telegram/webhook',data=payload,headers=headers)[0]==200
+ assert len([b for p,b in calls if p.endswith('/receive_telegram_update')])==count
  fail=True
  assert request('/api/telegram/webhook',data={**private,'update_id':3},headers=headers)[0]==503
- print('PASS: real Next HTTP handlers: 401 guards, bounded body, group rejection, hash-only RPC, after() queue attempt, bearer dispatch and retryable database failure. Supabase HTTP was a local stub; no Telegram send occurred.')
+ print('PASS: real Next HTTP handlers: 401 guards, bounded body, group rejection, hash-only RPC, signup/statistics commands, after() queue attempt, bearer dispatch and retryable database failure. Supabase HTTP was a local stub; no Telegram send occurred.')
 finally:
  server.terminate();server.wait(timeout=10);log.close();stub.shutdown();temporary.cleanup()

@@ -37,8 +37,8 @@ export default async function Page() {
       <section className="panel section-panel narrow">
         <h2>Бот XD</h2>
         <p className="caption">
-          Бот покажет события и пришлёт ваши уведомления. Привязка не меняет
-          способ входа на сайт.
+          Бот покажет события, вашу статистику и пришлёт уведомления. Привязка
+          не меняет способ входа на сайт.
         </p>
         {!c.ready && (
           <p className="notice">
@@ -81,8 +81,9 @@ export default async function Page() {
             </ActionForm>
             <p className="caption">
               Команды: /events — события и запись; /join ID и /leave ID — запись
-              и отмена; /cabinet — кабинет; /stop — отключить уведомления;
-              /unlink — отвязать бота.
+              и отмена; /stats week — ваша неделя; /stats month — ваш месяц;
+              /cabinet — кабинет; /stop — отключить уведомления; /unlink —
+              отвязать бота.
             </p>
             {c.ready && (
               <a
