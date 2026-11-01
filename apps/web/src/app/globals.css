@@ -1659,3 +1659,142 @@ td details label {
     gap: 6px;
   }
 }
+
+/* Stage 5: real aggregates with exact, accessible chart tables. */
+.dashboard-welcome {
+  padding-bottom: 24px;
+}
+.dashboard-filters {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dashboard-filters label {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 150px;
+  min-width: 0;
+}
+.dashboard-filters input,
+.dashboard-filters select {
+  width: 100%;
+  min-width: 0;
+}
+.dashboard-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.stat .dashboard-value {
+  font-size: clamp(22px, 2.4vw, 32px);
+  overflow-wrap: anywhere;
+}
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.dashboard-columns > *,
+.dashboard-stats > * {
+  min-width: 0;
+}
+.dashboard-columns .personal-finance {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+.dashboard-columns .personal-finance > div {
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.dashboard-events {
+  list-style: none;
+  padding: 0;
+}
+.dashboard-events li {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.dashboard-events time {
+  color: var(--muted);
+  font-size: 13px;
+}
+.chart-scroll {
+  max-height: 360px;
+  overflow: auto;
+}
+.chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.chart-table th,
+.chart-table td {
+  text-align: left;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.chart-table th:first-child {
+  width: 34%;
+  font-weight: 400;
+}
+.chart-number {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+.chart-track {
+  display: block;
+  height: 5px;
+  margin-top: 10px;
+  background: #30404c;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.chart-track > span {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  border-radius: inherit;
+}
+.dashboard-ranking {
+  padding-left: 24px;
+}
+.dashboard-ranking li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.dashboard-ranking strong {
+  float: right;
+  margin-left: 12px;
+  font-weight: 500;
+  color: var(--gold);
+}
+@media (max-width: 1050px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .dashboard-columns,
+  .dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .dashboard-filters .button {
+    width: 100%;
+  }
+  .dashboard-ranking strong {
+    float: none;
+    display: block;
+    margin: 8px 0 0;
+  }
+}
