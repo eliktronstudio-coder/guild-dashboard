@@ -40,14 +40,31 @@ export function parseUpdate(input: unknown, botName: string, now = Date.now()) {
   )
     return null;
   const match =
-    /^\/(start|help|events|cabinet|stop|unlink)(?:@([A-Za-z0-9_]+))?(?:\s+(\S+))?\s*$/.exec(
+    /^\/(start|help|events|cabinet|stop|unlink|join|leave)(?:@([A-Za-z0-9_]+))?(?:\s+(\S+))?\s*$/.exec(
       m.text,
     );
   if (!match || (match[2] && match[2].toLowerCase() !== botName.toLowerCase()))
     return null;
   let command = match[1],
-    hash: string | null = null;
-  if (command === "start" && match[3]) {
+    hash: string | null = null,
+    event: string | null = null;
+  const eventId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const deepEvent =
+    command === "start" && match[3]
+      ? /^(join|leave)_(.+)$/.exec(match[3])
+      : null;
+  if (deepEvent) {
+    if (!eventId.test(deepEvent[2])) return null;
+    command = deepEvent[1];
+    event = deepEvent[2].toLowerCase();
+  } else if (command === "join" || command === "leave") {
+    if (!match[3]) command = "signup_help";
+    else {
+      if (!eventId.test(match[3])) return null;
+      event = match[3].toLowerCase();
+    }
+  } else if (command === "start" && match[3]) {
     if (!/^link_[A-Za-z0-9_-]{43}$/.test(match[3])) return null;
     command = "link";
     hash = hashLink(match[3].slice(5));
@@ -62,6 +79,7 @@ export function parseUpdate(input: unknown, botName: string, now = Date.now()) {
         : null,
     p_command: command,
     p_hash: hash,
+    p_event: event,
   };
 }
 export async function boundedJson(
@@ -97,11 +115,18 @@ export type DeliveryBody = {
   code: string;
   telegram_id?: string;
   amount_units?: string;
+  pending_units?: string;
+  signed_up?: boolean;
   id?: string;
   title?: string;
   starts_at?: string;
   status?: string;
-  events?: { id: string; title: string; starts_at: string }[];
+  events?: {
+    id: string;
+    title: string;
+    starts_at: string;
+    signed_up?: boolean;
+  }[];
 };
 const when = (v: string) =>
   new Date(v).toLocaleString("ru-RU", {
@@ -139,10 +164,27 @@ export function messageText(body: DeliveryBody, origin: string): string {
           body.events
             .map(
               (e) =>
-                `${e.title}\n${when(e.starts_at)}\n${origin}/events/${e.id}`,
+                `${e.title}\n${when(e.starts_at)} · ${e.signed_up ? "Вы записаны" : "Вы не записаны"}\n${origin}/events/${e.id}`,
             )
             .join("\n\n")
         : "Предстоящих событий XD пока нет.";
+      break;
+    case "signup_help":
+      text =
+        "Откройте /events и нажмите кнопку записи под нужным событием. Можно также отправить /join ID_события или /leave ID_события. Запись не является отметкой присутствия.";
+      break;
+    case "event_unavailable":
+      text =
+        "Запись не изменена: событие недоступно, уже началось или закрыто. Обновите список командой /events.";
+      break;
+    case "signup_status":
+      text = `${body.title}\n${when(body.starts_at!)}\nТекущая запись: ${body.signed_up ? "вы записаны" : "вы не записаны"}. ${body.status !== "scheduled" ? "Событие закрыто." : ""}\nЗапись не является отметкой присутствия.\n${origin}/events/${body.id}`;
+      break;
+    case "payout":
+      text = `В XD отмечена выплата вам ${formatGold(body.amount_units!)} золота. Остаток к выплате по этому начислению: ${formatGold(body.pending_units!)} золота.\nПередачу золота выполняют в игре; бот сообщает запись казначея.\n${origin}/treasury#settlements`;
+      break;
+    case "payout_cancelled":
+      text = `Запись о выплате ${formatGold(body.amount_units!)} золота отменена. Текущий остаток к выплате по этому начислению: ${formatGold(body.pending_units!)} золота.\nИстория исправления: ${origin}/treasury#settlements`;
       break;
     case "event":
       text = `Событие XD · ${body.status === "cancelled" ? "отменено" : body.status === "completed" ? "завершено" : "в расписании"}\n${body.title}\n${when(body.starts_at!)}\n${origin}/events/${body.id}`;
@@ -155,9 +197,46 @@ export function messageText(body: DeliveryBody, origin: string): string {
       break;
     default:
       text =
-        "XD · команды бота\n/events — ближайшие события\n/cabinet — личный кабинет\n/stop — отключить уведомления\n/unlink — отвязать бота\n/help — помощь";
+        "XD · команды бота\n/events — ближайшие события\n/join ID — записаться\n/leave ID — отменить запись\n/cabinet — личный кабинет\n/stop — отключить уведомления\n/unlink — отвязать бота\n/help — помощь";
   }
   return text.slice(0, 4000);
+}
+/** Deep links use Telegram's existing /start flow; the database rechecks every action. */
+export function messageMarkup(
+  body: DeliveryBody,
+  botName?: string,
+  now = Date.now(),
+) {
+  if (!botName || !/^(?=.{5,32}$)[A-Za-z][A-Za-z0-9_]*bot$/i.test(botName))
+    return undefined;
+  const events =
+    body.code === "events"
+      ? (body.events ?? [])
+      : ["event", "signup_status"].includes(body.code) &&
+          body.status === "scheduled" &&
+          body.id &&
+          body.starts_at
+        ? [
+            {
+              id: body.id,
+              title: body.title ?? "Событие",
+              starts_at: body.starts_at,
+              signed_up: body.signed_up,
+            },
+          ]
+        : [];
+  const rows = events
+    .filter(
+      (e) =>
+        new Date(e.starts_at).getTime() > now && /^[0-9a-f-]{36}$/i.test(e.id),
+    )
+    .map((e) => [
+      {
+        text: `${e.signed_up ? "Отменить запись" : "Записаться"} · ${e.title.slice(0, 32)}`,
+        url: `https://t.me/${botName}?start=${e.signed_up ? "leave" : "join"}_${e.id}`,
+      },
+    ]);
+  return rows.length ? { inline_keyboard: rows } : undefined;
 }
 export type SendResult = {
   result: "sent" | "retry" | "blocked" | "failed";
@@ -169,6 +248,7 @@ export async function sendMessage(
   body: DeliveryBody,
   origin: string,
   fetcher: typeof fetch = fetch,
+  botName?: string,
 ): Promise<SendResult> {
   try {
     const response = await fetcher(
@@ -179,6 +259,7 @@ export async function sendMessage(
         body: JSON.stringify({
           chat_id: chat,
           text: messageText(body, origin),
+          reply_markup: messageMarkup(body, botName),
           link_preview_options: { is_disabled: true },
         }),
         signal: AbortSignal.timeout(5000),

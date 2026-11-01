@@ -187,6 +187,39 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert scalar(f"select membership_id from private.telegram_links where telegram_id=123456789;") == MEMBER
     print('PASS: two website confirmations cannot bind one Telegram ID to two members', flush=True)
 
+    def future_event():
+        event_id = str(uuid.uuid4())
+        sql(f"insert into public.events(id,guild_id,title,kind,starts_at,organizer_id) values('{event_id}','{GUILD}','Будущий рейд','raid',now()+interval '1 day','{MEMBER}');")
+        return event_id
+    e = future_event()
+    first = held(f"select public.set_event_signup('{e}',true);")
+    sql(f"set role service_role;select public.receive_telegram_update(2001,123456789,null,'join',null,'{e}');")
+    finish(first)
+    assert scalar(f"select count(*) from public.event_signups where event_id='{e}' and membership_id='{MEMBER}';") == '1'
+    assert scalar(f"select count(*) from public.audit_log where action='event.signup_changed' and target_id='{e}';") == '1'
+    print('PASS: website and bot concurrently create one signup and one audit record',flush=True)
+    e = future_event()
+    first = held(f"select public.change_event('{e}',1,'Будущий рейд','','cancelled','Отмена рейда');")
+    sql(f"set role service_role;select public.receive_telegram_update(2002,123456789,null,'join',null,'{e}');")
+    finish(first)
+    assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
+    assert scalar("select payload->>'code' from private.telegram_outbox where dedupe='update:2002';") == 'event_unavailable'
+    print('PASS: event cancellation while bot waits for lock prevents signup',flush=True)
+    e = future_event()
+    first = held(f"select 1 from public.events where id='{e}' for update;delete from private.telegram_links where membership_id='{MEMBER}';",identity=False)
+    sql(f"set role service_role;select public.receive_telegram_update(2003,123456789,null,'join',null,'{e}');")
+    finish(first)
+    assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
+    print('PASS: unlinking while bot waits prevents use of the old binding',flush=True)
+
+    e = future_event()
+    first = held(f"select 1 from public.events where id='{e}' for update;insert into public.revoked_sessions(session_id,user_id) values('{SESSION}','{USER}');",identity=False)
+    second = sql(auth()+f"select public.set_event_signup('{e}',true);",check=False)
+    finish(first)
+    assert second.returncode != 0 and 'FORBIDDEN' in second.stderr
+    assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
+    print('PASS: website session revoked during lock wait cannot create a signup',flush=True)
+
 finally:
     if started:
         docker("stop", "-t", "1", NAME, timeout=15)

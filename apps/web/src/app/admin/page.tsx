@@ -7,6 +7,7 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "event.signup_changed": "Изменена запись на событие",
   "telegram.linked": "Привязан Telegram-бот",
   "telegram.unlinked": "Отвязан Telegram-бот",
   "telegram.unlinked_via_bot": "Бот отвязан через Telegram",

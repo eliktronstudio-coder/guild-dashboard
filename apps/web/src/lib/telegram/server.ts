@@ -76,6 +76,8 @@ export async function dispatchTelegram() {
       item.chat_id,
       item.body,
       c.origin,
+      fetch,
+      c.username,
     );
     attempted++;
     const done = await client.rpc("finish_telegram_delivery", {

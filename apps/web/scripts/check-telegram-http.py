@@ -49,6 +49,12 @@ try:
  assert 'a'*43 not in json.dumps(receive)
  assert request('/api/telegram/dispatch','GET')[0]==401
  status,body=request('/api/telegram/dispatch','GET',headers={'authorization':'Bearer '+cron});assert status==200 and json.loads(body)['attempted']==0
+ event_id='50000000-0000-4000-8000-000000000001'
+ for update_id,text,command in [(10,'/join '+event_id,'join'),(11,'/start leave_'+event_id,'leave')]:
+  payload={**private,'update_id':update_id,'message':{**private['message'],'text':text}}
+  assert request('/api/telegram/webhook',data=payload,headers=headers)[0]==200
+  body=[b for p,b in calls if p.endswith('/receive_telegram_update')][-1]
+  assert body['p_event']==event_id and body['p_command']==command and body['p_telegram']=='101'
  fail=True
  assert request('/api/telegram/webhook',data={**private,'update_id':3},headers=headers)[0]==503
  print('PASS: real Next HTTP handlers: 401 guards, bounded body, group rejection, hash-only RPC, after() queue attempt, bearer dispatch and retryable database failure. Supabase HTTP was a local stub; no Telegram send occurred.')

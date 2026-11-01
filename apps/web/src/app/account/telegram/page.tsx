@@ -31,7 +31,7 @@ export default async function Page() {
         <p className="eyebrow">ЛИЧНЫЙ КАБИНЕТ</p>
         <h1>Telegram</h1>
         <p className="muted">
-          Ближайшие события и ваши начисления — в личных сообщениях.
+          События, начисления и выплаты — в личных сообщениях.
         </p>
       </div>
       <section className="panel section-panel narrow">
@@ -74,14 +74,15 @@ export default async function Page() {
                   defaultChecked={status.link.notifications}
                 />
                 <span>
-                  Получать новые события, изменения расписания, начисления и их
-                  отмены
+                  Получать новые события, изменения расписания, начисления,
+                  выплаты и их отмены
                 </span>
               </label>
             </ActionForm>
             <p className="caption">
-              Команды: /events — события; /cabinet — кабинет; /stop — отключить
-              уведомления; /unlink — отвязать бота.
+              Команды: /events — события и запись; /join ID и /leave ID — запись
+              и отмена; /cabinet — кабинет; /stop — отключить уведомления;
+              /unlink — отвязать бота.
             </p>
             {c.ready && (
               <a
@@ -137,7 +138,9 @@ export default async function Page() {
                   </label>
                   <label className="check">
                     <input type="checkbox" name="notifications" />
-                    <span>Получать уведомления о событиях и начислениях</span>
+                    <span>
+                      Получать уведомления о событиях, начислениях и выплатах
+                    </span>
                   </label>
                 </ActionForm>
               </div>
