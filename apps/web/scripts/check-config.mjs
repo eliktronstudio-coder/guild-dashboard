@@ -1,5 +1,6 @@
 /** Offline configuration preflight. Never prints values or contacts external services. */
-import { loadEnvConfig } from '@next/env';
+import nextEnv from '@next/env';
+const { loadEnvConfig } = nextEnv;
 loadEnvConfig(process.cwd(), false, { info() {}, error() {} });
 const e = process.env;
 const errors = [];
