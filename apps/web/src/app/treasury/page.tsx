@@ -107,6 +107,9 @@ export default async function Page({
   const totals = summary.data as TreasuryTotals;
   return (
     <GuildShell current="/treasury">
+      <Link href="/exports" className="text-button">
+        Экспорт CSV →
+      </Link>
       <div className="page-heading">
         <p className="eyebrow">XD · ЗОЛОТО И ДРОП</p>
         <h1>Казна</h1>

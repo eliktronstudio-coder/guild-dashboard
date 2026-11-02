@@ -331,6 +331,53 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
       },
     );
     await t.test(
+      "financial exports isolate recipients, preserve exact money and enforce period",
+      async () => {
+        await as(2);
+        const own = await scalar<{ id: string; amount_units: string }[]>(
+          "select public.finance_export('awards',$1,$2)",
+          [from, until],
+        );
+        assert.equal(own.length, 1);
+        assert.equal(own[0].id, current.w);
+        assert.equal(own[0].amount_units, "700000003");
+        const paid = await scalar<{ amount_units: string }[]>(
+          "select public.finance_export('payouts',$1,$2)",
+          [from, until],
+        );
+        assert.equal(paid.length, 2);
+        assert.equal(
+          paid.reduce((n, r) => n + BigInt(r.amount_units), 0n),
+          400000004n,
+        );
+        await assert.rejects(
+          db.query("select public.finance_export('awards',$1,$2)", [
+            until,
+            from,
+          ]),
+          /INVALID_PERIOD/,
+        );
+        await as(1);
+        assert.equal(
+          (
+            await scalar<unknown[]>(
+              "select public.finance_export('awards',$1,$2)",
+              [from, until],
+            )
+          ).length,
+          2,
+        );
+        await db.exec("reset role;set role anon");
+        await assert.rejects(
+          db.query("select public.finance_export('awards',$1,$2)", [
+            from,
+            until,
+          ]),
+          /permission denied/,
+        );
+      },
+    );
+    await t.test(
       "queued replies recompute after attendance and finance corrections",
       async () => {
         await clear();
@@ -355,6 +402,22 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
         assert.equal(job.body.earned_units, "0");
         assert.equal(job.body.paid_units, "300000003");
         assert.equal(job.body.pending_units, "199999995");
+      },
+    );
+    await t.test(
+      "financial export retains cancelled records and current corrected balances",
+      async () => {
+        await as(2);
+        const rows = await scalar<
+          { allocation_voided_at: string; pending_units: string }[]
+        >("select public.finance_export('awards',$1,$2)", [from, until]);
+        assert.ok(rows[0].allocation_voided_at);
+        assert.equal(rows[0].pending_units, "0");
+        const paid = await scalar<{ id: string; voided_at: string }[]>(
+          "select public.finance_export('payouts',$1,$2)",
+          [from, until],
+        );
+        assert.ok(paid.find((r) => r.id === payout)?.voided_at);
       },
     );
     await t.test(
