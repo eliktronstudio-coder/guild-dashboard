@@ -44,6 +44,9 @@ export default async function Page({
         ← Активности
       </Link>
       <div className="page-heading">
+        <Link href="/exports" className="text-button">
+          Экспорт CSV →
+        </Link>
         <h1>{manage ? "Посещаемость гильдии" : "Моя посещаемость"}</h1>
         <p className="muted">
           Только подтверждённые отчёты завершённых учитываемых событий. Период —

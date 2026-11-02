@@ -45,6 +45,9 @@ export default async function Page({
   if (filters.page > lastPage) redirect(directoryHref(filters, lastPage));
   return (
     <GuildShell current="/members">
+      <Link href="/exports" className="text-button">
+        Экспорт CSV →
+      </Link>
       <div className="page-heading">
         <p className="eyebrow">XD · ЛЮДИ ГИЛЬДИИ</p>
         <h1>Состав гильдии</h1>
