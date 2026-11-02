@@ -1,4 +1,5 @@
 "use server";
+import { poolError } from "@/lib/pools";
 import { scheduleTelegram } from "@/lib/telegram/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -24,8 +25,10 @@ export async function allocateSale(
   const request = field(form, "requestId"),
     sale = field(form, "saleId");
   let ids: unknown;
+  let expected: unknown;
   try {
     ids = JSON.parse(field(form, "expectedMembers"));
+    expected = JSON.parse(field(form, "expectedCalculation"));
   } catch {
     return { error: "Обновите предварительный расчёт." };
   }
@@ -39,13 +42,20 @@ export async function allocateSale(
     !ids.every((id) => typeof id === "string" && isUuid(id))
   )
     return { error: "Проверьте расчёт и подтвердите начисление." };
-  const { error } = await client.rpc("allocate_treasury_sale", {
+  const { error } = await client.rpc("allocate_weighted_sale", {
     p_request_id: request,
     p_sale_id: sale,
     p_expected_members: ids,
+    p_expected: expected,
     p_reason: field(form, "reason"),
   });
-  if (error) return { error: errorText(error.message) };
+  if (error)
+    return {
+      error:
+        error.message === "CALCULATION_CHANGED"
+          ? poolError(error.message)
+          : errorText(error.message),
+    };
   refresh();
   redirect("/treasury#settlements");
 }

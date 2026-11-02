@@ -1,3 +1,4 @@
+import { setMemberWeight } from "@/app/admin/catalog/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
@@ -112,7 +113,14 @@ export default async function Page({
             </Link>
           </div>
         </form>
-        <MemberDirectory members={(data ?? []) as DirectoryMember[]} />
+        <MemberDirectory
+          weightAction={
+            (await a.permission("members.coefficient"))
+              ? setMemberWeight
+              : undefined
+          }
+          members={(data ?? []) as DirectoryMember[]}
+        />
         {!data?.length && (
           <div className="empty-state">
             <h2>Игроки не найдены</h2>

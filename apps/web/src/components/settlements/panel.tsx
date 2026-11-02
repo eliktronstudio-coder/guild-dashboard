@@ -1,3 +1,4 @@
+import { poolError } from "@/lib/pools";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -47,6 +48,10 @@ function CancelRecord({
   return (
     <details>
       <summary>Исправить: отменить запись</summary>
+      <p className="caption">
+        Если начисление входит в общий фонд РБ, отменяется весь расчёт фонда.
+        Сначала нужно отменить связанные выплаты.
+      </p>
       <ActionForm action={action} label="Отменить запись">
         <input type="hidden" name="recordId" value={id} />
         <label>
@@ -161,7 +166,7 @@ export async function SettlementPanel({
             <p className="notice error" role="alert">
               {preview.error
                 ? (settlementError(preview.error.message) ??
-                  treasuryError(preview.error.message))
+                  poolError(preview.error.message))
                 : "Выберите продажу из истории."}
             </p>
           ) : (
@@ -171,9 +176,10 @@ export async function SettlementPanel({
                 <strong>{formatGold(calculation.amount_units)} зол.</strong>
               </p>
               <p className="caption">
-                Поровну между присутствовавшими в подтверждённом отчёте.
-                Минимальный остаток распределяется по стабильному ID; сумма
-                долей совпадает с суммой продажи для игроков.
+                Пропорционально коэффициентам присутствовавших в подтверждённом
+                отчёте. Минимальный остаток распределяется по дробной части и
+                стабильному ID; сумма долей совпадает с суммой продажи для
+                игроков.
               </p>
               <ul className="allocation-preview">
                 {calculation.recipients.map((r) => (
@@ -188,6 +194,11 @@ export async function SettlementPanel({
                 action={allocateSale}
                 label="Подтвердить начисление"
               >
+                <input
+                  type="hidden"
+                  name="expectedCalculation"
+                  value={JSON.stringify(calculation)}
+                />
                 <input type="hidden" name="requestId" value={randomUUID()} />
                 <input
                   type="hidden"

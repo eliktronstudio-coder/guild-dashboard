@@ -1,3 +1,4 @@
+import { setEventBoss } from "@/app/admin/catalog/actions";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireMember } from "@/lib/access";
@@ -69,6 +70,17 @@ export default async function Page({
     ]);
   if (signups.error || roster.error || revisions.error)
     redirect("/setup?problem=database");
+  const bosses = manage
+    ? await a.client
+        .from("guild_catalog")
+        .select("id,name,weight")
+        .eq("guild_id", GUILD_ID)
+        .eq("kind", "boss")
+        .eq("archived", false)
+        .order("name")
+        .limit(500)
+    : { data: [], error: null };
+  if (bosses.error) throw new Error("BOSS_READ_FAILED");
   const changes = revisions.data ?? [];
   const [affectedMembers, editors] = changes.length
     ? await Promise.all([
@@ -111,6 +123,35 @@ export default async function Page({
   if (page > maxPage) redirect(`/events/${id}?page=${maxPage}`);
   return (
     <GuildShell current="/events">
+      {manage && (
+        <section className="panel section-panel">
+          <h2>Рейд-босс</h2>
+          <p>
+            Сохранённый вес: {e.boss_name ?? "Не выбран"}
+            {e.boss_weight ? ` · ${e.boss_weight / 100}` : ""}
+          </p>
+          <ActionForm
+            action={setEventBoss}
+            revision={e.version}
+            label="Сохранить РБ"
+          >
+            <input type="hidden" name="id" value={e.id} />
+            <input type="hidden" name="version" value={e.version} />
+            <label>
+              Босс из справочника
+              <select name="boss" defaultValue={e.boss_id ?? ""}>
+                <option value="">Не выбран</option>
+                {bosses.data?.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} · {b.weight / 100}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </ActionForm>
+        </section>
+      )}
+
       <Link
         href={`/events?month=${e.starts_at.slice(0, 7)}`}
         className="text-button"

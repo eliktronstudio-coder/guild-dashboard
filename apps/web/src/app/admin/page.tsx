@@ -1,3 +1,4 @@
+import { AdminTabs } from "@/components/admin-tabs";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
@@ -47,6 +48,7 @@ export default async function Page() {
   if (audit?.error) redirect("/setup?problem=database");
   return (
     <GuildShell current="/admin">
+      {(await a.permission("catalog.manage")) && <AdminTabs current="/admin" />}
       <div className="page-heading">
         <p className="eyebrow">XD · УПРАВЛЕНИЕ</p>
         <h1>Заявки на вступление</h1>

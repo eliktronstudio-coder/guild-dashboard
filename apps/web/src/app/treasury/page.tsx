@@ -107,6 +107,11 @@ export default async function Page({
   const totals = summary.data as TreasuryTotals;
   return (
     <GuildShell current="/treasury">
+      {canAllocate && (
+        <Link href="/treasury/pool" className="button secondary inline">
+          Распределить фонд по РБ →
+        </Link>
+      )}
       <Link href="/exports" className="text-button">
         Экспорт CSV →
       </Link>

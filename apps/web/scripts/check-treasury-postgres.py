@@ -133,10 +133,11 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     sql(f"insert into public.attendance(guild_id,event_id,membership_id,mark) values('{GUILD}','{e}','{MEMBER}','present');")
     sql(auth()+f"select public.finalize_attendance('{e}',1);")
     allocation = str(uuid.uuid4())
-    allocate = f"select public.allocate_treasury_sale('{allocation}','{request}',array['{MEMBER}'::uuid],'Подтверждённая явка');"
+    expected = scalar(auth()+f"select public.treasury_allocation_preview('{request}')::text;")
+    allocate = f"select public.allocate_weighted_sale('{allocation}','{request}',array['{MEMBER}'::uuid],'Подтверждённая явка','{expected}'::jsonb);"
     first = held(allocate); sql(auth()+allocate); finish(first)
     assert scalar(f"select count(*) from public.treasury_awards where allocation_id='{allocation}';") == '1'
-    second = sql(auth()+f"select public.allocate_treasury_sale('{uuid.uuid4()}','{request}',array['{MEMBER}'::uuid],'Повторное начисление');",check=False)
+    second = sql(auth()+f"select public.allocate_weighted_sale('{uuid.uuid4()}','{request}',array['{MEMBER}'::uuid],'Повторное начисление','{expected}'::jsonb);",check=False)
     assert second.returncode and 'ALREADY_ALLOCATED' in second.stderr
     print('PASS: concurrent allocation retry creates one award',flush=True)
     award = scalar(f"select id from public.treasury_awards where allocation_id='{allocation}';")
@@ -263,6 +264,31 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'expired'}
     assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
     print('PASS: Mini App launch expiring during lock wait cannot create signup',flush=True)
+
+    # Weighted pools: simultaneous confirmation and a coefficient changed during lock wait.
+    sql(f"insert into auth.sessions(id,user_id) values('{SESSION}','{USER}') on conflict do nothing; delete from public.revoked_sessions where session_id='{SESSION}';")
+    boss = str(uuid.uuid4())
+    sql(auth()+f"select public.save_catalog('{boss}','boss',0,'Проверочный РБ','',0,200,false);")
+    e = event()
+    sql(auth()+f"select public.set_event_boss('{e}',1,'{boss}');")
+    loot = add(e); request = str(uuid.uuid4())
+    sql(auth()+sale(loot,request))
+    sql(f"insert into public.attendance(guild_id,event_id,membership_id,mark) values('{GUILD}','{e}','{MEMBER}','present');")
+    sql(auth()+f"select public.finalize_attendance('{e}',2);")
+    expected = scalar(auth()+f"select public.treasury_pool_preview(array['{e}'::uuid])::text;")
+    pool = str(uuid.uuid4())
+    command = f"select public.allocate_treasury_pool('{pool}',array['{e}'::uuid],'{expected}'::jsonb,'Проверочный фонд');"
+    first = held(f"select public.set_member_weight('{MEMBER}',1,125);")
+    second = sql(auth()+command,check=False);finish(first)
+    assert second.returncode and 'CALCULATION_CHANGED' in second.stderr
+    assert scalar('select count(*) from public.treasury_pools;') == '0'
+    print('PASS: coefficient change while pool waits rejects stale preview without awards',flush=True)
+    expected = scalar(auth()+f"select public.treasury_pool_preview(array['{e}'::uuid])::text;")
+    command = f"select public.allocate_treasury_pool('{pool}',array['{e}'::uuid],'{expected}'::jsonb,'Проверочный фонд');"
+    first=held(command);sql(auth()+command);finish(first)
+    assert scalar(f"select count(*) from public.treasury_pools where id='{pool}';") == '1'
+    assert scalar(f"select sum(w.amount_units) from public.treasury_awards w join public.treasury_allocations a on a.id=w.allocation_id where a.pool_id='{pool}';") == '700000000'
+    print('PASS: concurrent pool confirmation is idempotent and conserves the full fund',flush=True)
 
     if '--restore' in sys.argv:
         from restore_drill import verify_restore

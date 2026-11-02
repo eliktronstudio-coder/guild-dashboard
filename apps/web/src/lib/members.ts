@@ -23,6 +23,8 @@ export type Character = {
   version: number;
 };
 export type DirectoryMember = {
+  payout_weight?: number;
+  weight_version?: number;
   id: string;
   nickname: string;
   joined_at: string;
