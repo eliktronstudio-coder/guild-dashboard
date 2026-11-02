@@ -11,7 +11,8 @@
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run typecheck && npm test && npm run build",
+    "check:config": "node scripts/check-config.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
