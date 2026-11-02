@@ -248,6 +248,22 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     assert scalar('select count(*) from private.telegram_mini_app_limits where telegram_id=222333444;') == '0'
     print('PASS: Mini App cleanup skips busy expired windows and removes them on a later request',flush=True)
 
+
+    sql(f"update public.profiles set blocked=false where id='{USER}';delete from private.telegram_mini_app_limits;")
+    e = future_event()
+    first = held(f"update public.events set status='cancelled' where id='{e}';",identity=False)
+    second = sql(f"set role service_role;select public.telegram_mini_app_signup(123456789,'{e}',true,'{uuid.uuid4()}',extract(epoch from now())::bigint);")
+    finish(first)
+    assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'event_unavailable'}
+    print('PASS: Mini App signup respects cancellation while waiting for event lock',flush=True)
+    e = future_event()
+    first = held(f"select 1 from public.events where id='{e}' for update;",identity=False)
+    second = sql(f"set role service_role;select public.telegram_mini_app_signup(123456789,'{e}',true,'{uuid.uuid4()}',floor(extract(epoch from now()))::bigint-299);")
+    finish(first)
+    assert json.loads(second.stdout.strip().splitlines()[-1]) == {'error':'expired'}
+    assert scalar(f"select count(*) from public.event_signups where event_id='{e}';") == '0'
+    print('PASS: Mini App launch expiring during lock wait cannot create signup',flush=True)
+
     if '--restore' in sys.argv:
         from restore_drill import verify_restore
         verify_restore(docker, NAME)

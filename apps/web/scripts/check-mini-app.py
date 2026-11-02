@@ -31,7 +31,7 @@ class Stub(BaseHTTPRequestHandler):
  def do_POST(self):
   body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}');calls.append((self.path,body))
   self.send_response(503 if mode=='error' else 200);self.send_header('Content-Type','application/json');self.end_headers()
-  self.wfile.write(json.dumps({'message':'fixture unavailable'} if mode=='error' else fixture(body)).encode())
+  self.wfile.write(json.dumps({'message':'fixture unavailable'} if mode=='error' else ({'ok':True} if self.path.endswith('/telegram_mini_app_signup') else fixture(body))).encode())
 @contextmanager
 def running(enabled=True):
  stub=ThreadingHTTPServer(('127.0.0.1',0),Stub);Thread(target=stub.serve_forever,daemon=True).start()
@@ -77,6 +77,11 @@ def http_checks():
   for period in ['week','month']:
    assert request(data={'initData':credentials(301),'period':period},headers=headers)[0]==200
    assert calls[-1][1]=={'p_telegram':'301','p_period':period}
+  signup={**payload,'event':'50000000-0000-4000-8000-000000000001','join':True,'request':'60000000-0000-4000-8000-000000000001'}
+  assert request(data=signup,headers=headers)[0]==200
+  assert calls[-1][0].endswith('/telegram_mini_app_signup')
+  assert calls[-1][1]['p_telegram']=='201' and calls[-1][1]['p_join'] is True and isinstance(calls[-1][1]['p_auth_date'],int)
+  assert request(data={**signup,'join':'true'},headers=headers)[0]==400
   for state,code in [('blocked',403),('rate',429),('error',503)]:
    mode=state;status,response_headers,body=request(data=payload,headers=headers);assert status==code
    if state=='rate':assert response_headers['retry-after']=='60'
@@ -136,6 +141,10 @@ def browser_checks():
      page.evaluate("document.querySelector('.mini-heading').insertAdjacentHTML('afterbegin','<p style=\"color:#efce95;font-size:12px\">ЛОКАЛЬНЫЙ ТЕСТ · ДЕМОНСТРАЦИОННЫЕ ДАННЫЕ</p>')")
      page.screenshot(path=str(shots/f'mini-{state}-{width}.png'),full_page=True)
     if width==390 and state=='ready':
+     page.get_by_role('button',name='Отменить запись',exact=True).click()
+     page.get_by_role('heading',name='Моё золото').wait_for()
+     assert any(path.endswith('/telegram_mini_app_signup') and body.get('p_join') is False for path,body in calls)
+
      page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'))")
      page.get_by_role('heading',name='Моё золото').wait_for(state='hidden')
      mode='blocked'

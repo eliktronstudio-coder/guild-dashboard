@@ -135,6 +135,12 @@ test("Mini App database: service boundary, binding, own data and bounded reads",
         "utf8",
       ),
     );
+    for (const f of (await readdir("supabase/migrations"))
+      .sort()
+      .filter(
+        (f) => f.endsWith(".sql") && f > "202611020012_telegram_mini_app.sql",
+      ))
+      await db.exec(await readFile("supabase/migrations/" + f, "utf8"));
     await as(2);
     assert.deepEqual(await scalar("select public.telegram_status()"), before);
     async function report(tg = 201, period = "month") {
@@ -217,6 +223,29 @@ test("Mini App database: service boundary, binding, own data and bounded reads",
           "select private.telegram_personal_stats((select id from private.telegram_links where telegram_id=201),date_trunc('month',now()),date_trunc('day',now())+interval '1 day')",
         );
         assert.deepEqual(result.stats, stats);
+        const request = randomUUID();
+        async function signup(join: boolean, req = request, age = 0) {
+          await db.exec("reset role;set role service_role");
+          return scalar<{ ok?: boolean; error?: string }>(
+            "select public.telegram_mini_app_signup(201,$1,$2,$3,extract(epoch from now())::bigint-$4)",
+            [e, join, req, age],
+          );
+        }
+        assert.equal((await signup(false)).ok, true);
+        await as(2);
+        await db.query("select public.set_event_signup($1,true)", [e]);
+        assert.equal((await signup(false)).ok, true);
+        await db.exec("reset role");
+        assert.equal(
+          await scalar(
+            "select count(*)::int from public.event_signups where event_id=$1",
+            [e],
+          ),
+          1,
+        );
+        assert.equal((await signup(true)).error, "invalid_request");
+        assert.equal((await signup(false, randomUUID(), 301)).error, "expired");
+        await db.exec("reset role");
         const sessions = await scalar(
           "select count(*)::int from auth.sessions",
         );
@@ -242,6 +271,10 @@ test("Mini App database: service boundary, binding, own data and bounded reads",
           [e],
         );
         assert.equal((await report()).events.length, 0);
+        assert.equal(
+          (await signup(true, randomUUID())).error,
+          "event_unavailable",
+        );
       },
     );
     await t.test(

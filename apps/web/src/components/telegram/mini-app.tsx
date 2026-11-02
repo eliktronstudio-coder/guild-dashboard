@@ -36,6 +36,13 @@ export function MiniApp({
   const [data, setData] = useState<MiniAppData | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
   const [visible, setVisible] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [signupMessage, setSignupMessage] = useState("");
+  const retry = useRef<{
+    event: string;
+    join: boolean;
+    request: string;
+  } | null>(null);
   const [revision, setRevision] = useState(0);
   const initData = useRef("");
   const scriptSettled = useRef(false);
@@ -125,6 +132,51 @@ export function MiniApp({
     );
     return () => clearTimeout(timer);
   }, [data]);
+  async function signup(event: string, join: boolean) {
+    if (saving) return;
+    setSaving(true);
+    setSignupMessage("");
+    const action =
+      retry.current?.event === event && retry.current.join === join
+        ? retry.current
+        : { event, join, request: crypto.randomUUID() };
+    retry.current = action;
+    try {
+      const response = await fetch("/api/telegram/mini-app", {
+        method: "POST",
+        credentials: "omit",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ initData: initData.current, period, ...action }),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (response.ok) {
+        retry.current = null;
+        setSignupMessage("Действие обработано. Обновляем текущую запись.");
+      } else if (response.status === 401) {
+        setData(null);
+        setStage("expired");
+        return;
+      } else if (response.status === 403) {
+        setData(null);
+        setStage("forbidden");
+        return;
+      } else {
+        setSignupMessage(
+          response.status === 429
+            ? "Слишком много запросов. Подождите минуту."
+            : "Не удалось изменить запись. Событие могло начаться или закрыться.",
+        );
+      }
+    } catch {
+      setSignupMessage(
+        "Ответ не получен. Обновите данные; повтор того же действия безопасен.",
+      );
+    } finally {
+      setSaving(false);
+      setRevision((value) => value + 1);
+    }
+  }
   const date = (value: string) =>
     new Date(value).toLocaleString("ru-RU", {
       timeZone: "UTC",
@@ -198,6 +250,11 @@ export function MiniApp({
       </div>
       {data && (
         <div className="mini-content">
+          {signupMessage && (
+            <p className="notice" role="status">
+              {signupMessage}
+            </p>
+          )}
           <section className="panel section-panel">
             <p className="eyebrow">ЛИЧНАЯ СТАТИСТИКА</p>
             <h2 className="mini-nickname">{data.nickname}</h2>
@@ -261,6 +318,17 @@ export function MiniApp({
                 {data.events.map((event) => (
                   <li key={event.id}>
                     <h3>{event.title}</h3>
+                    <button
+                      className="button secondary"
+                      disabled={saving}
+                      onClick={() => signup(event.id, !event.signed_up)}
+                    >
+                      {saving
+                        ? "Сохраняем…"
+                        : event.signed_up
+                          ? "Отменить запись"
+                          : "Записаться"}
+                    </button>
                     <p className="caption">{date(event.starts_at)} · UTC</p>
                     <p>{event.signed_up ? "Вы записаны" : "Вы не записаны"}</p>
                     <a
