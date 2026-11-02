@@ -7,6 +7,7 @@ import json
 import os
 import time
 import uuid
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV = os.environ.copy()
@@ -246,6 +247,10 @@ grant execute on function auth.jwt(),auth.uid() to authenticated,anon;""")
     sql(report)
     assert scalar('select count(*) from private.telegram_mini_app_limits where telegram_id=222333444;') == '0'
     print('PASS: Mini App cleanup skips busy expired windows and removes them on a later request',flush=True)
+
+    if '--restore' in sys.argv:
+        from restore_drill import verify_restore
+        verify_restore(docker, NAME)
 
 finally:
     if started:

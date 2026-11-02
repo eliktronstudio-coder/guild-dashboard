@@ -5,3 +5,9 @@ node_modules/
 .vercel/
 *.tsbuildinfo
 test-results/
+
+# Database backups belong in protected storage, never the repository.
+backups/
+*.dump
+*.backup
+__pycache__/
