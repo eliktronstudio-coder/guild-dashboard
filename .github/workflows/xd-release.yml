@@ -1,0 +1,57 @@
+name: XD verified release
+on:
+  pull_request:
+  push:
+    branches: [codex/xd-foundation-20261031]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: xd-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: python3 scripts/check-telegram-http.py
+      - run: python3 scripts/check-mini-app.py
+      - run: python3 scripts/check-treasury-postgres.py --restore
+      - name: Check deployment scripts
+        working-directory: .
+        run: |
+          bash -n scripts/auto-deploy-timeweb.sh scripts/deploy-timeweb.sh scripts/release-needs-migrations.sh scripts/install-database-backup-timeweb.sh
+          python3 -m unittest discover -s scripts/tests -v
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/codex/xd-foundation-20261031'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: production
+    steps:
+      - name: Deploy checked commit
+        env:
+          SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.TIMEWEB_SSH_KNOWN_HOSTS }}
+          REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY"
+          test -n "$KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          trap 'rm -f ~/.ssh/xd_deploy' EXIT
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/xd_deploy ~/.ssh/known_hosts
+          ssh -i ~/.ssh/xd_deploy -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 "bash /var/www/xd-guild-command-center/scripts/auto-deploy-timeweb.sh '$REVISION'"
