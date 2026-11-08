@@ -1,0 +1,64 @@
+name: XD Timeweb operations
+on:
+  push:
+    branches: [codex/xd-timeweb-inspect-20261109]
+permissions:
+  contents: read
+concurrency:
+  group: xd-timeweb-operations
+  cancel-in-progress: false
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    steps:
+      - name: Inspect deployed applications without changing them
+        env:
+          SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.TIMEWEB_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
+          install -d -m 700 ~/.ssh
+          trap 'rm -f ~/.ssh/xd_operations' EXIT
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'python3 -' <<'PY'
+          import os, pathlib, subprocess, json, urllib.parse, re
+          def command(args):
+              result=subprocess.run(args,capture_output=True,text=True,timeout=20)
+              return result.stdout.strip()
+          print('HOST', command(['hostname']))
+          print('LISTENERS',command(['ss','-ltnp']))
+          print('XD_SERVICE_DIRECTORY',command(['systemctl','show','xd-guild','--property=WorkingDirectory','--value']))
+          print('RUNNING_SERVICES',command(['systemctl','list-units','--type=service','--state=running','--no-legend','--no-pager']))
+          for file in pathlib.Path('/etc/nginx/sites-enabled').glob('*'):
+              print('NGINX',str(file))
+              for line in file.read_text().splitlines():
+                  if re.match(r'^\s*(listen|server_name|proxy_pass|ssl_certificate)\s',line): print(line.strip())
+          for root in ['/var/www','/opt','/srv']:
+              for folder,dirs,files in os.walk(root):
+                  depth=len(pathlib.Path(folder).relative_to(root).parts)
+                  if '.git' in dirs:
+                      remote=command(['git','-C',folder,'remote','get-url','origin'])
+                      if 'guild-dashboard' in remote:
+                          safe=urllib.parse.urlsplit(remote)
+                          print('REPOSITORY',folder,(safe.hostname or '')+safe.path,command(['git','-C',folder,'rev-parse','HEAD']),command(['git','-C',folder,'branch','--show-current']))
+                          print('DIRTY',folder,bool(command(['git','-C',folder,'status','--porcelain'])))
+                          for name in ['.env','.env.local']:
+                              path=pathlib.Path(folder)/name
+                              if path.is_file():
+                                  for line in path.read_text().splitlines():
+                                      if line.startswith('DATABASE_URL='):
+                                          url=line.split('=',1)[1].strip().strip('\"').strip("'")
+                                          print('DATABASE_KIND',folder,'sqlite' if url.startswith('file:') else 'other')
+                                          if url.startswith('file:'): print('SQLITE_LOCATION',folder,url[5:])
+                  dirs[:]=[d for d in dirs if depth<3 and d not in ['.git','node_modules','.next','public','uploads','backups','xd-guild-releases']]
+          for file in [pathlib.Path('/root/.pm2/dump.pm2')]:
+              if file.is_file():
+                  for app in json.loads(file.read_text()):
+                      print('PM2_APP',json.dumps({key:app.get(key) for key in ['name','pm_cwd','pm_exec_path','PORT']},ensure_ascii=False))
+          PY
