@@ -31,7 +31,7 @@ jobs:
       - name: Check deployment scripts
         working-directory: .
         run: |
-          bash -n scripts/auto-deploy-timeweb.sh scripts/deploy-timeweb.sh
+          bash -n scripts/auto-deploy-timeweb.sh scripts/deploy-timeweb.sh scripts/release-needs-migrations.sh scripts/install-database-backup-timeweb.sh
           python3 -m unittest discover -s scripts/tests -v
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/codex/xd-foundation-20261031'

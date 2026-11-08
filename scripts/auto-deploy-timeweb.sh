@@ -18,13 +18,20 @@ git fetch origin "$branch"
 # A stale workflow cannot downgrade or deploy a commit outside the live branch.
 [ "$(git rev-parse "origin/$branch")" = "$1" ]
 git merge --ff-only "$1"
-[ "$(cat "$state/deployed" 2>/dev/null || true)" != "$1" ] || exit 0
-[ -f /etc/xd-guild/deploy.env ]
-[ "$(stat -c %u /etc/xd-guild/deploy.env)" = 0 ]
-[ "$(stat -c %a /etc/xd-guild/deploy.env)" = 600 ]
-set -a
-source /etc/xd-guild/deploy.env
-set +a
-python3 scripts/database-release.py migrate
+previous=$(cat "$state/deployed" 2>/dev/null || true)
+[ "$previous" != "$1" ] || exit 0
+if bash scripts/release-needs-migrations.sh "$previous" "$1"; then
+ [ -f /etc/xd-guild/deploy.env ]
+ [ "$(stat -c %u /etc/xd-guild/deploy.env)" = 0 ]
+ [ "$(stat -c %a /etc/xd-guild/deploy.env)" = 600 ]
+ set -a
+ source /etc/xd-guild/deploy.env
+ set +a
+ python3 scripts/database-release.py migrate
+else
+ result=$?
+ [ "$result" = 1 ] || { echo 'Cannot establish deployed migration history; deployment stopped.'; exit 1; }
+ echo 'No database migrations changed; deploying site update.'
+fi
 bash scripts/deploy-timeweb.sh
 printf '%s\n' "$1" > "$state/deployed"
