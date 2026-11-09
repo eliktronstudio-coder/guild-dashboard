@@ -1,4 +1,32 @@
-import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync,chmodSync } from 'node:fs';
-import { join } from 'node:path';
-export function draftStore(directory){mkdirSync(directory,{recursive:true,mode:0o700});const file=join(directory,'drafts.sqlite');const db=new DatabaseSync(file);chmodSync(file,0o600);db.exec('PRAGMA journal_mode=WAL;CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY,payload TEXT NOT NULL,updated INTEGER NOT NULL)');return {get(id){const row=db.prepare('SELECT payload FROM drafts WHERE id=? AND updated>?').get(id,Date.now()-86400000);if(!row)throw Error('DRAFT_EXPIRED');return JSON.parse(row.payload);},put(draft){db.prepare('DELETE FROM drafts WHERE updated<?').run(Date.now()-86400000);db.prepare('INSERT INTO drafts VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated').run(draft.id,JSON.stringify(draft),Date.now());},close(){db.close();}};}
+import { DatabaseSync } from "node:sqlite";
+import { mkdirSync, chmodSync } from "node:fs";
+import { join } from "node:path";
+export function draftStore(directory) {
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const file = join(directory, "drafts.sqlite");
+  const db = new DatabaseSync(file);
+  chmodSync(file, 0o600);
+  db.exec(
+    "PRAGMA journal_mode=WAL;CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY,payload TEXT NOT NULL,updated INTEGER NOT NULL)",
+  );
+  return {
+    get(id) {
+      const row = db
+        .prepare("SELECT payload FROM drafts WHERE id=? AND updated>?")
+        .get(id, Date.now() - 86400000);
+      if (!row) throw Error("DRAFT_EXPIRED");
+      return JSON.parse(row.payload);
+    },
+    put(draft) {
+      db.prepare("DELETE FROM drafts WHERE updated<?").run(
+        Date.now() - 86400000,
+      );
+      db.prepare(
+        "INSERT INTO drafts VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated=excluded.updated",
+      ).run(draft.id, JSON.stringify(draft), Date.now());
+    },
+    close() {
+      db.close();
+    },
+  };
+}
