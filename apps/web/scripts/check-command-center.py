@@ -3,7 +3,7 @@ from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from threading import Thread
 from pathlib import Path
 import base64,json,time,socket,tempfile,subprocess,os,shutil,urllib.parse
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1]
 USER='11111111-1111-4111-8111-111111111111'
 MEMBER='22222222-2222-4222-8222-222222222222'
@@ -115,7 +115,7 @@ with tempfile.TemporaryFile() as log:
    page.get_by_role('heading',name='Кракен',exact=True).wait_for()
    page.get_by_text('Коэффициент ×1,5',exact=True).wait_for()
    page.get_by_role('link',name='Создать событие →',exact=True).click()
-   assert page.get_by_label('Название',exact=True).input_value()=='Кракен'
+   expect(page.get_by_label('Название',exact=True)).to_have_value('Кракен')
    assert page.get_by_label('Баннер активности',exact=True).input_value() in banners
    page.goto(origin+'/admin/activity-banners',wait_until='networkidle')
    entry=page.locator('article').filter(has=page.get_by_role('heading',name='Кракен',exact=True))
