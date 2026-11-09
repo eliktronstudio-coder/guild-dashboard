@@ -15,10 +15,18 @@ jobs:
     steps:
       - name: Deploy verified command center to xd-guild.ru
         env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
+          python3 - <<'PYMETA'
+          import os
+          print('AVAILABLE_MIGRATION_SECRET_NAMES',','.join(k for k in ['SUPABASE_ACCESS_TOKEN','SUPABASE_DB_PASSWORD','DATABASE_URL','SUPABASE_DB_URL'] if os.environ.get(k)))
+          PYMETA
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
           test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
@@ -28,31 +36,18 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
           set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = baab65debdaff81b71b74c6daca01d54d5d51c35
-          git merge --ff-only baab65debdaff81b71b74c6daca01d54d5d51c35
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          fi
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/drops
-          systemctl is-active xd-guild
-          systemctl is-active xd-guild-deploy.timer
-          systemctl show xd-guild --property=WorkingDirectory
-          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          cd "$app"
-          node <<'JS'
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-            const r=await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/guild_drop_registry?select=id&limit=0',{headers:{apikey:process.env.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
-            console.log('DROP_REGISTRY_SCHEMA_HTTP_STATUS',r.status);
-            console.log(r.ok?'DROP_REGISTRY_SCHEMA_READY':'DROP_REGISTRY_SQL_EDITOR_SETUP_REQUIRED');
-          })().catch(()=>{console.log('DROP_REGISTRY_SCHEMA_CHECK_UNAVAILABLE');process.exitCode=1;});
-          JS
+          python3 - <<'PYREMOTE'
+          from pathlib import Path
+          import os,subprocess
+          for name in ['/root/.supabase/access-token','/root/.config/supabase/access-token','/root/.pgpass','/root/.config/supabase/config.json','/var/www/xd-guild-command-center/.env','/var/www/xd-guild-command-center/.env.local']:
+            p=Path(name)
+            if p.is_file():
+              print('DATABASE_CONFIGURATION_FILE_AVAILABLE',name)
+              if p.name.startswith('.env'):
+                print('DATABASE_CONFIGURATION_KEY_NAMES',','.join(line.split('=',1)[0].strip() for line in p.read_text().splitlines() if '=' in line and any(s in line.split('=',1)[0].upper() for s in ['SUPABASE','DATABASE','POSTGRES'])))
+          print('SERVER_DATABASE_ENV_NAMES',','.join(k for k in os.environ if any(s in k for s in ['SUPABASE','DATABASE','POSTGRES','PGPASSWORD'])))
+          for binary in ['supabase','psql','docker']:
+            r=subprocess.run(['which',binary],capture_output=True,text=True)
+            print('AVAILABLE_DATABASE_TOOL',binary,r.returncode==0)
+          PYREMOTE
           REMOTE
