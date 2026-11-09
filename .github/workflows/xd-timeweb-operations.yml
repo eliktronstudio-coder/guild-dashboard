@@ -28,30 +28,11 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
           set -euo pipefail
-          umask 077
-          systemctl stop xd-guild-deploy.timer
-          install -d -m 700 /var/lib/xd-guild-deploy
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          old_app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          backup=/var/lib/xd-guild-deploy/backups/$(date +%Y%m%d%H%M%S)
-          install -d -m 700 "$backup"
-          cp -a /etc/systemd/system/xd-guild.service "$backup/xd-guild.service"
-          install -m 600 "$old_app/.env.local" "$backup/env.local"
-          git rev-parse HEAD > "$backup/revision"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = ac55653ea59999134a1b3d6ab0a811e3d36271ce
-          git merge --ff-only ac55653ea59999134a1b3d6ab0a811e3d36271ce
-          bash scripts/deploy-timeweb.sh
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/login
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/command/art/kpi-prime.webp
-          git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          systemctl enable --now xd-guild-deploy.timer
-          echo DEPLOYED_REVISION=$(git rev-parse HEAD)
-          systemctl show xd-guild --property=WorkingDirectory --property=ActiveState
-          systemctl is-active xd-guild-deploy.timer
-          echo XD_GUILD_PRODUCTION_DEPLOYMENT_VERIFIED
+          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          cd "$app"
+          node <<'JS'
+          require('@next/env').loadEnvConfig(process.cwd());
+          console.log('AVAILABLE_CONFIGURATION_NAMES',Object.keys(process.env).filter(k=>/SUPABASE|DATABASE|POSTGRES|PGHOST|PGUSER|PGPASSWORD/.test(k)).sort().join(','));
+          JS
+          command -v psql || true
           REMOTE
