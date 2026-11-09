@@ -19,7 +19,11 @@ export function EventFields({
       {banners.length > 0 && (
         <label>
           Баннер активности
-          <select name="activityBanner" defaultValue={selectedBanner}>
+          <select
+            aria-label="Баннер активности"
+            name="activityBanner"
+            defaultValue={selectedBanner}
+          >
             <option value="">Без баннера</option>
             {banners.map((b) => (
               <option key={b.id} value={b.id}>
