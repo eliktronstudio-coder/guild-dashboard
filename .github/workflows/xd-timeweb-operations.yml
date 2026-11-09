@@ -38,7 +38,7 @@ jobs:
            const e=process.env;
            if(e.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected production origin');
            const queries=[
-            'attendance?select=membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at,boss_name,boss_weight)&limit=0',
+            'attendance?select=membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at)&limit=0',
             'member_directory?select=id,nickname,character_class&limit=0',
             'events?select=id,title,starts_at,attendance_finalized_at&limit=0'
            ];
