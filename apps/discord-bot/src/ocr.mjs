@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -156,6 +157,12 @@ export async function raidLabelSheets(buffer) {
     })
     .raw()
     .toBuffer({ resolveWithObject: true });
+  const imageKey = createHash("sha256")
+    .update(
+      `${analysis.info.width}:${analysis.info.height}:${analysis.info.channels}:`,
+    )
+    .update(analysis.data)
+    .digest("hex");
   const scaleX = meta.width / analysis.info.width,
     scaleY = meta.height / analysis.info.height;
   const boxes = raidRegions(
@@ -171,7 +178,7 @@ export async function raidLabelSheets(buffer) {
       height: Math.round(b.height * scaleY),
     }))
     .slice(0, 150);
-  if (boxes.length < 3) return { boxes: [], sheets: [] };
+  if (boxes.length < 3) return { boxes: [], sheets: [], imageKey };
   const sheets = [];
   for (let start = 0; start < boxes.length; start += 35) {
     const batch = boxes.slice(start, start + 35);
@@ -216,8 +223,10 @@ export async function raidLabelSheets(buffer) {
             if (
               Math.min(r, g, blue) > 155 &&
               Math.max(r, g, blue) - Math.min(r, g, blue) < 90
-            )
+            ) {
               mask[p] = 0;
+              if (p % width >= width - 2) b.clipped = true;
+            }
           }
           label = await sharp(mask, { raw: { width, height, channels: 1 } })
             .resize({
@@ -245,19 +254,23 @@ export async function raidLabelSheets(buffer) {
       sheets.push({ image, start, count: batch.length, variant });
     }
   }
-  return { boxes, sheets };
+  return { boxes, sheets, imageKey };
 }
 export async function ocr(buffer, options = {}) {
   if (busy >= 1) throw Error("OCR_BUSY");
   busy++;
   const deadline = Date.now() + 90000;
+  let imageKey = createHash("sha256").update(buffer).digest("hex");
   let directory;
   try {
     let dictionary;
     const vocabulary = [
       ...(options.roster ? (options.members ?? []) : []),
+      ...(options.roster ? (options.knownNames ?? []) : []),
       ...(options.loot ? (options.drops ?? []) : []),
-    ].map((item) => item.nickname ?? item.name);
+    ].map((item) =>
+      typeof item === "string" ? item : (item.nickname ?? item.name),
+    );
     if (vocabulary.length) {
       directory = await mkdtemp(join(tmpdir(), "xd-roster-"));
       dictionary = join(directory, "names.txt");
@@ -266,14 +279,26 @@ export async function ocr(buffer, options = {}) {
     let words = [],
       regionCount = 0;
     if (options.roster) {
-      const { boxes, sheets } = await raidLabelSheets(buffer);
+      const {
+        boxes,
+        sheets,
+        imageKey: pixelKey,
+      } = await raidLabelSheets(buffer);
+      imageKey = pixelKey;
       regionCount = boxes.length;
       for (const sheet of sheets)
-        for (const language of ["rus+eng", "eng", "rus"]) {
+        for (const language of [
+          "rus+eng",
+          "eng",
+          "rus",
+          ...(dictionary && sheet.variant === "gray"
+            ? ["rus+eng-dictionary"]
+            : []),
+        ]) {
           const found = await runTesseract(sheet.image, {
-            language,
+            language: language.replace("-dictionary", ""),
             psm: 6,
-            dictionary,
+            dictionary: language === "rus+eng" ? undefined : dictionary,
             deadline,
           });
           const rows = new Map();
@@ -301,6 +326,21 @@ export async function ocr(buffer, options = {}) {
               region: String(sheet.start + i),
               kind: "raid-cell",
               pass: sheet.variant + ":" + language,
+              unbiased: !dictionary || language === "rus+eng",
+              imageKey,
+              slotKey: createHash("sha256")
+                .update(
+                  imageKey +
+                    ":" +
+                    [
+                      boxes[sheet.start + i].left,
+                      boxes[sheet.start + i].top,
+                      boxes[sheet.start + i].width,
+                      boxes[sheet.start + i].height,
+                    ].join(":"),
+                )
+                .digest("hex"),
+              clipped: boxes[sheet.start + i].clipped ?? false,
             });
           }
         }
@@ -315,7 +355,16 @@ export async function ocr(buffer, options = {}) {
         .sharpen()
         .png()
         .toBuffer();
-      const full = await runTesseract(image, { dictionary, deadline });
+      const full = (await runTesseract(image, { dictionary, deadline })).map(
+        (w) => ({
+          ...w,
+          imageKey,
+          slotKey: createHash("sha256")
+            .update(imageKey + ":generic:" + w.line)
+            .digest("hex"),
+          unbiased: !dictionary,
+        }),
+      );
       text = textLines(full);
       if (!regionCount) words = full;
     }

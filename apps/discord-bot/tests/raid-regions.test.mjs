@@ -41,3 +41,15 @@ test("raid sheet generation bounds rows and creates separate grayscale and text-
     assert.equal(meta.height, 3 * 88);
   }
 });
+test("identical pixels with different PNG encodings retain one training-image identity", async () => {
+  const source = sharp({
+      create: { width: 120, height: 80, channels: 3, background: "#2896d2" },
+    }),
+    a = await source.clone().png({ compressionLevel: 0 }).toBuffer(),
+    b = await source.clone().png({ compressionLevel: 9 }).toBuffer();
+  assert.notDeepEqual(a, b);
+  assert.equal(
+    (await raidLabelSheets(a)).imageKey,
+    (await raidLabelSheets(b)).imageKey,
+  );
+});
