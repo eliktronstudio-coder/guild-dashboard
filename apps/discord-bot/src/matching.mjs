@@ -29,16 +29,191 @@ function distance(a, b) {
   }
   return row[b.length];
 }
+const visual = (value) =>
+  norm(value).replace(
+    /[аекмнорстухві]/gu,
+    (c) =>
+      ({
+        а: "a",
+        е: "e",
+        к: "k",
+        м: "m",
+        н: "h",
+        о: "o",
+        р: "p",
+        с: "c",
+        т: "t",
+        у: "y",
+        х: "x",
+        в: "b",
+        і: "i",
+      })[c],
+  );
+function cleanNickname(value) {
+  return String(value)
+    .trim()
+    .replace(/^[\s\[\]{}()|"'`]+|[\s\[\]{}()|"'`]+$/gu, "");
+}
+export function nicknameSuggestions(value, rows) {
+  const raw = cleanNickname(value).replace(/^Ячейка \d+:\s*/u, ""),
+    keys = [visual(raw), ...raw.split(/\s+/u).map(visual)].filter(
+      (k) => k.length >= 3,
+    ),
+    ranked = [];
+  for (const r of rows) {
+    let best = Infinity;
+    const target = visual(r.nickname ?? r.name);
+    for (const key of keys) {
+      best = Math.min(best, distance(key, target));
+      for (
+        let length = Math.max(3, key.length - 1);
+        length <= Math.min(target.length, key.length + 1);
+        length++
+      )
+        best = Math.min(
+          best,
+          distance(key, target.slice(0, length)) +
+            0.35 +
+            ((target.length - length) / Math.max(1, target.length)) * 0.2,
+        );
+    }
+    if (best <= 3.5 && best / Math.max(4, ...keys.map((k) => k.length)) <= 0.55)
+      ranked.push({ ...r, matchCost: best });
+  }
+  return ranked.sort((a, b) => a.matchCost - b.matchCost).slice(0, 5);
+}
 export function suggestion(value, rows) {
-  const key = norm(value);
-  if (key.length < 4) return null;
-  const matches = rows
-    .map((r) => ({ r, d: distance(key, norm(r.name ?? r.nickname)) }))
-    .filter((x) => x.d <= 2 && x.d / key.length <= 0.25)
-    .sort((a, b) => a.d - b.d);
-  return matches[0] && (!matches[1] || matches[0].d < matches[1].d)
-    ? matches[0].r
+  const matches = nicknameSuggestions(value, rows);
+  return matches[0] &&
+    (!matches[1] || matches[0].matchCost < matches[1].matchCost)
+    ? matches[0]
     : null;
+}
+function nicknameCandidates(raw, members, allowPrefix = false) {
+  const cleaned = cleanNickname(raw),
+    variants = [cleaned, ...cleaned.split(/\s+/u)].filter(
+      (v) => norm(v).length >= 2,
+    ),
+    result = new Map();
+  for (const value of variants) {
+    const key = norm(value),
+      skeleton = visual(value),
+      clipped = /[.…_-]$/.test(value),
+      exact = members.filter((m) => norm(m.nickname) === key),
+      similar = members.filter((m) => visual(m.nickname) === skeleton),
+      prefix =
+        (allowPrefix || clipped) && skeleton.length >= 4
+          ? members.filter(
+              (m) =>
+                visual(m.nickname).startsWith(skeleton) &&
+                skeleton.length / visual(m.nickname).length >= 0.35,
+            )
+          : [];
+    const possible =
+      exact.length && !clipped
+        ? exact
+        : similar.length && !clipped
+          ? similar
+          : prefix;
+    if (possible.length === 1) {
+      const m = possible[0];
+      result.set(m.id, {
+        member: m,
+        score: exact.some((x) => x.id === m.id)
+          ? 100
+          : similar.some((x) => x.id === m.id)
+            ? 96
+            : 88,
+      });
+    }
+  }
+  return [...result.values()];
+}
+function recognizeCells(words, members) {
+  const regions = new Map(),
+    selected = new Map(),
+    unresolved = [];
+  for (const word of words)
+    regions.set(word.region, [...(regions.get(word.region) ?? []), word]);
+  for (const [region, observations] of regions) {
+    const votes = new Map();
+    for (const word of observations) {
+      if (word.confidence < 20) continue;
+      for (const candidate of nicknameCandidates(word.text, members, true)) {
+        let v = votes.get(candidate.member.id);
+        if (!v) {
+          v = {
+            member: candidate.member,
+            passes: new Set(),
+            best: 0,
+            score: 0,
+          };
+          votes.set(candidate.member.id, v);
+        }
+        v.passes.add(word.pass ?? word.line);
+        v.best = Math.max(v.best, word.confidence);
+        v.score = Math.max(v.score, candidate.score);
+      }
+    }
+    const ranked = [...votes.values()]
+        .filter((v) => v.best >= 70 || v.passes.size >= 2)
+        .sort(
+          (a, b) =>
+            b.passes.size - a.passes.size ||
+            b.score - a.score ||
+            b.best - a.best,
+        ),
+      winner = ranked[0],
+      runner = ranked[1];
+    if (
+      winner &&
+      (!runner ||
+        (winner.passes.size >= runner.passes.size + 2 && winner.best >= 80))
+    ) {
+      selected.set(winner.member.id, winner.member);
+      continue;
+    }
+    // A low-confidence exact reading must be corroborated by two passes plus
+    // close readings from a different image treatment. Fuzzy-only guesses stay pending.
+    const corroborated = members.filter((m) => {
+      const exact = observations.filter(
+        (w) =>
+          w.confidence >= 5 &&
+          nicknameCandidates(w.text, [m], false).some((c) => c.score >= 96),
+      );
+      if (new Set(exact.map((w) => w.pass)).size < 2) return false;
+      const close = observations.filter(
+        (w) =>
+          w.confidence >= 5 &&
+          (nicknameSuggestions(w.text, [m])[0]?.matchCost ?? 100) <= 1.05,
+      );
+      return (
+        close.length >= 4 &&
+        new Set(close.map((w) => String(w.pass).split(":")[0])).size >= 2
+      );
+    });
+    if (corroborated.length === 1) {
+      selected.set(corroborated[0].id, corroborated[0]);
+      continue;
+    }
+    const ordered = observations
+      .filter((w) => w.text.trim())
+      .map((w) => ({
+        ...w,
+        cost: nicknameSuggestions(w.text, members)[0]?.matchCost ?? 100,
+      }))
+      .sort((a, b) => a.cost - b.cost || b.confidence - a.confidence);
+    unresolved.push(
+      cleanNickname(ordered[0]?.text ?? "") ||
+        `Ячейка ${Number(String(region).split(":").at(-1)) + 1}: ник не прочитан`,
+    );
+  }
+  return {
+    members: [...selected.values()],
+    guests: [],
+    unresolved,
+    detectedSlots: regions.size,
+  };
 }
 export function rosterText(text, members) {
   const by = index(members),
@@ -70,6 +245,11 @@ export function rosterText(text, members) {
   };
 }
 export function recognizeRoster(words, members) {
+  if (words.some((w) => w.kind === "raid-cell"))
+    return recognizeCells(
+      words.filter((w) => w.kind === "raid-cell"),
+      members,
+    );
   const by = index(members),
     selected = new Map(),
     uncertain = new Set(),
@@ -102,9 +282,9 @@ export function recognizeRoster(words, members) {
       word.confidence < 35
     )
       continue;
-    const exact = by.get(norm(raw));
-    if (exact?.length === 1 && word.confidence >= 65)
-      selected.set(exact[0].id, exact[0]);
+    const exact = nicknameCandidates(raw, members);
+    if (exact.length === 1 && word.confidence >= 65)
+      selected.set(exact[0].member.id, exact[0].member);
     else uncertain.add(raw);
   }
   // OCR words can split a nickname containing spaces; only exact unique whole-line matches qualify.

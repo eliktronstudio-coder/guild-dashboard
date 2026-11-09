@@ -177,3 +177,38 @@ test("loot from a second message is included once and stays in the configured ch
   assert.equal(saved.extraMessages.length, 1);
   assert.equal(saved.analyzed, false);
 });
+test("a disputed nickname can be confirmed from hints or explicitly kept as a guest without retyping the roster", async () => {
+  const member = { id: randomUUID(), nickname: "SilverKnight" },
+    d = {
+      id: randomUUID(),
+      owner: "staff",
+      catalog: { members: [member] },
+      activity: { name: "Рейд", weight: 100 },
+      mode: "raid",
+      source: "prime",
+      analyzed: true,
+      step: "review",
+      roster: {
+        members: [],
+        guests: [],
+        unresolved: ["SilverKn...", "GuestFox"],
+      },
+      loot: { items: [], unresolved: [] },
+    };
+  let saved = d;
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (value) => {
+        saved = structuredClone(value);
+      },
+    },
+  });
+  assert.equal(renderDraft(d).components.length, 3);
+  await flow.handle(interaction(d.id, "rosterPick", [member.id]));
+  assert.equal(saved.roster.members[0].id, member.id);
+  assert.deepEqual(saved.roster.unresolved, ["GuestFox"]);
+  await flow.handle(interaction(d.id, "rosterPick", ["guest"]));
+  assert.deepEqual(saved.roster.guests, ["GuestFox"]);
+  assert.equal(saved.roster.unresolved.length, 0);
+});
