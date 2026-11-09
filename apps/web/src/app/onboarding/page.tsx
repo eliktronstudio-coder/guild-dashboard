@@ -3,40 +3,56 @@ import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { PublicFrame } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
-import { submitApplication, signOut } from "@/app/actions";
-import { GUILD_ID } from "@/lib/config";
-export const metadata = { title: "Заявка в гильдию" };
+import { completeRegistration, signOut } from "@/app/actions";
+import { messageFor } from "@/lib/identity";
+export const metadata = { title: "Завершение регистрации" };
 export default async function Page() {
   const { client, user, membership } = await getAccess();
   if (membership?.status === "active") redirect("/dashboard");
-  const { data, error } = await client
-    .from("applications")
-    .select("id")
-    .eq("guild_id", GUILD_ID)
-    .eq("user_id", user.id)
-    .eq("status", "pending")
-    .maybeSingle();
-  if (error) redirect("/setup?problem=database");
-  if (data) redirect("/application");
+  const { error } = await client.rpc("complete_open_registration");
+  if (!error) redirect("/dashboard");
+  const enrollmentError =
+    error.message === "CONSENT_REQUIRED" ? null : messageFor(error);
   return (
     <PublicFrame
       title={"Станьте частью\nнашей истории"}
       subtitle="За каждым ником — человек, с которым мы разделяем приключения."
     >
-      <p className="eyebrow">ШАГ 2 ИЗ 3 · ИГРОВОЙ ПРОФИЛЬ</p>
+      <p className="eyebrow">ИГРОВОЙ ПРОФИЛЬ</p>
       <h2>Как вас зовут в игре?</h2>
       <p className="muted">
-        Укажите основной ник в ArcheAge. Его увидит администрация при
-        рассмотрении заявки.
+        Укажите логин и основной ник в ArcheAge. Доступ откроется сразу после
+        сохранения.
       </p>
-      <ActionForm action={submitApplication} label="Отправить заявку">
+      {enrollmentError && (
+        <p className="notice error" role="alert">
+          {enrollmentError}
+        </p>
+      )}
+      <ActionForm action={completeRegistration} label="Завершить регистрацию">
+        <label>
+          Логин
+          <input
+            name="login"
+            required
+            minLength={3}
+            maxLength={32}
+            autoComplete="username"
+            defaultValue={user.user_metadata?.login ?? ""}
+            placeholder="Например, dragon_xd"
+          />
+        </label>
+        <p className="caption">
+          Латинские буквы, цифры, точка, дефис и подчёркивание. Начните с буквы.
+        </p>
         <label>
           Игровой ник <span className="required">*</span>
           <input
             name="nickname"
             required
             minLength={2}
-            maxLength={64}
+            maxLength={32}
+            defaultValue={user.user_metadata?.game_nickname ?? ""}
             autoComplete="off"
             placeholder="Ваш ник в ArcheAge"
             aria-describedby="nickname-help"
@@ -66,7 +82,7 @@ export default async function Page() {
         </label>
       </ActionForm>
       <p className="caption auth-foot">
-        Отправка заявки не открывает доступ автоматически.
+        Одобрение администратора не требуется.
       </p>
       <form action={signOut}>
         <button className="text-button">Выйти из аккаунта</button>

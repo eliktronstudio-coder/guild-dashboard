@@ -24,6 +24,9 @@ export function safeNext(value: string | null) {
 export type FormState = { error?: string; success?: string };
 export function messageFor(error: { message: string }): string {
   const messages: Record<string, string> = {
+    INVALID_LOGIN: "Проверьте логин: 3–32 латинских символа, начиная с буквы.",
+    MEMBERSHIP_INACTIVE:
+      "Участие в гильдии прекращено. Для возвращения обратитесь к администрации.",
     NICKNAME_UNAVAILABLE:
       "Этот ник или визуально похожий вариант уже занят. Свяжитесь с администрацией, если это ваш персонаж.",
     CONSENT_REQUIRED: "Подтвердите оба согласия.",

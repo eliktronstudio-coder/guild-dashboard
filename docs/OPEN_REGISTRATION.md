@@ -1,0 +1,13 @@
+# Open email registration
+
+`/login?mode=register` collects email, a unique login, matching passwords, game nickname and both existing consents. The server validates all fields. Login uses 3–32 ASCII characters, starts with a letter and is stored in lowercase; nickname uses existing normalization and anti-impersonation checks. Passwords remain in Supabase Auth.
+
+The owner requested immediate registration and has no mail provider. This implementation deliberately creates **new** email/password accounts through the server-only Supabase Admin API with `email_confirm: true`; it does not send a confirmation email, change an existing account or prove ownership of the address. Metadata records `email_ownership_verified: false`. The UI explicitly explains that confirmation and recovery emails are unavailable. Existing Telegram authentication remains supported. Do not treat an email on these accounts as verified external identity.
+
+After a real Supabase password session exists, `complete_open_registration` grants only the ordinary member role. It preserves existing active memberships and their roles, refuses inactive memberships and blocked/revoked sessions, and checks nickname conflicts. Old pending applicants can explicitly complete the same free enrollment form. A nickname conflict leaves the account available so its owner can correct the profile. Enrollment is audited and retry-safe.
+
+Migration `202611090022_open_registration.sql` stores login/enrollment intent in the private schema. Email lookup by login and persistent attempt gates are executable by `service_role` only, never browsers. Username sign-in resolves email on the server and uses the usual Supabase password flow. Five registration attempts per client IP/hour, three per email/hour and thirty login attempts per IP/ten minutes are allowed. Keys are HMAC hashes, retained for at most a day and purged on subsequent requests. nginx must overwrite `X-Real-IP` with `$remote_addr`.
+
+Deployment requires migration 022, `AUTH_EMAIL_ENABLED=true` and the existing server-only `SUPABASE_SECRET_KEY`. Keep `AUTH_EMAIL_DELIVERY_READY=false` until an actual mail provider and recovery delivery have been tested. Do not expose the secret key through `NEXT_PUBLIC_` variables. `scripts/check-config.mjs` supports this explicit no-mail mode.
+
+Validation includes registration input tests, SQL enrollment/uniqueness/role/privacy/rate-limit tests, existing regression checks, and `python3 apps/web/scripts/check-open-registration.py` against the production Next build with an isolated Auth/DB fixture. The browser scenario covers immediate registration, login by either identifier, invalid passwords, duplicate account and throttling without creating real accounts.
