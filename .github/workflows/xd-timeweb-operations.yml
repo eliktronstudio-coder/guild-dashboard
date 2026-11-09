@@ -42,7 +42,7 @@ jobs:
             'member_directory?select=id,nickname,character_class&limit=0',
             'events?select=id,title,starts_at,attendance_finalized_at&limit=0'
            ];
-           for(const query of queries){const response=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY,Authorization:'Bearer '+e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(20000)});console.log('PRODUCTION_SCHEMA_CHECK',query.split('?')[0],response.status);if(!response.ok)throw new Error('Schema check failed');}
+           for(const query of queries){const response=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY,},signal:AbortSignal.timeout(20000)});console.log('PRODUCTION_SCHEMA_CHECK',query.split('?')[0],response.status);if(!response.ok){console.log('SCHEMA_ERROR',JSON.stringify(await response.json()));throw new Error('Schema check failed');}}
            console.log('PRODUCTION_ORIGIN_CONFIRMED https://xd-guild.ru');
           })().catch(()=>{console.error('Production schema preflight failed; no changes applied.');process.exitCode=1;});
           """
