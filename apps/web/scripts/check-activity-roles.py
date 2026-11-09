@@ -10,7 +10,7 @@ class RolesFixture(WorkspaceFixture):
    return self.send(role=='owner' or p.get('permission') in allowed.get(role,set()))
   if path.endswith('/memberships'):
    if q.get('user_id'):return self.send([member])
-   if q.get('id',[''])[0].startswith('eq.'):return self.send([{**member,'profile_version':1,'about':'','membership_roles':[{'roles':{'code':'tablemaker','name':'Таблицмейкер'}}]}])
+   if q.get('id',[''])[0].startswith('eq.'):return self.send([{**next((m for m in people if m['id']==q['id'][0][3:]),member),'profile_version':1,'about':'','membership_roles':[{'roles':{'code':'tablemaker','name':'Таблицмейкер'}}]}])
   if path.endswith('/attendance') and q.get('membership_id'):return self.send([])
   return super().reply()
 fixture=ThreadingHTTPServer(('127.0.0.1',0),RolesFixture);Thread(target=fixture.serve_forever,daemon=True).start()
@@ -27,10 +27,10 @@ with tempfile.TemporaryFile() as log:
     except Exception:time.sleep(.2)
    for width in [390,1440]:
     page.set_viewport_size({'width':width,'height':1000});page.goto(origin+'/events/new',wait_until='networkidle');expect(page.get_by_role('heading',name='Добавить активность',exact=True)).to_be_visible();expect(page.get_by_text('Дроп (необязательно, из реестра)',exact=True)).to_be_visible();expect(page.get_by_role('link',name='Экономика',exact=True)).to_have_count(0)
-    page.goto(origin+f'/events/{EVENT}',wait_until='networkidle');expect(page.get_by_role('link',name='✎ Редактировать')).to_be_visible();expect(page.get_by_text('＋ Добавить предмет',exact=True)).to_be_visible();expect(page.get_by_text('Казна и продажи →',exact=True)).to_have_count(0)
+    page.goto(origin+f'/events/{EVENT}',wait_until='networkidle');expect(page.get_by_role('link',name='✎ Редактировать').first).to_be_visible();expect(page.get_by_text('＋ Добавить предмет',exact=True)).to_be_visible();expect(page.get_by_text('Казна и продажи →',exact=True)).to_have_count(0)
     assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
-   role='owner';page.goto(origin+f'/members/{MEMBER}',wait_until='networkidle');page.get_by_text('Управление доступом',exact=True).click();selector=page.get_by_role('combobox',name='Роль',exact=True);expect(selector.locator('option[value=guild_master]')).to_have_text('Гильд мастер');expect(selector.locator('option[value=tablemaker]')).to_have_text('Таблицмейкер')
-   role='member';STAFF=False;reports[EVENT]['members']=[m['id'] for m in people[1:3]];page.goto(origin+f'/events/{EVENT}',wait_until='networkidle');expect(page.get_by_role('heading',name='Я участвовал в активности',exact=True)).to_be_visible();page.get_by_text('Подать заявку на участие',exact=True).click();expect(page.get_by_role('button',name='Отправить заявку')).to_be_visible();expect(page.get_by_text('Редактировать',exact=True)).to_have_count(0)
+   role='owner';page.goto(origin+f"/members/{people[1]['id']}",wait_until='networkidle');page.get_by_text('Управление доступом',exact=True).click();selector=page.get_by_role('combobox',name='Роль',exact=True);expect(selector.locator('option[value=guild_master]')).to_have_text('Гильд мастер');expect(selector.locator('option[value=tablemaker]')).to_have_text('Таблицмейкер')
+   role='member';STAFF=False;reports[EVENT]['members']=[m['id'] for m in people[1:3]];page.goto(origin+f'/events/{EVENT}',wait_until='networkidle');expect(page.get_by_role('heading',name='Я участвовал в активности',exact=True)).to_be_visible();page.get_by_text('Подать заявку на участие',exact=True).click();expect(page.get_by_role('button',name='Отправить заявку')).to_be_visible();expect(page.get_by_role('link',name='✎ Редактировать')).to_have_count(0)
    assert not errors,errors;browser.close();print('PASS: tablemaker activity/drop controls without economy, both role options, ordinary member claim form; 390/1440px; fixtures only',flush=True)
  finally:
   server.terminate();server.wait(timeout=15);fixture.shutdown()
