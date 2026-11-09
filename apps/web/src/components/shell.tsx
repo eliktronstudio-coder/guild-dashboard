@@ -1,3 +1,4 @@
+import { GUILD_ID } from "@/lib/config";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { MemberAvatar } from "@/components/members/avatar";
@@ -62,6 +63,7 @@ export async function GuildShell({
     ? await a.client
         .from("participation_claims")
         .select("id", { count: "exact", head: true })
+        .eq("guild_id", GUILD_ID)
         .eq("status", "pending")
     : null;
   const links = [

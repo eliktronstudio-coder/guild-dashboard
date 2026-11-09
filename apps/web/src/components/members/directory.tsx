@@ -1,6 +1,5 @@
 import { AttendanceLines, SalaryLines } from "./payroll-cells";
 import type { PayrollRow } from "@/lib/payroll";
-import { ActionForm } from "@/components/action-form";
 import type { FormState } from "@/lib/identity";
 type WeightAction = (state: FormState, form: FormData) => Promise<FormState>;
 import Link from "next/link";
@@ -8,27 +7,6 @@ import type { DirectoryMember } from "@/lib/members";
 import { MemberAvatar } from "./avatar";
 const joined = (value: string) =>
   new Date(value).toLocaleDateString("ru-RU", { timeZone: "UTC" });
-function Weight({ m, action }: { m: DirectoryMember; action: WeightAction }) {
-  return (
-    <ActionForm
-      action={action}
-      revision={m.weight_version}
-      label="Сохранить коэффициент"
-    >
-      <input type="hidden" name="id" value={m.id} />
-      <input type="hidden" name="version" value={m.weight_version} />
-      <label>
-        Коэффициент (0,2–1,25)
-        <input
-          name="weight"
-          inputMode="decimal"
-          required
-          defaultValue={String((m.payout_weight ?? 100) / 100)}
-        />
-      </label>
-    </ActionForm>
-  );
-}
 export function MemberDirectory({
   members,
   weightAction,
@@ -89,7 +67,13 @@ export function MemberDirectory({
                 </td>
                 {weightAction && (
                   <td>
-                    <Weight m={m} action={weightAction} />
+                    <Link
+                      href={`/members/${m.id}`}
+                      title="Изменить коэффициент в профиле"
+                    >
+                      {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")}{" "}
+                      ✎
+                    </Link>
                   </td>
                 )}
               </tr>
@@ -122,7 +106,14 @@ export function MemberDirectory({
             </dl>
             <AttendanceLines row={byMember.get(m.id)} />
             <SalaryLines row={byMember.get(m.id)} />
-            {weightAction && <Weight m={m} action={weightAction} />}
+            {weightAction && (
+              <Link
+                href={`/members/${m.id}`}
+                title="Изменить коэффициент в профиле"
+              >
+                {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")} ✎
+              </Link>
+            )}
           </article>
         ))}
       </div>

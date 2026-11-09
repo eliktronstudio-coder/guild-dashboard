@@ -61,6 +61,8 @@ export async function addLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   revalidatePath("/events", "layout");
   const { data: item } = await client
     .from("treasury_inventory")
@@ -100,6 +102,8 @@ export async function reviseLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return {
     success: "Партия исправлена. Предыдущее состояние сохранено в журнале.",
   };
@@ -141,6 +145,8 @@ export async function sellLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return { success: "Продажа записана, остаток и казны обновлены." };
 }
 export async function voidSale(
@@ -161,6 +167,8 @@ export async function voidSale(
       error: settlementError(error.message) ?? treasuryError(error.message),
     };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return {
     success:
       "Продажа отменена. Предметы возвращены, поступления сняты; история сохранена.",
@@ -207,6 +215,8 @@ export async function addRegistryInventory(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   revalidatePath("/events", "layout");
   return { success: "Предмет добавлен." };
 }
