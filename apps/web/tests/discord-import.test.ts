@@ -22,7 +22,7 @@ const server = "123456789012345678",
   channel = "223456789012345678",
   user = "323456789012345678",
   message = "423456789012345678";
-test("Discord imports reuse verified activity RPCs: delegated staff, exact snapshots, replay protection and no financial awards", async () => {
+test("Any unlinked Discord channel participant can import through the configured connection, with exact snapshots and replay protection", async () => {
   const { db, as, scalar, members } = await setup();
   try {
     const banner = randomUUID(),
@@ -44,10 +44,6 @@ test("Discord imports reuse verified activity RPCs: delegated staff, exact snaps
     await db.query("select public.save_discord_settings($1,$2,true)", [
       server,
       channel,
-    ]);
-    await db.query("select public.save_discord_staff($1,$2)", [
-      user,
-      members[1],
     ]);
     await assert.rejects(
       db.query("select public.discord_import_context($1,$2,null,$3)", [
@@ -181,17 +177,13 @@ test("Discord imports reuse verified activity RPCs: delegated staff, exact snaps
     await db.close();
   }
 });
-test("Discord cannot elevate an ordinary user or bypass blocks; browser JWT ignores forged delegation context", async () => {
+test("Channel import never grants website permissions; disabled connections and unavailable owners stop imports", async () => {
   const { db, as, scalar, members } = await setup();
   try {
     await as(1);
     await db.query("select public.save_discord_settings($1,$2,true)", [
       server,
       channel,
-    ]);
-    await db.query("select public.save_discord_staff($1,$2)", [
-      user,
-      members[2],
     ]);
     await as(2);
     await db.query("select set_config('xd.discord_actor',$1,false)", [id(1)]);
@@ -209,6 +201,14 @@ test("Discord cannot elevate an ordinary user or bypass blocks; browser JWT igno
       /FORBIDDEN/,
     );
     await assert.rejects(
+      db.query("select public.record_activity($1,'{}'::jsonb)", [randomUUID()]),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      db.query("select public.save_discord_staff($1,$2)", [user, members[2]]),
+      /permission denied/,
+    );
+    await assert.rejects(
       db.query("select public.discord_runtime()"),
       /permission denied/,
     );
@@ -217,18 +217,18 @@ test("Discord cannot elevate an ordinary user or bypass blocks; browser JWT igno
       JSON.stringify({ role: "service_role" }),
     ]);
     await db.exec("set role service_role");
-    await assert.rejects(
-      db.query("select public.discord_import_context($1,$2,null,$3)", [
+    assert.ok(
+      await scalar("select public.discord_import_context($1,$2,null,$3)", [
         server,
         channel,
         user,
       ]),
-      /DISCORD_STAFF_REQUIRED/,
     );
     await db.exec("reset role");
-    await db.query("update public.discord_staff set membership_id=$1", [
-      members[1],
-    ]);
+    assert.equal(
+      await scalar("select count(*)::int from public.discord_staff"),
+      0,
+    );
     await db.query("update public.profiles set blocked=true where id=$1", [
       id(1),
     ]);
@@ -239,7 +239,21 @@ test("Discord cannot elevate an ordinary user or bypass blocks; browser JWT igno
         channel,
         user,
       ]),
-      /DISCORD_STAFF_REQUIRED/,
+      /DISCORD_CONNECTION_OWNER_UNAVAILABLE/,
+    );
+    await db.exec("reset role");
+    await db.query("update public.profiles set blocked=false where id=$1", [
+      id(1),
+    ]);
+    await db.exec("update public.discord_settings set enabled=false");
+    await db.exec("set role service_role");
+    await assert.rejects(
+      db.query("select public.discord_import_context($1,$2,null,$3)", [
+        server,
+        channel,
+        user,
+      ]),
+      /DISCORD_CHANNEL_FORBIDDEN/,
     );
     await db.exec("reset role;set role anon");
     await assert.rejects(

@@ -118,7 +118,7 @@ test("another user cannot change a draft or release a running publication lock",
   i.user.id = "stranger";
   await flow.handle(i);
   assert.ok(flow.locks.has(d.id));
-  assert.match(i.replyPayload.content, /другим сотрудником/);
+  assert.match(i.replyPayload.content, /другим участником/);
 });
 test("correction modals satisfy Discord API limits, including an empty roster", async () => {
   const d = {

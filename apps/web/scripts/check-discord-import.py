@@ -42,7 +42,8 @@ with tempfile.TemporaryFile() as log:
      page.set_viewport_size({'width':width,'height':1000});page.goto(origin+'/admin/discord',wait_until='networkidle');assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1');assert not page.locator('p[role=alert]').count();assert SECRET not in page.content()
      if theme=='dark' and width in [390,1440]:page.screenshot(path=str(artifacts/f'discord-admin-{width}.png'),full_page=True)
    page.get_by_label('ID Discord-сервера',exact=True).fill('123456789012345678');page.get_by_label('ID канала «Активность»',exact=True).fill('223456789012345678');page.get_by_role('button',name='Сохранить подключение').click();page.get_by_text('Настройки сохранены.',exact=False).wait_for();assert settings['enabled']
-   page.get_by_label('Discord ID пользователя',exact=True).fill('323456789012345678');page.get_by_role('button',name='Связать сотрудника').click();page.get_by_text('Discord привязан.',exact=False).wait_for();assert bindings[0]['membership_id']==MEMBER
+   assert page.get_by_text('Кто может создавать активности',exact=True).count()==1
+   assert page.get_by_role('button',name='Связать сотрудника').count()==0
    assert context.request.get(origin+'/api/discord/runtime').status==401;headers={'Authorization':'Bearer '+SECRET};r=context.request.get(origin+'/api/discord/runtime',headers=headers);assert r.status==200 and r.json()=={'enabled':False}
    ctx={'server':'123456789012345678','channel':'223456789012345678','parent':None,'user':'323456789012345678'}
    assert context.request.post(origin+'/api/discord/context',data={'context':ctx}).status==401
@@ -51,5 +52,5 @@ with tempfile.TemporaryFile() as log:
    body={'context':ctx,'request':EVENT,'message':'423456789012345678','activity':{'title':'Левиафан','status':'completed','startsAt':start[:19],'kind':'raid','source':'prime','coefficient':'1','reward':'0','difficulty':'normal','counts':True,'confirmRoster':True,'members':[MEMBER],'guests':[],'evidence':[],'loot':[],'facts':{}}}
    r=context.request.post(origin+'/api/discord/import',data=body,headers=headers);assert r.status==200,r.text();assert published[0]['p_payload']['confirm_roster'] is True;assert published[0]['p_payload']['weight']==100
    body['activity']['coefficient']='oops';assert context.request.post(origin+'/api/discord/import',data=body,headers=headers).status==400;assert len(published)==1
-   anon=browser.new_context();r=anon.request.get(origin+'/admin/discord');assert ('/login' in r.url or '/login' in r.text()) and 'fixture-service-key' not in r.text();assert not errors,errors;browser.close();print('PASS: responsive private Discord admin, settings and staff actions, bridge authentication/body validation, exact publication payload and anonymous isolation; no Discord API calls',flush=True)
+   anon=browser.new_context();r=anon.request.get(origin+'/admin/discord');assert ('/login' in r.url or '/login' in r.text()) and 'fixture-service-key' not in r.text();assert not errors,errors;browser.close();print('PASS: responsive private Discord admin, channel settings without per-user binding, bridge authentication/body validation, exact publication payload and anonymous isolation; no Discord API calls',flush=True)
  finally:server.terminate();server.wait(timeout=15);fixture.shutdown()
