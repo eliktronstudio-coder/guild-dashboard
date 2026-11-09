@@ -13,8 +13,10 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Verify Discord worker and bridge without sending messages
+      - uses: actions/checkout@v4
+      - name: Enable channel-based Discord import without individual bindings
         env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -25,27 +27,4 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
-            const r=await fetch('https://xd-guild.ru/api/discord/runtime',{headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET}});
-            if(!r.ok)throw Error('Discord bridge unavailable');
-            const v=await r.json();console.log('LIVE_DISCORD_RUNTIME',JSON.stringify({configured:v.enabled}));
-            const read=async(table,select)=>{const res=await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+table+'?select='+select,{headers:{apikey:process.env.SUPABASE_SECRET_KEY}});if(!res.ok)throw Error('Settings read unavailable');return res.json();};
-            const settings=await read('discord_settings','enabled,connected_at,application_id');
-            const bindings=await read('discord_staff','discord_user_id');
-            console.log('DISCORD_CONNECTION_STATE',JSON.stringify({settings_saved:settings.length>0,enabled:settings[0]?.enabled??false,online_recently:!!settings[0]?.connected_at&&Date.now()-Date.parse(settings[0].connected_at)<180000,application_known:!!settings[0]?.application_id,staff_bindings:bindings.length}));
-            if(v.enabled&&v.token){
-              for(const [label,path] of [['SERVER','/guilds/'+v.server],['CHANNEL','/channels/'+v.channel]]){
-                const res=await fetch('https://discord.com/api/v10'+path,{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
-                console.log('DISCORD_ACCESS_'+label,res.status);
-              }
-              for(const binding of bindings){const res=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET,'Content-Type':'application/json'},body:JSON.stringify({context:{server:v.server,channel:v.channel,parent:null,user:binding.discord_user_id}})});console.log('DISCORD_BOUND_STAFF_ACCESS',res.status);}
-            }
-            const denied=await fetch('https://xd-guild.ru/api/discord/runtime');if(denied.status!==401)throw Error('Missing bridge authentication');
-            console.log('UNAUTHENTICATED_DISCORD_API_DENIED');
-
-          })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
-          JS
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; cat /var/lib/xd-discord-bot/deployed; systemctl show xd-discord-bot --property=User --property=NRestarts; stat -c "%a %U" /etc/xd-discord-bot.env'
+          python3 operations/scripts/apply-discord-channel-access.py
