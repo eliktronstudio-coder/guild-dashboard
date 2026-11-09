@@ -31,27 +31,25 @@ jobs:
           def command(args):
               result=subprocess.run(args,capture_output=True,text=True,timeout=20)
               return result.stdout.strip()
-          app=pathlib.Path('/var/www/guild-dashboard-next')
-          print('VERSIONS',command(['node','--version']),command(['npm','--version']),command(['pm2','--version']))
-          print('SERVER_LOCAL_CHANGES',command(['git','-C',str(app),'status','--porcelain']))
-          print('SERVER_DIFF_STATS',command(['git','-C',str(app),'diff','--numstat']))
-          pm2=json.loads(command(['pm2','jlist']))
-          for process in pm2:
-              data=process.get('pm2_env',{})
-              print('PROCESS',json.dumps({'name':process.get('name'),'pid':process.get('pid'),'cwd':data.get('pm_cwd'),'script':data.get('pm_exec_path'),'args':data.get('args'),'status':data.get('status'),'port':data.get('PORT'),'database_kind':'sqlite' if str(data.get('DATABASE_URL','')).startswith('file:') else 'unset_or_other','session_secret_set':bool(data.get('SESSION_SECRET'))},ensure_ascii=False))
-          for name in ['.env','.env.local','.env.production','.env.production.local']:
-              file=app/name
-              if file.is_file():
-                  keys=[line.split('=',1)[0] for line in file.read_text().splitlines() if '=' in line and not line.lstrip().startswith('#')]
-                  print('ENVIRONMENT_FILE_KEYS',name,keys)
-          database=app/'prod.db'
-          print('DATABASE_FILE',str(database),'bytes',database.stat().st_size,'uid',database.stat().st_uid,'mode',oct(database.stat().st_mode&0o777))
-          import sqlite3
-          with sqlite3.connect(database.as_uri()+'?mode=ro',uri=True) as db:
-              print('DATABASE_TABLES',[row[0] for row in db.execute("select name from sqlite_master where type='table' order by name")])
-              print('APPLIED_MIGRATIONS',[row[0] for row in db.execute('select migration_name from _prisma_migrations where finished_at is not null order by migration_name')])
-          print('NGINX_APP_CONFIG',pathlib.Path('/etc/nginx/sites-enabled/guild-dashboard').read_text())
-          print('CERTBOT_CERTIFICATES',command(['certbot','certificates']))
-          print('DISK_SPACE',command(['df','-h','/var/www']))
-          print('MEMORY',command(['free','-m']))
+          app=pathlib.Path('/var/www/xd-guild-command-center/apps/web')
+          code="""
+          require('@next/env').loadEnvConfig(process.cwd());
+          (async()=>{
+           const e=process.env;
+           if(e.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected production origin');
+           const queries=[
+            'attendance?select=membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at,boss_name,boss_weight)&limit=0',
+            'member_directory?select=id,nickname,character_class&limit=0',
+            'events?select=id,title,starts_at,attendance_finalized_at&limit=0'
+           ];
+           for(const query of queries){const response=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY,Authorization:'Bearer '+e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(20000)});console.log('PRODUCTION_SCHEMA_CHECK',query.split('?')[0],response.status);if(!response.ok)throw new Error('Schema check failed');}
+           console.log('PRODUCTION_ORIGIN_CONFIRMED https://xd-guild.ru');
+          })().catch(()=>{console.error('Production schema preflight failed; no changes applied.');process.exitCode=1;});
+          """
+          result=subprocess.run(['node','-'],cwd=app,input=code,text=True,capture_output=True,timeout=90)
+          print(result.stdout)
+          if result.returncode: print(result.stderr);raise SystemExit(result.returncode)
+          print('APP_STATUS',command(['systemctl','is-active','xd-guild']))
+          print('TIMER_STATUS',command(['systemctl','is-active','xd-guild-deploy.timer']))
+          print('DISK',command(['df','-h','/var/www']))
           PY
