@@ -21,7 +21,14 @@ export async function GET(
     image = data?.activity_banner_photo ?? null;
   } else if (kind === "item") {
     const item = url.searchParams.get("item");
-    if (!item || !isUuid(item) || !(await a.permission("treasury.read")))
+    if (
+      !item ||
+      !isUuid(item) ||
+      !(
+        (await a.permission("treasury.read")) ||
+        (await a.permission("activities.loot"))
+      )
+    )
       return new Response(null, { status: 404 });
     const { data } = await a.client
       .from("treasury_loot")
@@ -36,9 +43,12 @@ export async function GET(
     if (
       !evidence ||
       !isUuid(evidence) ||
-      !(await a.permission(
-        kind === "roster" ? "attendance.manage" : "treasury.read",
-      ))
+      !(
+        (await a.permission(
+          kind === "roster" ? "attendance.manage" : "treasury.read",
+        )) ||
+        (kind === "loot" && (await a.permission("activities.loot")))
+      )
     )
       return new Response(null, { status: 404 });
     const { data } = await a.client

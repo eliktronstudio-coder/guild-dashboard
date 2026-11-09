@@ -1,4 +1,5 @@
 "use server";
+import { requireActivityLoot } from "@/lib/activity-access";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
@@ -78,7 +79,7 @@ export async function addActivityDrop(
   form: FormData,
 ): Promise<FormState> {
   await checkOrigin();
-  const a = await requirePermission("treasury.manage");
+  const a = await requireActivityLoot();
   const id = field(form, "eventId"),
     catalog = field(form, "catalog"),
     request = field(form, "requestId"),
@@ -110,7 +111,7 @@ export async function removeActivityDrop(
   form: FormData,
 ): Promise<FormState> {
   await checkOrigin();
-  const a = await requirePermission("treasury.manage");
+  const a = await requireActivityLoot();
   const id = field(form, "eventId"),
     loot = field(form, "lootId"),
     version = parseVersion(field(form, "version"));

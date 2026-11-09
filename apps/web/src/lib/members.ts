@@ -1,6 +1,8 @@
 export const ROLE_OPTIONS = [
   ["owner", "Главный администратор"],
   ["admin", "Администратор"],
+  ["guild_master", "Гильд мастер"],
+  ["tablemaker", "Таблицмейкер"],
   ["officer", "Офицер"],
   ["treasurer", "Казначей"],
   ["member", "Участник"],
