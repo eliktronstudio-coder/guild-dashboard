@@ -8,50 +8,35 @@ concurrency:
   group: xd-timeweb-operations
   cancel-in-progress: false
 jobs:
-  inspect:
+  import:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Deploy reviewed activity journal to xd-guild.ru
+      - name: Verify live activity workspace without changing data
         env:
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
-          test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
           trap 'rm -f ~/.ssh/xd_operations' EXIT
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 797edf6ec0fbf4506f933d9a843179d5a0f848b5
-          git merge --ff-only 797edf6ec0fbf4506f933d9a843179d5a0f848b5
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          fi
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/activity-banners
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events/new
-          systemctl is-active xd-guild
-          systemctl is-active xd-guild-deploy.timer
-          systemctl show xd-guild --property=WorkingDirectory
-          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          cd "$app"
-          node <<'JS'
-          const manifest=require('./.next/server/app-paths-manifest.json');
-          for(const route of ['/events/page','/events/new/page','/events/[id]/edit/page','/events/[id]/cancel/page','/events/[id]/media/route'])if(!manifest[route])throw new Error('Missing workspace route '+route);
-          console.log('ACTIVITY_WORKSPACE_PRODUCTION_ROUTES_VERIFIED');
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
+          require('@next/env').loadEnvConfig(process.cwd());
+          (async()=>{
+            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            for(const table of ['guild_activity_banners','guild_drop_registry','activity_reports','activity_evidence']){
+              const base=process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+table+'?select='+(table==='activity_reports'?'event_id':'id')+'&guild_id=eq.00000000-0000-4000-8000-000000000001&limit=0';
+              for(const [label,filter] of (table.startsWith('guild_')?[['ALL',''],['WITH_PHOTOS','&photo=neq.']]:[['ALL','']])){
+                const r=await fetch(base+filter,{method:'HEAD',headers:{apikey:process.env.SUPABASE_SECRET_KEY,Prefer:'count=exact'},signal:AbortSignal.timeout(15000)});
+                if(!r.ok)throw new Error('Registry API check failed');
+                console.log('LIVE_REGISTRY',table,label,r.status,r.headers.get('content-range'));
+              }
+            }
+          })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
           JS
-          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'systemctl is-active xd-guild; systemctl is-active xd-guild-deploy.timer; cat /var/lib/xd-guild-deploy/deployed'
