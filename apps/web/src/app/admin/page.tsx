@@ -8,6 +8,8 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "drop_registry.saved": "Дроп сохранён в реестре",
+  "drop_registry.deleted": "Дроп удалён из реестра",
   "event.signup_changed": "Изменена запись на событие",
   "telegram.linked": "Привязан Telegram-бот",
   "telegram.unlinked": "Отвязан Telegram-бот",
@@ -48,6 +50,13 @@ export default async function Page() {
   if (audit?.error) redirect("/setup?problem=database");
   return (
     <GuildShell current="/admin">
+      {(await a.permission("members.manage")) && (
+        <p>
+          <Link href="/admin/drops" className="button secondary inline">
+            Реестр дропа →
+          </Link>
+        </p>
+      )}
       {(await a.permission("catalog.manage")) && <AdminTabs current="/admin" />}
       <div className="page-heading">
         <p className="eyebrow">XD · УПРАВЛЕНИЕ</p>
