@@ -29,14 +29,11 @@ jobs:
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
-            for(const table of ['guild_activity_banners','guild_drop_registry','activity_reports','activity_evidence']){
-              const base=process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+table+'?select='+(table==='activity_reports'?'event_id':'id')+'&guild_id=eq.00000000-0000-4000-8000-000000000001&limit=0';
-              for(const [label,filter] of (table.startsWith('guild_')?[['ALL',''],['WITH_PHOTOS','&photo=neq.']]:[['ALL','']])){
-                const r=await fetch(base+filter,{method:'HEAD',headers:{apikey:process.env.SUPABASE_SECRET_KEY,Prefer:'count=exact'},signal:AbortSignal.timeout(15000)});
-                if(!r.ok)throw new Error('Registry API check failed');
-                console.log('LIVE_REGISTRY',table,label,r.status,r.headers.get('content-range'));
-              }
-            }
+            console.log('AUTH_FLAGS',JSON.stringify({email:process.env.AUTH_EMAIL_ENABLED,delivery:process.env.AUTH_EMAIL_DELIVERY_READY}));
+            const r=await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL+'/auth/v1/settings',{headers:{apikey:process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}});
+            if(!r.ok)throw Error('Auth settings unavailable');
+            const v=await r.json();console.log('PUBLIC_AUTH_SETTINGS',JSON.stringify({email:v.external?.email,disable_signup:v.disable_signup,mailer_autoconfirm:v.mailer_autoconfirm}));
+
           })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
           JS
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'systemctl is-active xd-guild; systemctl is-active xd-guild-deploy.timer; cat /var/lib/xd-guild-deploy/deployed'
