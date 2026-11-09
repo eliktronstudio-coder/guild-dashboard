@@ -1,3 +1,5 @@
+import { dashboardPeriod } from "@/lib/dashboard";
+import type { PayrollReport } from "@/lib/payroll";
 import { setMemberWeight } from "@/app/admin/catalog/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -44,6 +46,10 @@ export default async function Page({
   if (error) redirect("/setup?problem=database");
   const lastPage = Math.max(1, Math.ceil((count ?? 0) / 25));
   if (filters.page > lastPage) redirect(directoryHref(filters, lastPage));
+  const period = dashboardPeriod({ period: "current" });
+  const payroll = await a.client.rpc("period_payroll_report", {
+    p_from: period.from,
+  });
   return (
     <GuildShell current="/members">
       <Link href="/exports" className="text-button">
@@ -113,7 +119,15 @@ export default async function Page({
             </Link>
           </div>
         </form>
+        <p className="caption">
+          Расчётный период: {period.from} → {period.until.slice(0, 10)}. Общий
+          порог зарплаты — 20%. Расчёт обновляется при загрузке страницы.
+        </p>
+        {payroll.error && (
+          <p role="alert">Посещаемость и зарплата временно недоступны.</p>
+        )}
         <MemberDirectory
+          payroll={(payroll.data as PayrollReport | null)?.rows}
           weightAction={
             (await a.permission("members.coefficient"))
               ? setMemberWeight

@@ -1,3 +1,4 @@
+import { GUILD_ID } from "@/lib/config";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { MemberAvatar } from "@/components/members/avatar";
@@ -57,13 +58,30 @@ export async function GuildShell({
     a.permission("members.read"),
     a.permission("treasury.read"),
   ]);
+  const canAttend = await a.permission("attendance.manage");
+  const claims = canAttend
+    ? await a.client
+        .from("participation_claims")
+        .select("id", { count: "exact", head: true })
+        .eq("guild_id", GUILD_ID)
+        .eq("status", "pending")
+    : null;
   const links = [
-    ["/dashboard", "Дашборд", "◈"],
+    ["/dashboard", "Главная", "◈"],
     ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
     ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
     ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
+    ...(canAttend
+      ? [
+          [
+            "/admin/participation",
+            `Заявки на участие (${claims?.count ?? 0})`,
+            "♧",
+          ],
+        ]
+      : []),
     ["/account", "Аккаунт", "○"],
   ];
   return (

@@ -62,10 +62,15 @@ test("workspace filters and form validation use bounded real periods and exact m
 async function setup() {
   const result = await memberDatabase();
   await result.db.exec("create role service_role");
+    // Historical settlement behavior is tested before migration 025; member-payroll.test covers the replacement on both schemas.
   for (const file of (await readdir("supabase/migrations"))
     .sort()
     .filter(
-      (f) => f.endsWith(".sql") && !/000[12]_/.test(f) && !/001[78]_/.test(f),
+      (f) =>
+        f.endsWith(".sql") &&
+        f < "202611090025" &&
+        !/000[12]_/.test(f) &&
+        !/001[78]_/.test(f),
     ))
     await result.db.exec(await readFile("supabase/migrations/" + file, "utf8"));
   await result.db.exec(

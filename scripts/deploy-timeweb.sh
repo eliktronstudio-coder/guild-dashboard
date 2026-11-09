@@ -19,7 +19,7 @@ require('@next/env').loadEnvConfig(process.cwd());
  const e=process.env;
  if(!e.SUPABASE_SECRET_KEY) throw new Error('Не задан SUPABASE_SECRET_KEY.');
  if(e.APP_ORIGIN!=='https://xd-guild.ru') throw new Error('Неверный целевой домен.');
- for(const query of ['events?select=id,title,status,attendance_finalized_at&limit=0','member_directory?select=id,nickname,character_class&limit=0','treasury_sales?select=id&limit=0']){
+ for(const query of ['events?select=id,title,status,attendance_finalized_at&limit=0','member_directory?select=id,nickname,character_class,payout_weight,weight_version&limit=0','events?select=deleted_at&limit=0','participation_claims?select=id&limit=0','treasury_allocations?select=payroll_id&limit=0','treasury_sales?select=id&limit=0']){
   const r=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
   if(!r.ok)throw new Error('Проверка рабочей схемы Supabase не прошла; установка отменена.');
  }

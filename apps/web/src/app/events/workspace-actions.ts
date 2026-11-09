@@ -10,6 +10,7 @@ function refresh(id: string) {
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
   revalidatePath("/statistics");
+  revalidatePath("/members", "layout");
   revalidatePath("/dashboard");
   revalidatePath("/treasury", "layout");
   revalidatePath("/events/" + id);

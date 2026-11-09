@@ -80,6 +80,8 @@ export async function createEvent(
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
+  revalidatePath("/members", "layout");
+  revalidatePath("/treasury");
   redirect(`/events/${requestId}`);
 }
 export async function signupEvent(
@@ -104,6 +106,8 @@ export async function signupEvent(
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
+  revalidatePath("/members", "layout");
+  revalidatePath("/treasury");
   return { success: join ? "Вы записаны." : "Запись отменена." };
 }
 
@@ -136,6 +140,8 @@ export async function changeEvent(
   revalidatePath("/events");
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
+  revalidatePath("/members", "layout");
+  revalidatePath("/treasury");
   return { success: "Изменение сохранено в журнале." };
 }
 
@@ -192,6 +198,8 @@ export async function markAttendance(
   scheduleTelegram();
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
+  revalidatePath("/members", "layout");
+  revalidatePath("/treasury");
   return { success: "Отметка сохранена. Отчёт требует подтверждения." };
 }
 export async function finalizeAttendance(
@@ -217,5 +225,7 @@ export async function finalizeAttendance(
   scheduleTelegram();
   revalidatePath("/events", "layout");
   revalidatePath("/attendance");
+  revalidatePath("/members", "layout");
+  revalidatePath("/treasury");
   return { success: "Отчёт подтверждён." };
 }

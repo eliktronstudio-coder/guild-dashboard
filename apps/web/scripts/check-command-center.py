@@ -39,6 +39,7 @@ class Fixture(BaseHTTPRequestHandler):
   elif path.endswith('/rpc/has_permission'):data=True
   elif path.endswith('/rpc/dashboard_report'):data=report
   elif path.endswith('/rpc/activity_journal'):data={'total':0,'page':1,'can_view_roster':True,'kpis':{'total':0,'average':None,'best':None,'cancelled':0},'rows':[]}
+  elif path.endswith('/rpc/period_payroll_report'):data={'from':'2026-10-15','until':'2026-11-15','signature':'a'*32,'prime_units':'70000000','mini_units':'10000000','rows':[{'id':MEMBER,'nickname':member['nickname'],'status':'active','payout_weight':100,'available':'100','present':'100','percentage':100,'prime_percentage':100,'mini_percentage':None,'pvp_percentage':None,'eligible':True,'prime_projection':'70000000','mini_projection':'10000000','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}]}
   elif path.endswith('/rpc/treasury_summary'):data=totals
   elif path.endswith('/rpc/my_treasury_summary'):data=personal
   elif path.endswith('/profiles'):data=[{'id':USER,'blocked':False}]

@@ -61,6 +61,8 @@ export async function addLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   revalidatePath("/events", "layout");
   const { data: item } = await client
     .from("treasury_inventory")
@@ -100,6 +102,8 @@ export async function reviseLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return {
     success: "Партия исправлена. Предыдущее состояние сохранено в журнале.",
   };
@@ -141,6 +145,8 @@ export async function sellLoot(
   });
   if (error) return { error: treasuryError(error.message) };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return { success: "Продажа записана, остаток и казны обновлены." };
 }
 export async function voidSale(
@@ -161,8 +167,56 @@ export async function voidSale(
       error: settlementError(error.message) ?? treasuryError(error.message),
     };
   revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
   return {
     success:
       "Продажа отменена. Предметы возвращены, поступления сняты; история сохранена.",
   };
+}
+
+export async function addRegistryInventory(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.manage");
+  const request = field(form, "requestId"),
+    event = field(form, "eventId"),
+    catalog = field(form, "catalogId"),
+    version = integer(form, "catalogVersion"),
+    source = field(form, "source"),
+    price = parseGold(field(form, "price")),
+    quantity = integer(form, "quantity"),
+    note = field(form, "note").trim();
+  if (
+    !isUuid(request) ||
+    (event && !isUuid(event)) ||
+    !isUuid(catalog) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !["prime", "mini_rb"].includes(source) ||
+    price === null ||
+    !Number.isInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000 ||
+    note.length > 1000
+  )
+    return { error: "Проверьте предмет, категорию, количество и цену." };
+  const { error } = await a.client.rpc("add_registry_inventory", {
+    p_request: request,
+    p_event: event || null,
+    p_catalog: catalog,
+    p_catalog_version: version,
+    p_source: source,
+    p_price: price,
+    p_quantity: quantity,
+    p_note: note,
+  });
+  if (error) return { error: treasuryError(error.message) };
+  revalidatePath("/treasury");
+  revalidatePath("/members", "layout");
+  revalidatePath("/dashboard");
+  revalidatePath("/events", "layout");
+  return { success: "Предмет добавлен." };
 }
