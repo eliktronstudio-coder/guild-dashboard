@@ -13,8 +13,10 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Verify populated activity and drop registries without changing data
+      - uses: actions/checkout@v4
+      - name: Apply verified additive activity schema and upload limit
         env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -25,17 +27,23 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
-            for(const table of ['guild_activity_banners','guild_drop_registry']){
-              const base=process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+table+'?select=id&guild_id=eq.00000000-0000-4000-8000-000000000001&limit=0';
-              for(const [label,filter] of [['ALL',''],['WITH_PHOTOS','&photo=neq.']]){
-                const r=await fetch(base+filter,{method:'HEAD',headers:{apikey:process.env.SUPABASE_SECRET_KEY,Prefer:'count=exact'},signal:AbortSignal.timeout(15000)});
-                if(!r.ok)throw new Error('Registry API check failed');
-                console.log('LIVE_REGISTRY',table,label,r.status,r.headers.get('content-range'));
-              }
-            }
-          })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
-          JS
+          python3 operations/scripts/apply-activity-workspace.py
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'python3 -' <<'PYREMOTE'
+          from pathlib import Path
+          import subprocess,datetime,re
+          path=Path('/etc/nginx/sites-enabled/xd-guild.ru').resolve()
+          content=path.read_text()
+          assert '127.0.0.1:3001' in content and 'xd-guild.ru' in content
+          if not re.search(r'client_max_body_size\s+8m\s*;',content):
+              backup=path.with_name(path.name+'.backup-activity-'+datetime.datetime.now().strftime('%Y%m%d%H%M%S'))
+              backup.write_text(content)
+              changed=re.sub(r'client_max_body_size\s+[^;]+;', '',content)
+              changed=re.sub(r'(server\s*\{)',r'\1\n    client_max_body_size 8m;',changed)
+              path.write_text(changed)
+              try:subprocess.run(['nginx','-t'],check=True,capture_output=True)
+              except Exception:
+                  path.write_text(content)
+                  raise
+              subprocess.run(['systemctl','reload','nginx'],check=True)
+          print('XD_GUILD_NGINX_UPLOAD_LIMIT_VERIFIED_8M')
+          PYREMOTE
