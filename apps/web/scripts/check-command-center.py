@@ -3,7 +3,7 @@ from http.server import ThreadingHTTPServer,BaseHTTPRequestHandler
 from threading import Thread
 from pathlib import Path
 import base64,json,time,socket,tempfile,subprocess,os,shutil,urllib.parse
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1]
 USER='11111111-1111-4111-8111-111111111111'
 MEMBER='22222222-2222-4222-8222-222222222222'
@@ -17,6 +17,7 @@ totals={key:'0' for key in ['prime_units','prime_gross_units','mini_units','guil
 totals.update({'prime_units':'70000000','mini_units':'10000000','guild_units':'30000000','inventory_units':'5000000','sales_count':1,'stock_count':0,'priced_count':0,'unpriced_count':0})
 report={'members':1,'pending_applications':0,'active_members':1,'completed_events':1,'attendance':100,'own_attendance':100,'own_present':1,'own_finance':personal,'own_earned_units':'1000000','upcoming':[],'weeks':[{'from':start,'until':start,'active':1,'attendance':100}],'ranking':[{'membership_id':MEMBER,'nickname':member['nickname'],'present':1,'percentage':100}],'finance':{'current':totals,'sales_units':'100000000','reversed_units':'0','opening_units':'0','weeks':[{'from':start,'until':start,'sales_units':'100000000','reversed_units':'0','balance_units':'100000000'}]}}
 drops={}
+banners={}
 class Fixture(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def do_GET(self):self.reply()
@@ -26,6 +27,10 @@ class Fixture(BaseHTTPRequestHandler):
    old=drops.get(payload['p_id'],{})
    drops[payload['p_id']]={'id':payload['p_id'],'name':payload['p_name'],'photo':payload['p_photo'] if payload['p_photo'] is not None else old.get('photo',''),'price_units':str(payload['p_price']),'version':old.get('version',0)+1}
   elif self.path.endswith('/rpc/delete_drop_registry'):drops.pop(payload['p_id'],None)
+  elif self.path.endswith('/rpc/save_activity_banner'):
+   old=banners.get(payload['p_id'],{})
+   banners[payload['p_id']]={'id':payload['p_id'],'name':payload['p_name'],'photo':payload['p_photo'] if payload['p_photo'] is not None else old.get('photo',''),'weight':payload['p_weight'],'version':old.get('version',0)+1}
+  elif self.path.endswith('/rpc/delete_activity_banner'):banners.pop(payload['p_id'],None)
   self.reply()
  def reply(self):
   path=urllib.parse.urlsplit(self.path).path
@@ -40,6 +45,7 @@ class Fixture(BaseHTTPRequestHandler):
   elif path.endswith('/attendance'):data=[{'membership_id':MEMBER,'mark':'present','events':event}]
   elif path.endswith('/events'):data=[event]
   elif path.endswith('/guild_drop_registry'):data=list(drops.values())
+  elif path.endswith('/guild_activity_banners'):data=list(banners.values())
   if path.endswith('/attendance') and 'boss_name' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('select',[''])[0]:
    encoded=json.dumps({'code':'42703','message':'column events.boss_name does not exist'}).encode();self.send_response(400);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(encoded);return
   encoded=json.dumps(data).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(encoded)));self.send_header('Content-Range',f'0-{max(0,len(data)-1)}/{len(data)}' if isinstance(data,list) else '0-0/1');self.end_headers();self.wfile.write(encoded)
@@ -62,7 +68,7 @@ with tempfile.TemporaryFile() as log:
     page.evaluate("theme=>{document.documentElement.dataset.theme=theme;localStorage.setItem('xd-theme',theme)}",theme)
     for width in [360,390,768,1024,1440,1920]:
      page.set_viewport_size({'width':width,'height':1000})
-     for path in ['/dashboard','/statistics','/events','/members','/treasury','/admin/drops']:
+     for path in ['/dashboard','/statistics','/events','/members','/treasury','/admin/drops','/admin/activity-banners']:
       response=page.goto(origin+path,wait_until='networkidle');assert response and response.status==200,(path,response.status if response else None)
       assert '/login' not in page.url and '/setup' not in page.url,(path,page.url)
       assert not [text for text in page.get_by_role('alert').all_text_contents() if text.strip()],(path,page.get_by_role('alert').all_text_contents())
@@ -90,11 +96,43 @@ with tempfile.TemporaryFile() as log:
    entry.get_by_label('Подтверждаю удаление').check();entry.get_by_role('button',name='Удалить дроп',exact=True).click()
    page.get_by_text('Реестр пуст. Добавьте первый дроп.',exact=True).wait_for()
    assert not drops
+   page.goto(origin+'/admin/activity-banners',wait_until='networkidle')
+   page.get_by_text('Добавить активность',exact=True).first.click()
+   create=page.locator('form').filter(has=page.get_by_role('button',name='Добавить активность'))
+   create.get_by_label('Название активности').fill('Кракен')
+   create.get_by_label('Коэффициент активности').fill('1,5')
+   create.locator('input[type=file]').set_input_files({'name':'banner.png','mimeType':'image/png','buffer':base64.b64decode(png)})
+   create.get_by_alt_text('Предпросмотр фото').wait_for()
+   create.get_by_role('button',name='Добавить активность').click()
+   page.get_by_role('heading',name='Кракен',exact=True).wait_for()
+   for width in [360,1440]:
+    page.set_viewport_size({'width':width,'height':1000})
+    for path in ['/admin/activity-banners','/events']:
+     page.goto(origin+path,wait_until='networkidle')
+     assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),(path,width,'populated banner overflow')
+     if width==1440 and path=='/events':page.screenshot(path=str(artifacts/'activity-banners-1440.png'),full_page=True)
+   page.goto(origin+'/events',wait_until='networkidle')
+   page.get_by_role('heading',name='Кракен',exact=True).wait_for()
+   page.get_by_text('Коэффициент ×1,5',exact=True).wait_for()
+   page.get_by_role('link',name='Создать событие →',exact=True).click()
+   expect(page.get_by_label('Название',exact=True)).to_have_value('Кракен')
+   assert page.get_by_label('Баннер активности',exact=True).input_value() in banners
+   page.goto(origin+'/admin/activity-banners',wait_until='networkidle')
+   entry=page.locator('article').filter(has=page.get_by_role('heading',name='Кракен',exact=True))
+   entry.get_by_text('Редактировать',exact=True).click()
+   edit=entry.locator('form').filter(has=page.get_by_role('button',name='Сохранить',exact=True))
+   edit.get_by_label('Коэффициент активности').fill('2,5')
+   edit.get_by_role('button',name='Сохранить',exact=True).click()
+   page.get_by_text('2,5 ×',exact=True).wait_for()
+   entry.get_by_text('Удалить',exact=True).click()
+   entry.get_by_label('Подтверждаю удаление').check();entry.get_by_role('button',name='Удалить баннер',exact=True).click()
+   page.get_by_text('Баннеров пока нет. Добавьте первую активность.',exact=True).wait_for()
+   assert not banners
    assert not errors,errors[:3]
    page.goto(origin+'/dashboard',wait_until='networkidle');page.get_by_role('button',name='Настроить',exact=True).click();page.get_by_label('Видимость панелей').get_by_label('Динамика казны',exact=True).uncheck();page.reload(wait_until='networkidle');assert page.locator('[data-panel-id="treasury"]').count()==0
    page.goto(origin+'/statistics/export',wait_until='commit') if False else None
    response=context.request.get(origin+'/statistics/export');assert response.status==200 and 'Тестовый участник' in response.text()
    anonymous=browser.new_context();r=anonymous.request.get(origin+'/statistics',max_redirects=0);assert r.status in [200,303,307,308] and '/login' in r.text() and 'Тестовый участник' not in r.text()
-   browser.close();print('PASS: real authenticated Supabase-shaped SSR, 6 sections × 6 widths × 2 themes and drop photo/create/edit/delete, private access, CSV and saved panels; no real accounts or production data used',flush=True)
+   browser.close();print('PASS: real authenticated Supabase-shaped SSR, 7 sections × 6 widths × 2 themes, drop and activity banner CRUD, public banner and event selection, private access, CSV and saved panels; no real accounts or production data used',flush=True)
  finally:
   server.terminate();server.wait(timeout=15);fixture.shutdown()
