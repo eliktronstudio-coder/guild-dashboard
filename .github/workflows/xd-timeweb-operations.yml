@@ -8,42 +8,50 @@ concurrency:
   group: xd-timeweb-operations
   cancel-in-progress: false
 jobs:
-  import:
+  inspect:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - uses: actions/checkout@v4
-      - name: Apply verified additive activity schema and upload limit
+      - name: Deploy reviewed activity journal to xd-guild.ru
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
+          test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
           trap 'rm -f ~/.ssh/xd_operations' EXIT
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/apply-activity-workspace.py
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'python3 -' <<'PYREMOTE'
-          from pathlib import Path
-          import subprocess,datetime,re
-          path=Path('/etc/nginx/sites-enabled/xd-guild.ru').resolve()
-          content=path.read_text()
-          assert '127.0.0.1:3001' in content and 'xd-guild.ru' in content
-          if not re.search(r'client_max_body_size\s+8m\s*;',content):
-              backup=path.with_name(path.name+'.backup-activity-'+datetime.datetime.now().strftime('%Y%m%d%H%M%S'))
-              backup.write_text(content)
-              changed=re.sub(r'client_max_body_size\s+[^;]+;', '',content)
-              changed=re.sub(r'(server\s*\{)',r'\1\n    client_max_body_size 8m;',changed)
-              path.write_text(changed)
-              try:subprocess.run(['nginx','-t'],check=True,capture_output=True)
-              except Exception:
-                  path.write_text(content)
-                  raise
-              subprocess.run(['systemctl','reload','nginx'],check=True)
-          print('XD_GUILD_NGINX_UPLOAD_LIMIT_VERIFIED_8M')
-          PYREMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 797edf6ec0fbf4506f933d9a843179d5a0f848b5
+          git merge --ff-only 797edf6ec0fbf4506f933d9a843179d5a0f848b5
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/activity-banners
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events/new
+          systemctl is-active xd-guild
+          systemctl is-active xd-guild-deploy.timer
+          systemctl show xd-guild --property=WorkingDirectory
+          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
+          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          cd "$app"
+          node <<'JS'
+          const manifest=require('./.next/server/app-paths-manifest.json');
+          for(const route of ['/events/page','/events/new/page','/events/[id]/edit/page','/events/[id]/cancel/page','/events/[id]/media/route'])if(!manifest[route])throw new Error('Missing workspace route '+route);
+          console.log('ACTIVITY_WORKSPACE_PRODUCTION_ROUTES_VERIFIED');
+          JS
+          REMOTE
