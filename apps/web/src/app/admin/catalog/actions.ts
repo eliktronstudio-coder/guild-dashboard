@@ -84,7 +84,7 @@ export async function setMemberWeight(
     p_weight: weight,
   });
   if (error) return { error: catalogError(error.message) };
-  revalidatePath("/members");
+  revalidatePath("/members", "layout");
   revalidatePath("/treasury", "layout");
   return { success: "Коэффициент сохранён." };
 }

@@ -1,3 +1,4 @@
+import { setMemberWeight } from "@/app/admin/catalog/actions";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -27,7 +28,7 @@ export default async function Page({
   const { data: member, error } = await a.client
     .from("memberships")
     .select(
-      "id,user_id,nickname,joined_at,status,about,avatar_style,profile_version,membership_roles(roles(code,name))",
+      "id,user_id,nickname,joined_at,status,about,avatar_style,profile_version,payout_weight,weight_version,membership_roles(roles(code,name))",
     )
     .eq("guild_id", GUILD_ID)
     .eq("id", id)
@@ -101,6 +102,34 @@ export default async function Page({
     redirect(`/members/${id}?historyPage=${historyPages}#nickname-history`);
   return (
     <GuildShell current="/members">
+      <section className="panel section-panel">
+        <h2>
+          Коэффициент зарплаты:{" "}
+          {(member.payout_weight / 100).toLocaleString("ru-RU")}
+        </h2>
+        {(await a.permission("members.coefficient")) && (
+          <ActionForm
+            action={setMemberWeight}
+            revision={member.weight_version}
+            label="Сохранить коэффициент"
+          >
+            <input type="hidden" name="id" value={id} />
+            <input type="hidden" name="version" value={member.weight_version} />
+            <label>
+              Коэффициент (0,2–1,25)
+              <input
+                name="weight"
+                type="number"
+                min="0.2"
+                max="1.25"
+                step="0.01"
+                required
+                defaultValue={member.payout_weight / 100}
+              />
+            </label>
+          </ActionForm>
+        )}
+      </section>
       <nav className="form-links">
         <Link href={"/statistics?q=" + encodeURIComponent(member.nickname)}>
           Посещаемость и статистика →

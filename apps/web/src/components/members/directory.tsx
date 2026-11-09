@@ -1,3 +1,5 @@
+import { AttendanceLines, SalaryLines } from "./payroll-cells";
+import type { PayrollRow } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
 import type { FormState } from "@/lib/identity";
 type WeightAction = (state: FormState, form: FormData) => Promise<FormState>;
@@ -30,10 +32,13 @@ function Weight({ m, action }: { m: DirectoryMember; action: WeightAction }) {
 export function MemberDirectory({
   members,
   weightAction,
+  payroll,
 }: {
   members: DirectoryMember[];
   weightAction?: WeightAction;
+  payroll?: PayrollRow[];
 }) {
+  const byMember = new Map(payroll?.map((row) => [row.id, row]));
   return (
     <>
       <div className="table-wrap directory-desktop">
@@ -48,6 +53,8 @@ export function MemberDirectory({
               <th>Основной персонаж</th>
               <th>Класс / сервер</th>
               <th>Вступил</th>
+              <th>Посещаемость</th>
+              <th>Зарплата · к выплате</th>
               {weightAction && <th>Коэффициент</th>}
             </tr>
           </thead>
@@ -74,6 +81,12 @@ export function MemberDirectory({
                   </p>
                 </td>
                 <td>{joined(m.joined_at)}</td>
+                <td>
+                  <AttendanceLines row={byMember.get(m.id)} />
+                </td>
+                <td>
+                  <SalaryLines row={byMember.get(m.id)} />
+                </td>
                 {weightAction && (
                   <td>
                     <Weight m={m} action={weightAction} />
@@ -107,6 +120,8 @@ export function MemberDirectory({
               <dt>В гильдии с</dt>
               <dd>{joined(m.joined_at)}</dd>
             </dl>
+            <AttendanceLines row={byMember.get(m.id)} />
+            <SalaryLines row={byMember.get(m.id)} />
             {weightAction && <Weight m={m} action={weightAction} />}
           </article>
         ))}

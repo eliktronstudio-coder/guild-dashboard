@@ -8,6 +8,11 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "participation.claimed": "Подана заявка на участие",
+  "participation.reviewed": "Рассмотрена заявка на участие",
+  "activity.deleted": "Удалена активность",
+  "member.coefficient": "Изменён коэффициент зарплаты",
+  "payroll.member_paid": "Записана зарплата за расчётный период",
   "activity_banner.saved": "Баннер активности сохранён",
   "activity_banner.deleted": "Баннер активности удалён",
   "event.banner_selected": "Для события выбран баннер активности",
@@ -67,6 +72,11 @@ export default async function Page() {
         </p>
       )}
       {(await a.permission("catalog.manage")) && <AdminTabs current="/admin" />}
+      {(await a.permission("attendance.manage")) && (
+        <Link href="/admin/participation" className="button secondary inline">
+          Заявки на участие →
+        </Link>
+      )}
       <div className="page-heading">
         <p className="eyebrow">XD · УПРАВЛЕНИЕ</p>
         <h1>Заявки на вступление</h1>

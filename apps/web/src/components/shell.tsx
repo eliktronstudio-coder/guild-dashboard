@@ -57,13 +57,29 @@ export async function GuildShell({
     a.permission("members.read"),
     a.permission("treasury.read"),
   ]);
+  const canAttend = await a.permission("attendance.manage");
+  const claims = canAttend
+    ? await a.client
+        .from("participation_claims")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+    : null;
   const links = [
-    ["/dashboard", "Дашборд", "◈"],
+    ["/dashboard", "Главная", "◈"],
     ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
     ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
     ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
+    ...(canAttend
+      ? [
+          [
+            "/admin/participation",
+            `Заявки на участие (${claims?.count ?? 0})`,
+            "♧",
+          ],
+        ]
+      : []),
     ["/account", "Аккаунт", "○"],
   ];
   return (

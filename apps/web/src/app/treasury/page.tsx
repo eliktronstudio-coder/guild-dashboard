@@ -1,3 +1,5 @@
+import { PeriodPayroll } from "@/components/settlements/period-payroll";
+import { RegistryInventory } from "@/components/treasury/registry-inventory";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
@@ -16,7 +18,7 @@ import {
 import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { TreasurySummary } from "@/components/treasury/summary";
-import { InventoryList, LootFields } from "@/components/treasury/inventory";
+import { InventoryList } from "@/components/treasury/inventory";
 import { addLoot, voidSale } from "./actions";
 import { SettlementPanel } from "@/components/settlements/panel";
 export const metadata = { title: "Казна" };
@@ -96,6 +98,15 @@ export default async function Page({
     events.error
   )
     redirect("/setup?problem=database");
+  const registry = manage
+    ? await a.client
+        .from("guild_drop_registry")
+        .select("id,name,price_units::text,version")
+        .eq("guild_id", GUILD_ID)
+        .order("name")
+        .limit(500)
+    : { data: [], error: null };
+  if (registry.error) throw new Error("REGISTRY_READ_FAILED");
   const epages = Math.max(1, Math.ceil((events.count ?? 0) / 50));
   if (epage > epages) redirect(href({ epage: epages }));
   const ipages = Math.max(1, Math.ceil((items.count ?? 0) / 20)),
@@ -105,20 +116,8 @@ export default async function Page({
       href({ ipage: Math.min(ipage, ipages), spage: Math.min(spage, spages) }),
     );
   const totals = summary.data as TreasuryTotals;
-  const poolSupport = canAllocate
-    ? await a.client
-        .from("treasury_pools")
-        .select("id", { head: true })
-        .eq("guild_id", GUILD_ID)
-        .limit(0)
-    : null;
   return (
     <GuildShell current="/treasury">
-      {canAllocate && poolSupport && !poolSupport.error && (
-        <Link href="/treasury/pool" className="button secondary inline">
-          Распределить фонд по РБ →
-        </Link>
-      )}
       <Link href="/exports" className="text-button">
         Экспорт CSV →
       </Link>
@@ -179,38 +178,14 @@ export default async function Page({
               )}
             </nav>
           )}
-          {events.data?.length ? (
-            <details>
-              <summary>Добавить предметы</summary>
-              <ActionForm action={addLoot} label="Добавить в инвентарь">
-                <input type="hidden" name="requestId" value={randomUUID()} />
-                <label>
-                  Активность
-                  <select name="eventId" required defaultValue="">
-                    <option value="" disabled>
-                      Выберите источник дропа
-                    </option>
-                    {events.data.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {sourceName(e.treasury_source)} · {e.title} ·{" "}
-                        {new Date(e.starts_at).toLocaleDateString("ru-RU", {
-                          timeZone: "UTC",
-                        })}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <LootFields />
-              </ActionForm>
-            </details>
-          ) : (
-            <p className="notice">
-              Нет завершённых событий с пометкой «Прайм» или «Мини РБ» за этот
-              месяц. Укажите пометку на странице{" "}
-              <Link href={`/events?month=${range.month}`}>активности</Link>,
-              затем внесите дроп.
-            </p>
-          )}
+          <details>
+            <summary>Добавить предмет</summary>
+            <RegistryInventory
+              requestId={randomUUID()}
+              items={registry.data ?? []}
+              events={events.data ?? []}
+            />
+          </details>
         </section>
       )}
       <section className="panel section-panel" id="inventory">
@@ -348,9 +323,10 @@ export default async function Page({
           )}
         </nav>
       </section>
+      <PeriodPayroll />
       <SettlementPanel
         client={a.client}
-        permissions={{ allocate: canAllocate, pay: canPay, spend: canSpend }}
+        permissions={{ allocate: false, pay: canPay, spend: canSpend }}
         p={p}
       />
       <p className="caption">

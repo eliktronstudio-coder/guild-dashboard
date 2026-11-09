@@ -22,11 +22,15 @@ test("catalog and pooled awards: ACL, defaults, weights, snapshots, exact fund a
   const { db, as, scalar, members: m } = await memberDatabase();
   try {
     await db.exec("create role service_role;");
+    // Historical settlement behavior is tested before migration 025; member-payroll.test covers the replacement on both schemas.
     for (const f of (await readdir("supabase/migrations"))
       .sort()
       .filter(
         (f) =>
-          f.endsWith(".sql") && !f.includes("0001_") && !f.includes("0002_"),
+          f.endsWith(".sql") &&
+          f < "202611090025" &&
+          !f.includes("0001_") &&
+          !f.includes("0002_"),
       )) {
       await db.exec(await readFile("supabase/migrations/" + f, "utf8"));
     }

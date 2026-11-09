@@ -1,3 +1,4 @@
+import { PeriodCountdown } from "@/components/dashboard/period-countdown";
 import Link from "next/link";
 import { GuildShell } from "@/components/shell";
 import { SeriesChart } from "@/components/dashboard/series-chart";
@@ -8,7 +9,7 @@ import { loadCommandReport } from "@/lib/command-report";
 import { dashboardDate } from "@/lib/dashboard";
 import { formatGold } from "@/lib/treasury";
 import { GUILD_ID } from "@/lib/config";
-export const metadata = { title: "Дашборд гильдии" };
+export const metadata = { title: "Главная" };
 export default async function Page({
   searchParams,
 }: {
@@ -21,6 +22,7 @@ export default async function Page({
     .select("id,title,starts_at,attendance_finalized_at")
     .eq("guild_id", GUILD_ID)
     .eq("status", "completed")
+    .eq("inventory_receipt", false)
     .lte("starts_at", new Date().toISOString())
     .order("starts_at", { ascending: false })
     .order("id")
@@ -157,7 +159,7 @@ export default async function Page({
             <StatCard
               title="Конец расчётного диапазона"
               value={dashboardDate(range.until)}
-              note="Расчётная граница; выплата проводится ответственным"
+              note={<PeriodCountdown until={range.until} />}
             />
           </div>
           <p className="caption">

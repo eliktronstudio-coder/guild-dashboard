@@ -294,9 +294,9 @@ export default async function Page({
                       {manage && row.status !== "cancelled" && (
                         <Link
                           className="activity-row-cancel"
-                          href={"/events/" + row.id + "/cancel"}
-                          aria-label={"Отменить " + row.title}
-                          title="Отменить активность"
+                          href={"/events/" + row.id + "/delete"}
+                          aria-label={"Удалить " + row.title}
+                          title="Удалить активность"
                         >
                           ⌫
                         </Link>

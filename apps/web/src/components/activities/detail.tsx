@@ -1,3 +1,4 @@
+import { ClaimForm } from "./claim-form";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { requireMember } from "@/lib/access";
@@ -69,6 +70,48 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
           UTC {r.night ? "· Ночная активность" : ""}
         </time>
       </header>
+      {e.status === "completed" && (
+        <section className="panel section-panel">
+          <h2>Я участвовал в активности</h2>
+          {await (async () => {
+            const [{ data: claim }, { data: attendance }] = await Promise.all([
+              a.client
+                .from("participation_claims")
+                .select("status")
+                .eq("event_id", id)
+                .eq("membership_id", a.membership!.id)
+                .maybeSingle(),
+              a.client
+                .from("attendance")
+                .select("mark")
+                .eq("event_id", id)
+                .eq("membership_id", a.membership!.id)
+                .maybeSingle(),
+            ]);
+            if (attendance?.mark === "present")
+              return <p>Ваше участие отмечено.</p>;
+            if (claim)
+              return (
+                <p>
+                  Заявка:{" "}
+                  {
+                    {
+                      pending: "На проверке",
+                      accepted: "Принята",
+                      rejected: "Отклонена",
+                    }[claim.status as "pending" | "accepted" | "rejected"]
+                  }
+                </p>
+              );
+            return (
+              <details>
+                <summary>Подать заявку на участие</summary>
+                <ClaimForm eventId={id} requestId={randomUUID()} />
+              </details>
+            );
+          })()}
+        </section>
+      )}
       <div className="activity-detail-grid">
         <div className="activity-detail-main">
           <section className="activity-hero-card">
@@ -114,6 +157,14 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
                   </Link>
                 )}
               </div>
+              {manage && (
+                <Link
+                  className="button secondary inline"
+                  href={`/events/${id}/delete`}
+                >
+                  Удалить активность
+                </Link>
+              )}
               <div className="activity-hero-metrics">
                 {[
                   { value: d.participants ?? "—", label: "участников" },
