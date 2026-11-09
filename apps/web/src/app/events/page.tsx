@@ -149,7 +149,11 @@ export default async function Page({
           open={!!selectedBanner}
         >
           <summary>Создать событие</summary>
-          <ActionForm action={createEvent} label="Создать событие">
+          <ActionForm
+            action={createEvent}
+            revision={selectedBanner || "no-banner"}
+            label="Создать событие"
+          >
             <input type="hidden" name="requestId" value={randomUUID()} />
             <EventFields banners={banners} selectedBanner={selectedBanner} />
           </ActionForm>
