@@ -31,34 +31,27 @@ jobs:
           def command(args):
               result=subprocess.run(args,capture_output=True,text=True,timeout=20)
               return result.stdout.strip()
-          print('HOST', command(['hostname']))
-          print('LISTENERS',command(['ss','-ltnp']))
-          print('XD_SERVICE_DIRECTORY',command(['systemctl','show','xd-guild','--property=WorkingDirectory','--value']))
-          print('RUNNING_SERVICES',command(['systemctl','list-units','--type=service','--state=running','--no-legend','--no-pager']))
-          for file in pathlib.Path('/etc/nginx/sites-enabled').glob('*'):
-              print('NGINX',str(file))
-              for line in file.read_text().splitlines():
-                  if re.match(r'^\s*(listen|server_name|proxy_pass|ssl_certificate)\s',line): print(line.strip())
-          for root in ['/var/www','/opt','/srv']:
-              for folder,dirs,files in os.walk(root):
-                  depth=len(pathlib.Path(folder).relative_to(root).parts)
-                  if '.git' in dirs:
-                      remote=command(['git','-C',folder,'remote','get-url','origin'])
-                      if 'guild-dashboard' in remote:
-                          safe=urllib.parse.urlsplit(remote)
-                          print('REPOSITORY',folder,(safe.hostname or '')+safe.path,command(['git','-C',folder,'rev-parse','HEAD']),command(['git','-C',folder,'branch','--show-current']))
-                          print('DIRTY',folder,bool(command(['git','-C',folder,'status','--porcelain'])))
-                          for name in ['.env','.env.local']:
-                              path=pathlib.Path(folder)/name
-                              if path.is_file():
-                                  for line in path.read_text().splitlines():
-                                      if line.startswith('DATABASE_URL='):
-                                          url=line.split('=',1)[1].strip().strip('\"').strip("'")
-                                          print('DATABASE_KIND',folder,'sqlite' if url.startswith('file:') else 'other')
-                                          if url.startswith('file:'): print('SQLITE_LOCATION',folder,url[5:])
-                  dirs[:]=[d for d in dirs if depth<3 and d not in ['.git','node_modules','.next','public','uploads','backups','xd-guild-releases']]
-          for file in [pathlib.Path('/root/.pm2/dump.pm2')]:
+          app=pathlib.Path('/var/www/guild-dashboard-next')
+          print('VERSIONS',command(['node','--version']),command(['npm','--version']),command(['pm2','--version']))
+          print('SERVER_LOCAL_CHANGES',command(['git','-C',str(app),'status','--porcelain']))
+          print('SERVER_DIFF_STATS',command(['git','-C',str(app),'diff','--numstat']))
+          pm2=json.loads(command(['pm2','jlist']))
+          for process in pm2:
+              data=process.get('pm2_env',{})
+              print('PROCESS',json.dumps({'name':process.get('name'),'pid':process.get('pid'),'cwd':data.get('pm_cwd'),'script':data.get('pm_exec_path'),'args':data.get('args'),'status':data.get('status'),'port':data.get('PORT'),'database_kind':'sqlite' if str(data.get('DATABASE_URL','')).startswith('file:') else 'unset_or_other','session_secret_set':bool(data.get('SESSION_SECRET'))},ensure_ascii=False))
+          for name in ['.env','.env.local','.env.production','.env.production.local']:
+              file=app/name
               if file.is_file():
-                  for app in json.loads(file.read_text()):
-                      print('PM2_APP',json.dumps({key:app.get(key) for key in ['name','pm_cwd','pm_exec_path','PORT']},ensure_ascii=False))
+                  keys=[line.split('=',1)[0] for line in file.read_text().splitlines() if '=' in line and not line.lstrip().startswith('#')]
+                  print('ENVIRONMENT_FILE_KEYS',name,keys)
+          database=app/'prod.db'
+          print('DATABASE_FILE',str(database),'bytes',database.stat().st_size,'uid',database.stat().st_uid,'mode',oct(database.stat().st_mode&0o777))
+          import sqlite3
+          with sqlite3.connect(database.as_uri()+'?mode=ro',uri=True) as db:
+              print('DATABASE_TABLES',[row[0] for row in db.execute("select name from sqlite_master where type='table' order by name")])
+              print('APPLIED_MIGRATIONS',[row[0] for row in db.execute('select migration_name from _prisma_migrations where finished_at is not null order by migration_name')])
+          print('NGINX_APP_CONFIG',pathlib.Path('/etc/nginx/sites-enabled/guild-dashboard').read_text())
+          print('CERTBOT_CERTIFICATES',command(['certbot','certificates']))
+          print('DISK_SPACE',command(['df','-h','/var/www']))
+          print('MEMORY',command(['free','-m']))
           PY
