@@ -38,6 +38,7 @@ class Fixture(BaseHTTPRequestHandler):
   if path=='/auth/v1/user':data={'id':USER,'aud':'authenticated','role':'authenticated','email':'fixture@example.test','app_metadata':{'provider':'email'},'user_metadata':{},'created_at':'2024-01-01T00:00:00Z'}
   elif path.endswith('/rpc/has_permission'):data=True
   elif path.endswith('/rpc/dashboard_report'):data=report
+  elif path.endswith('/rpc/activity_journal'):data={'total':0,'page':1,'can_view_roster':True,'kpis':{'total':0,'average':None,'best':None,'cancelled':0},'rows':[]}
   elif path.endswith('/rpc/treasury_summary'):data=totals
   elif path.endswith('/rpc/my_treasury_summary'):data=personal
   elif path.endswith('/profiles'):data=[{'id':USER,'blocked':False}]
@@ -110,13 +111,10 @@ with tempfile.TemporaryFile() as log:
     for path in ['/admin/activity-banners','/events']:
      page.goto(origin+path,wait_until='networkidle')
      assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),(path,width,'populated banner overflow')
-     if width==1440 and path=='/events':page.screenshot(path=str(artifacts/'activity-banners-1440.png'),full_page=True)
-   page.goto(origin+'/events',wait_until='networkidle')
-   page.get_by_role('heading',name='Кракен',exact=True).wait_for()
-   page.get_by_text('Коэффициент ×1,5',exact=True).wait_for()
-   page.get_by_role('link',name='Создать событие →',exact=True).click()
+     if width==1440 and path=='/admin/activity-banners':page.screenshot(path=str(artifacts/'activity-banners-1440.png'),full_page=True)
+   page.goto(origin+'/events/new?banner='+next(iter(banners)),wait_until='networkidle')
    expect(page.get_by_label('Название',exact=True)).to_have_value('Кракен')
-   assert page.get_by_label('Баннер активности',exact=True).input_value() in banners
+   expect(page.get_by_label('Коэффициент',exact=True)).to_have_value('1.5')
    page.goto(origin+'/admin/activity-banners',wait_until='networkidle')
    entry=page.locator('article').filter(has=page.get_by_role('heading',name='Кракен',exact=True))
    entry.get_by_text('Редактировать',exact=True).click()
