@@ -11,6 +11,7 @@ import {
   lootText,
   reviewReady,
   suggestion,
+  nicknameSuggestions,
 } from "./matching.mjs";
 import { safeError } from "./site.mjs";
 const row = (...components) => ({ type: 1, components });
@@ -128,7 +129,37 @@ function controls(d) {
         button(id("backreview"), "Вернуться к проверке"),
       ),
     ];
+  const focus = Math.max(
+      0,
+      Math.min(d.roster.unresolved.length - 1, d.rosterFocus ?? 0),
+    ),
+    unknown = d.roster.unresolved[focus],
+    hints = unknown ? nicknameSuggestions(unknown, d.catalog.members) : [];
+  const corrections = unknown
+    ? [
+        select(
+          id("rosterFocus"),
+          "Какой ник исправить?",
+          d.roster.unresolved.slice(0, 25).map((raw, i) => ({
+            label: truncate(raw, 95) || "Ник не прочитан",
+            value: String(i),
+          })),
+          [String(focus)],
+        ),
+        select(id("rosterPick"), "Выберите игрока или действие", [
+          ...hints.map((m) => ({
+            label: truncate(m.nickname, 100),
+            value: m.id,
+          })),
+          ...(unknown.length <= 80 && !/^Ячейка /u.test(unknown)
+            ? [{ label: truncate("Гость: " + unknown, 100), value: "guest" }]
+            : []),
+          { label: "Не участник / убрать шум", value: "skip" },
+        ]),
+      ]
+    : [];
   return [
+    ...corrections,
     row(
       button(id("editroster"), "Исправить состав"),
       button(id("editloot"), "Исправить дроп"),
@@ -175,7 +206,7 @@ export function renderDraft(d) {
       const match = suggestion(n, d.catalog.members);
       return match ? `${n} → возможно, ${match.nickname}` : n;
     });
-    content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини-РБ"}\nРаспознано участников: ${d.roster.members.length}; гостей: ${d.roster.guests.length}. Дроп: ${d.loot.items.length} позиций.\nНе разобрано: ${d.roster.unresolved.length} ников, ${d.loot.unresolved.length} строк дропа.\n${tips.length ? "Проверьте: " + tips.join("; ") : ""}\nПолный список — в приложенном файле. Исправьте строки с «?», удалите шум или укажите «гость: Ник». Проверьте, что ни один участник не пропущен.`;
+    content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини-РБ"}\n${d.roster.detectedSlots ? "Ячеек рейда: " + d.roster.detectedSlots + ". " : ""}Совпадений с составом сайта: ${d.roster.members.length}; гостей: ${d.roster.guests.length}. Дроп: ${d.loot.items.length} позиций.\nНе разобрано: ${d.roster.unresolved.length} ников, ${d.loot.unresolved.length} строк дропа.\n${tips.length ? "Проверьте: " + tips.join("; ") : ""}\nПолный список — в файле. Спорные ники выберите из подсказок ниже. Игроков, которых нет в составе сайта, сохраните как гостей. Длинные ники на скрине могут быть обрезаны. Проверьте, что ни один участник не пропущен.`;
   }
   return {
     content: truncate(content, 1950),
@@ -394,6 +425,12 @@ export class ImportWorkflow {
         d.analyzed = false;
         d.step = "images";
       } else if (action === "analyze") {
+        await interaction.editReply({
+          content:
+            "Читаю подписи ячеек рейда и сверяю с составом сайта… Это может занять до минуты.",
+          components: [],
+          attachments: [],
+        });
         await this.site("context", { context: d.context });
         const words = [],
           lootLines = [d.content];
@@ -405,10 +442,23 @@ export class ImportWorkflow {
           )
             continue;
           const buffer = await this.download(attachment.url),
-            result = await this.ocr(buffer),
+            result = await this.ocr(buffer, {
+              roster: d.rosterImages.includes(attachment.id),
+              loot: d.lootImages.includes(attachment.id),
+              members: d.catalog.members,
+              drops: d.catalog.drops,
+            }),
             image = await this.prepareEvidence(buffer);
           if (d.rosterImages.includes(attachment.id)) {
-            words.push(...result.words);
+            words.push(
+              ...result.words.map((w) => ({
+                ...w,
+                line: attachment.id + ":" + w.line,
+                ...(w.region !== undefined
+                  ? { region: attachment.id + ":" + w.region }
+                  : {}),
+              })),
+            );
             d.evidence.push({ id: randomUUID(), kind: "roster", image });
           }
           if (d.lootImages.includes(attachment.id)) {
@@ -419,6 +469,40 @@ export class ImportWorkflow {
         d.roster = recognizeRoster(words, d.catalog.members);
         d.loot = lootText(lootLines.join("\n"), d.catalog.drops);
         d.analyzed = true;
+        d.step = "review";
+      } else if (action === "rosterFocus") {
+        const focus = Number(interaction.values[0]);
+        if (
+          !Number.isInteger(focus) ||
+          focus < 0 ||
+          focus >= d.roster.unresolved.length
+        )
+          throw Error("INVALID_INPUT");
+        d.rosterFocus = focus;
+        d.step = "review";
+      } else if (action === "rosterPick") {
+        const focus = Math.max(
+            0,
+            Math.min(d.roster.unresolved.length - 1, d.rosterFocus ?? 0),
+          ),
+          raw = d.roster.unresolved[focus];
+        if (!raw) throw Error("INVALID_INPUT");
+        const value = interaction.values[0];
+        if (value === "guest") {
+          if (raw.length > 80 || /^Ячейка /u.test(raw))
+            throw Error("INVALID_INPUT");
+          d.roster.guests = [...new Set([...d.roster.guests, raw])];
+        } else if (value !== "skip") {
+          const member = d.catalog.members.find((m) => m.id === value);
+          if (!member) throw Error("INVALID_ROSTER");
+          if (!d.roster.members.some((m) => m.id === member.id))
+            d.roster.members.push(member);
+        }
+        d.roster.unresolved.splice(focus, 1);
+        d.rosterFocus = Math.max(
+          0,
+          Math.min(focus, d.roster.unresolved.length - 1),
+        );
         d.step = "review";
       } else if (action === "rostertext") {
         d.roster = rosterText(
@@ -483,9 +567,13 @@ export class ImportWorkflow {
       await interaction.editReply(renderDraft(d));
     } catch (e) {
       const payload = { content: safeError(e), flags: 64 };
-      if (interaction.deferred || interaction.replied)
+      if (interaction.deferred || interaction.replied) {
+        if (acquired)
+          try {
+            await interaction.editReply(renderDraft(this.store.get(id)));
+          } catch {}
         await interaction.followUp(payload).catch(() => {});
-      else await interaction.reply(payload).catch(() => {});
+      } else await interaction.reply(payload).catch(() => {});
     } finally {
       if (acquired) this.locks.delete(id);
     }

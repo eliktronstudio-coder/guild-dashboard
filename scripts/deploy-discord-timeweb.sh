@@ -6,6 +6,7 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 node_bin=$(command -v node)
 "$node_bin" --input-type=module -e "await import('node:sqlite')"
 command -v tesseract >/dev/null
+bash "$repo/scripts/install-discord-ocr-models.sh"
 tesseract --list-langs 2>/dev/null | grep -qx rus
 root=/var/www/xd-discord-bot
 mkdir -p "$root" /var/www/xd-discord-releases

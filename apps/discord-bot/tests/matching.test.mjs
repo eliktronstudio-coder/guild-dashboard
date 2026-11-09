@@ -70,3 +70,66 @@ test("loot quantities do not confuse named essence packs, duplicate rows merge a
     false,
   );
 });
+test("raid cells resolve unique clipped and mixed-script nicknames without guessing ambiguous prefixes", () => {
+  const roster = [
+    { id: "a", nickname: "HorizonKnight" },
+    { id: "b", nickname: "Рысь" },
+    { id: "c", nickname: "LongMage" },
+    { id: "d", nickname: "LongMagus" },
+  ];
+  const observations = (region, text, confidence = 88) =>
+    ["gray:eng", "white:eng"].map((pass) => ({
+      region,
+      kind: "raid-cell",
+      line: region + pass,
+      pass,
+      text,
+      confidence,
+    }));
+  const result = recognizeRoster(
+    [
+      ...observations("0", "Hоrizon..."),
+      ...observations("1", "Рысь"),
+      ...observations("2", "LongMa..."),
+    ],
+    roster,
+  );
+  assert.deepEqual(
+    result.members.map((m) => m.id),
+    ["a", "b"],
+  );
+  assert.equal(result.unresolved.length, 1);
+  assert.equal(result.detectedSlots, 3);
+});
+test("fuzzy-only and blank raid cells remain pending; low-confidence exact readings need cross-treatment evidence", () => {
+  const roster = [
+    { id: "a", nickname: "Вуэкко" },
+    { id: "b", nickname: "Kuzik" },
+  ];
+  const word = (region, text, confidence, pass) => ({
+    region,
+    kind: "raid-cell",
+    line: region + pass,
+    pass,
+    text,
+    confidence,
+  });
+  const result = recognizeRoster(
+    [
+      word("0", "Вуэкко", 13, "gray:rus"),
+      word("0", "Вуэкко", 13, "gray:rus+eng"),
+      word("0", "Вузкко", 88, "white:rus"),
+      word("0", "Вузкко", 88, "white:rus+eng"),
+      word("1", "Kuzlk", 90, "gray:eng"),
+      word("1", "Kuzlk", 90, "white:eng"),
+      word("2", "", 0, "gray:eng"),
+    ],
+    roster,
+  );
+  assert.deepEqual(
+    result.members.map((m) => m.id),
+    ["a"],
+  );
+  assert.equal(result.unresolved.length, 2);
+  assert.equal(result.detectedSlots, 3);
+});
