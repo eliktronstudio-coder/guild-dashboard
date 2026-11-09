@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Verify live payroll, private claims and Discord without creating records
+      - name: Deploy claims navigation correction and verify live services
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,6 +27,23 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 614b4e255192ba9c3f67e1f1eff11411dc70c643
+          git merge --ff-only 614b4e255192ba9c3f67e1f1eff11411dc70c643
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 614b4e255192ba9c3f67e1f1eff11411dc70c643 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 614b4e255192ba9c3f67e1f1eff11411dc70c643
+          echo CLAIMS_NAVIGATION_RELEASE_VERIFIED
+          REMOTE
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
