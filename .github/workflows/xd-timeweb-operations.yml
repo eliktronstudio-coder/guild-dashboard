@@ -26,30 +26,14 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'python3 -' <<'PY'
-          import os, pathlib, subprocess, json, urllib.parse, re
-          def command(args):
-              result=subprocess.run(args,capture_output=True,text=True,timeout=20)
-              return result.stdout.strip()
-          app=pathlib.Path('/var/www/xd-guild-command-center/apps/web')
-          code="""
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-           const e=process.env;
-           if(e.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected production origin');
-           const queries=[
-            'attendance?select=membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at)&limit=0',
-            'member_directory?select=id,nickname,character_class&limit=0',
-            'events?select=id,title,starts_at,attendance_finalized_at&limit=0'
-           ];
-           for(const query of queries){const response=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY,},signal:AbortSignal.timeout(20000)});console.log('PRODUCTION_SCHEMA_CHECK',query.split('?')[0],response.status);if(!response.ok){console.log('SCHEMA_ERROR',JSON.stringify(await response.json()));throw new Error('Schema check failed');}}
-           console.log('PRODUCTION_ORIGIN_CONFIRMED https://xd-guild.ru');
-          })().catch(()=>{console.error('Production schema preflight failed; no changes applied.');process.exitCode=1;});
-          """
-          result=subprocess.run(['node','-'],cwd=app,input=code,text=True,capture_output=True,timeout=90)
-          print(result.stdout)
-          if result.returncode: print(result.stderr);raise SystemExit(result.returncode)
-          print('APP_STATUS',command(['systemctl','is-active','xd-guild']))
-          print('TIMER_STATUS',command(['systemctl','is-active','xd-guild-deploy.timer']))
-          print('DISK',command(['df','-h','/var/www']))
-          PY
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          systemctl stop xd-guild-deploy.timer
+          install -d -m 700 /var/lib/xd-guild-deploy
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          systemctl is-active xd-guild
+          git -C /var/www/xd-guild-command-center status --porcelain
+          systemctl cat xd-guild-deploy.timer
+          echo AUTOMATIC_DEPLOY_PAUSED
+          REMOTE
