@@ -10,7 +10,7 @@ export const cid = (n: number) =>
 export async function memberDatabase() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create schema auth;
- create table auth.users(id uuid primary key,email_confirmed_at timestamptz);
+ create table auth.users(id uuid primary key,email_confirmed_at timestamptz,email text unique,raw_user_meta_data jsonb not null default '{}');
  create table auth.sessions(id uuid primary key,user_id uuid references auth.users);
  create table auth.identities(user_id uuid references auth.users,provider text);
  create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
@@ -21,7 +21,7 @@ export async function memberDatabase() {
     await readFile("supabase/migrations/202610310001_foundation.sql", "utf8"),
   );
   for (let n = 1; n <= 6; n++) {
-    await db.query("insert into auth.users values($1,now())", [id(n)]);
+    await db.query("insert into auth.users(id,email_confirmed_at) values($1,now())", [id(n)]);
     await db.query("insert into auth.sessions values($1,$2)", [sid(n), id(n)]);
   }
   await db.query("select private.bootstrap_owner($1,$2)", [id(1), "Владелец"]);

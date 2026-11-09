@@ -23,7 +23,8 @@ const delivery = flag('AUTH_EMAIL_DELIVERY_READY');
 const bot = flag('TELEGRAM_BOT_ENABLED');
 const mini = flag('TELEGRAM_MINI_APP_ENABLED');
 if (!telegram && !email) errors.push('Авторизация: не включён ни один способ входа');
-if (email && !delivery) errors.push('Email: перед публичным запуском требуется проверенная доставка писем');
+if (email) requireValue('SUPABASE_SECRET_KEY');
+if (email && !delivery) console.log('Email: свободная регистрация без подтверждения адреса; восстановление письмом отключено.');
 if (mini && !bot) errors.push('Mini App: требуется включённый бот');
 if (bot) {
   requireValue('SUPABASE_SECRET_KEY');

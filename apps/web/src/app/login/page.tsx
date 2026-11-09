@@ -30,7 +30,7 @@ export default async function LoginPage({
       <h2>{register ? "Начните свой путь" : "С возвращением"}</h2>
       <p className="muted">
         {register
-          ? "Подтвердите аккаунт, укажите игровой ник и отправьте заявку."
+          ? "Создайте аккаунт и получите доступ сразу — без ожидания одобрения."
           : "Войдите, чтобы продолжить путь вместе с гильдией."}
       </p>
       {notice && (
@@ -53,22 +53,41 @@ export default async function LoginPage({
       <div className="divider">
         <span>или по почте</span>
       </div>
-      {c.email && (!register || c.emailDelivery) ? (
+      {c.email ? (
         <ActionForm
           action={register ? signUp : login}
           label={register ? "Создать аккаунт" : "Войти"}
         >
           <label>
-            Электронная почта
+            {register ? "Электронная почта" : "Email или логин"}
             <input
-              name="email"
-              type="email"
-              autoComplete="email"
+              name={register ? "email" : "identifier"}
+              type={register ? "email" : "text"}
+              autoComplete={register ? "email" : "username"}
               required
               maxLength={254}
-              placeholder="you@example.com"
+              placeholder={register ? "you@example.com" : "Email или логин"}
             />
           </label>
+          {register && (
+            <label>
+              Логин
+              <input
+                name="login"
+                autoComplete="username"
+                required
+                minLength={3}
+                maxLength={32}
+                pattern="[A-Za-z][A-Za-z0-9_.\-]{2,31}"
+                placeholder="Например, dragon_xd"
+                aria-describedby="login-help"
+              />
+              <span id="login-help" className="caption">
+                3–32 символа: латинские буквы, цифры, точка, дефис,
+                подчёркивание.
+              </span>
+            </label>
+          )}
           <label>
             Пароль
             <input
@@ -81,11 +100,63 @@ export default async function LoginPage({
               placeholder={register ? "Не менее 12 символов" : "Ваш пароль"}
             />
           </label>
+          {register && (
+            <>
+              <label>
+                Повторите пароль
+                <input
+                  name="confirmation"
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  minLength={12}
+                  maxLength={128}
+                />
+              </label>
+              <label>
+                Ник в игре
+                <input
+                  name="nickname"
+                  required
+                  minLength={2}
+                  maxLength={32}
+                  autoComplete="off"
+                  placeholder="Ваш ник в ArcheAge"
+                />
+              </label>
+              <p className="caption">
+                Ник: 2–32 символа. Русские или латинские буквы, без смешивания
+                алфавитов.
+              </p>
+              <label className="check">
+                <input type="checkbox" name="rules" required />
+                <span>
+                  Принимаю{" "}
+                  <Link href="/rules" target="_blank">
+                    правила гильдии
+                  </Link>
+                </span>
+              </label>
+              <label className="check">
+                <input type="checkbox" name="privacy" required />
+                <span>
+                  Согласен на{" "}
+                  <Link href="/privacy" target="_blank">
+                    обработку необходимых данных
+                  </Link>
+                </span>
+              </label>
+              <label className="registration-honeypot" aria-hidden="true">
+                Сайт
+                <input name="website" tabIndex={-1} autoComplete="off" />
+              </label>
+            </>
+          )}
         </ActionForm>
       ) : (
         <p className="notice subtle">
           {register
-            ? "Регистрация по почте появится после проверки отправки писем."
+            ? "Регистрация временно недоступна."
             : "Вход по почте ещё не подключён."}
         </p>
       )}
@@ -98,8 +169,8 @@ export default async function LoginPage({
         )}
       </div>
       <p className="caption auth-foot">
-        Доступ в гильдию открывается после проверки игрового ника
-        администрацией.
+        Свободная регистрация без подтверждения email. Указывайте свой адрес и
+        сохраняйте пароль: восстановление письмом пока не подключено.
       </p>
     </PublicFrame>
   );

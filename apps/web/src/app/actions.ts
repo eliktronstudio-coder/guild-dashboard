@@ -4,6 +4,12 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getConfig } from "@/lib/config";
+import {
+  loginError,
+  normalizeLogin,
+  registrationInput,
+} from "@/lib/registration";
+import { allowAuthAttempt, registrationAdmin } from "@/lib/registration-server";
 import { getAccess, requirePermission } from "@/lib/access";
 import {
   nicknameError,
@@ -14,46 +20,116 @@ import {
 
 export async function login(_: FormState, form: FormData): Promise<FormState> {
   await checkOrigin();
-  const c = getConfig();
-  if (!c.email) return { error: "Вход по почте пока не подключён." };
-  const client = await createClient();
-  const { error } = await client.auth.signInWithPassword({
-    email: field(form, "email").trim(),
-    password: field(form, "password"),
-  });
-  if (error)
-    return {
-      error:
-        "Не удалось войти. Проверьте почту, пароль и подтверждение адреса.",
-    };
+  if (!getConfig().email) return { error: "Вход по почте пока не подключён." };
+  const failure = {
+    error: "Не удалось войти. Проверьте email или логин и пароль.",
+  };
+  const identifier =
+    field(form, "identifier").trim() || field(form, "email").trim();
+  if (
+    !identifier ||
+    identifier.length > 254 ||
+    !field(form, "password") ||
+    field(form, "password").length > 128
+  )
+    return failure;
+  let email = identifier.toLowerCase();
+  try {
+    if (!(await allowAuthAttempt("login")))
+      return {
+        error: "Слишком много попыток входа. Повторите через 10 минут.",
+      };
+    if (!identifier.includes("@")) {
+      const name = normalizeLogin(identifier);
+      if (loginError(name)) return failure;
+      const result = await registrationAdmin().rpc("registration_login_email", {
+        p_login: name,
+      });
+      if (result.error) return failure;
+      // An unknown login takes the same password-auth path and reveals no account data.
+      email = result.data || "unknown-login@invalid.example";
+    }
+    const client = await createClient();
+    const { error } = await client.auth.signInWithPassword({
+      email,
+      password: field(form, "password"),
+    });
+    if (error) return failure;
+  } catch {
+    return failure;
+  }
   redirect("/onboarding");
 }
 export async function signUp(_: FormState, form: FormData): Promise<FormState> {
   await checkOrigin();
-  const c = getConfig();
-  if (!c.email || !c.emailDelivery)
-    return {
-      error:
-        "Регистрация по почте будет доступна после подключения отправки писем.",
-    };
-  const password = field(form, "password");
-  if (password.length < 12 || password.length > 128)
-    return { error: "Пароль должен содержать от 12 до 128 символов." };
-  const client = await createClient();
-  const { error } = await client.auth.signUp({
-    email: field(form, "email").trim(),
-    password,
-    options: { emailRedirectTo: `${c.origin}/auth/callback` },
+  if (!getConfig().email) return { error: "Регистрация временно недоступна." };
+  const input = registrationInput(form);
+  if (input.error) return { error: input.error };
+  try {
+    if (!(await allowAuthAttempt("signup", input.email)))
+      return {
+        error: "Слишком много попыток регистрации. Повторите через час.",
+      };
+    // Open registration intentionally does not send or require an email confirmation.
+    // createUser never updates or links an existing email account.
+    const { error } = await registrationAdmin().auth.admin.createUser({
+      email: input.email,
+      password: input.password,
+      email_confirm: true,
+      user_metadata: {
+        registration_flow: "open_email_v1",
+        login: input.login,
+        game_nickname: input.nickname,
+        rules_accepted: true,
+        privacy_accepted: true,
+        email_ownership_verified: false,
+      },
+    });
+    if (error)
+      return {
+        error:
+          "Не удалось создать аккаунт. Возможно, email или логин уже занят. Попробуйте войти или выберите другой логин.",
+      };
+    const client = await createClient();
+    const result = await client.auth.signInWithPassword({
+      email: input.email,
+      password: input.password,
+    });
+    if (result.error)
+      return {
+        success:
+          "Аккаунт создан. Перейдите ко входу и используйте email или логин и свой пароль.",
+      };
+  } catch {
+    return { error: "Регистрация временно недоступна. Повторите позже." };
+  }
+  redirect("/onboarding");
+}
+export async function completeRegistration(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const { client } = await getAccess();
+  const login = normalizeLogin(field(form, "login")),
+    nickname = normalizeNickname(field(form, "nickname"));
+  const error = loginError(login) ?? nicknameError(nickname);
+  if (error) return { error };
+  const result = await client.rpc("complete_open_registration", {
+    p_login: login,
+    p_nickname: nickname,
+    p_rules: form.get("rules") === "on",
+    p_privacy: form.get("privacy") === "on",
   });
-  if (error)
+  if (result.error)
     return {
       error:
-        "Не удалось отправить письмо. Проверьте адрес или повторите позже.",
+        result.error.code === "23505"
+          ? "Этот логин уже занят. Выберите другой."
+          : messageFor(result.error),
     };
-  return {
-    success:
-      "Если адрес доступен для регистрации, на него отправлено письмо. Подтвердите почту и затем укажите игровой ник.",
-  };
+  revalidatePath("/members");
+  redirect("/dashboard");
 }
 export async function telegramLogin(): Promise<void> {
   await checkOrigin();
