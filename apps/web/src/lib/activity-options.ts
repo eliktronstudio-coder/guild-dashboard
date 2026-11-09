@@ -1,3 +1,4 @@
+import { canManageActivityLoot } from "./activity-access";
 import "server-only";
 import { requirePermission } from "./access";
 import { GUILD_ID } from "./config";
@@ -8,10 +9,9 @@ import type {
 } from "./activity-workspace";
 export async function loadActivityOptions() {
   const access = await requirePermission("events.manage");
-  const [canRoster, canTreasury, canCatalog] = await Promise.all([
+  const [canRoster, canTreasury] = await Promise.all([
     access.permission("attendance.manage"),
-    access.permission("treasury.manage"),
-    access.permission("drops.manage"),
+    canManageActivityLoot(access),
   ]);
   const [templates, members, catalog] = await Promise.all([
     access.client
@@ -29,7 +29,7 @@ export async function loadActivityOptions() {
           .order("nickname")
           .limit(500)
       : Promise.resolve({ data: [], error: null }),
-    canTreasury && canCatalog
+    canTreasury
       ? access.client
           .from("guild_drop_registry")
           .select("id,name,price_units::text,version")

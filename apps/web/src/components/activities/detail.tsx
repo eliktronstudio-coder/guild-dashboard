@@ -1,3 +1,4 @@
+import { canManageActivityLoot } from "@/lib/activity-access";
 import { ClaimForm } from "./claim-form";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
@@ -15,13 +16,12 @@ import { removeActivityDrop } from "@/app/events/workspace-actions";
 import { AddDropForm } from "./add-drop-form";
 export async function ActivityDetailPanel({ id }: { id: string }) {
   const a = await requireMember();
-  const [{ data, error }, manage, treasury, catalogPermission] =
-    await Promise.all([
-      a.client.rpc("activity_detail", { p_event: id }),
-      a.permission("events.manage"),
-      a.permission("treasury.manage"),
-      a.permission("drops.manage"),
-    ]);
+  const [{ data, error }, manage, treasury, economyRead] = await Promise.all([
+    a.client.rpc("activity_detail", { p_event: id }),
+    a.permission("events.manage"),
+    canManageActivityLoot(a),
+    a.permission("treasury.read"),
+  ]);
   if (error || !data)
     return (
       <p className="notice error" role="alert">
@@ -32,7 +32,7 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
     e = d.event,
     r = d.report;
   const [catalog, directory] = await Promise.all([
-    treasury && catalogPermission
+    treasury
       ? a.client
           .from("guild_drop_registry")
           .select("id,name,price_units::text,version")
@@ -208,7 +208,7 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
           <section className="activity-detail-panel">
             <header>
               <h2>Дроп</h2>
-              {treasury && e.status === "completed" && (
+              {economyRead && e.status === "completed" && (
                 <Link
                   href={`/treasury?eventMonth=${e.starts_at.slice(0, 7)}&inventory=${e.source}`}
                   className="text-button"

@@ -77,7 +77,9 @@ export default async function Page({
             >
               {calendar ? "Журнал" : "Календарь"}
             </Link>
-            {manage && <Link href="/admin/activity-banners">Баннеры</Link>}
+            {(await a.permission("activity_banners.manage")) && (
+              <Link href="/admin/activity-banners">Баннеры</Link>
+            )}
           </div>
         </header>
         <div className="activity-kpis">

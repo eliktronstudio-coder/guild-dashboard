@@ -23,6 +23,10 @@ require('@next/env').loadEnvConfig(process.cwd());
   const r=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
   if(!r.ok)throw new Error('Проверка рабочей схемы Supabase не прошла; установка отменена.');
  }
+ const roles=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/roles?select=code&code=in.(guild_master,tablemaker)',{headers:{apikey:e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
+ if(!roles.ok)throw new Error('Проверка ролей не прошла; установка отменена.');
+ const available=new Set((await roles.json()).map(r=>r.code));
+ if(!available.has('guild_master')||!available.has('tablemaker'))throw new Error('Примените миграцию ролей 029 перед деплоем.');
  console.log('Рабочая схема и целевой домен xd-guild.ru подтверждены.');
 })().catch(e=>{console.error(e.message);process.exitCode=1;});
 JS
