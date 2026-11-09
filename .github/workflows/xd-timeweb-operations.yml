@@ -8,92 +8,45 @@ concurrency:
   group: xd-timeweb-operations
   cancel-in-progress: false
 jobs:
-  inspect:
+  import:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Deploy Discord import and isolated OCR worker
+      - name: Verify Discord worker and bridge without sending messages
         env:
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
-          test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
           trap 'rm -f ~/.ssh/xd_operations' EXIT
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 6297ecc000bd0ea4cba82542fbfffde1de06a9ad
-          git merge --ff-only 6297ecc000bd0ea4cba82542fbfffde1de06a9ad
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          python3 - "$app/.env.local" <<'PYENV'
-          import sys,re,secrets,os
-          from pathlib import Path
-          p=Path(sys.argv[1]);text=p.read_text()
-          match=re.search(r'^DISCORD_IMPORT_SECRET=(.*)$',text,re.M)
-          secret=match.group(1).strip().strip('\"').strip("'") if match else ''
-          if len(secret)<32:
-            secret=secrets.token_urlsafe(48)
-            text=re.sub(r'^DISCORD_IMPORT_SECRET=.*$',lambda _:'DISCORD_IMPORT_SECRET='+secret,text,flags=re.M) if match else text+'\nDISCORD_IMPORT_SECRET='+secret+'\n'
-            p.write_text(text)
-          env=Path('/etc/xd-discord-bot.env')
-          fd=os.open(str(env),os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
-          with os.fdopen(fd,'w') as f:f.write('XD_SITE_ORIGIN=https://xd-guild.ru\nDISCORD_IMPORT_SECRET='+secret+'\nXD_DISCORD_STATE=/var/lib/xd-discord-bot\n')
-          os.chmod(env,0o600)
-          print('DISCORD_BRIDGE_CREDENTIAL_CONFIGURED_WITHOUT_EXPOSING_VALUE')
-          PYENV
-          if ! id xd-discord >/dev/null 2>&1; then useradd --system --home-dir /var/lib/xd-discord-bot --shell /usr/sbin/nologin xd-discord; fi
-          node_bin=$(command -v node)
-          case "$node_bin" in /usr/bin/node|/usr/local/bin/node) ;; *) exit 1;; esac
-          python3 - "$node_bin" <<'PYUNIT'
-          from pathlib import Path
-          import sys
-          source=Path('deploy/xd-discord-bot.service').read_text()
-          Path('/etc/systemd/system/xd-discord-bot.service').write_text(source.replace('ExecStart=/usr/bin/node ','ExecStart='+sys.argv[1]+' '))
-          PYUNIT
-          systemctl daemon-reload
-          systemctl enable xd-discord-bot
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          else
-            systemctl restart xd-guild
-            bash scripts/deploy-discord-timeweb.sh
-          fi
-          curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/login
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/discord
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events
-          systemctl is-active xd-guild
-          systemctl is-active xd-guild-deploy.timer
-          systemctl show xd-guild --property=WorkingDirectory
-          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          cd "$app"
-          node <<'JS'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
-            const manifest=require('./.next/server/app-paths-manifest.json');
-            if(!manifest['/admin/discord/page']||!manifest['/api/discord/[operation]/route'])throw Error('Missing Discord routes');
+            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
             const r=await fetch('https://xd-guild.ru/api/discord/runtime',{headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET}});
-            if(!r.ok)throw Error('Discord runtime bridge unavailable');
-            const v=await r.json();console.log('DISCORD_RUNTIME_BRIDGE_VERIFIED',JSON.stringify({enabled:v.enabled}));
-            const denied=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET,'Content-Type':'application/json'},body:JSON.stringify({context:{server:'111111111111111111',channel:'222222222222222222',parent:null,user:'333333333333333333'}})});
-            const deniedBody=await denied.json();if(denied.status!==403||deniedBody.error!=='DISCORD_CHANNEL_FORBIDDEN')throw Error('Service identity/channel boundary verification failed');
-            console.log('DISCORD_SERVICE_IDENTITY_AND_CHANNEL_BOUNDARY_VERIFIED');
-          })().catch(e=>{console.error(e.message);process.exitCode=1});
+            if(!r.ok)throw Error('Discord bridge unavailable');
+            const v=await r.json();console.log('LIVE_DISCORD_RUNTIME',JSON.stringify({configured:v.enabled}));
+            if(v.enabled){
+              const context=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET,'Content-Type':'application/json'},body:JSON.stringify({context:{server:v.server,channel:v.channel,parent:null,user:'111111111111111111'}})});
+              if(!context.ok)throw Error('Channel import requires unexpected user binding');
+              console.log('CHANNEL_IMPORT_AVAILABLE_WITHOUT_USER_BINDING');
+              const me=await fetch('https://discord.com/api/v10/users/@me',{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
+              if(me.ok){const identity=await me.json();console.log('DISCORD_ID_CONFIGURATION',JSON.stringify({server_is_bot_id:v.server===identity.id,channel_is_bot_id:v.channel===identity.id}));}
+              const guilds=await fetch('https://discord.com/api/v10/users/@me/guilds',{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
+              if(guilds.ok){const rows=await guilds.json();console.log('DISCORD_GUILD_MEMBERSHIP',JSON.stringify({count:rows.length,configured_server_joined:rows.some(g=>g.id===v.server)}));}
+              for(const [label,path] of [['SERVER','/guilds/'+v.server],['CHANNEL','/channels/'+v.channel]]){
+                const res=await fetch('https://discord.com/api/v10'+path,{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});console.log('DISCORD_ACCESS_'+label,res.status);
+              }
+            }
+            const denied=await fetch('https://xd-guild.ru/api/discord/runtime');if(denied.status!==401)throw Error('Missing bridge authentication');
+            console.log('UNAUTHENTICATED_DISCORD_API_DENIED');
+
+          })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
           JS
-          systemctl is-active xd-discord-bot
-          systemctl show xd-discord-bot --property=NRestarts --property=User --property=WorkingDirectory
-          echo DISCORD_WORKER_REVISION=$(cat /var/lib/xd-discord-bot/deployed)
-          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; cat /var/lib/xd-discord-bot/deployed; systemctl show xd-discord-bot --property=User --property=NRestarts; stat -c "%a %U" /etc/xd-discord-bot.env'
