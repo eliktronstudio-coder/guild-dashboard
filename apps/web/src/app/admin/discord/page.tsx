@@ -4,26 +4,16 @@ import { GUILD_ID } from "@/lib/config";
 import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { discordReady } from "@/lib/discord/server";
-import { saveSettings, saveStaff } from "./actions";
+import { saveSettings } from "./actions";
 export const metadata = { title: "Discord-бот" };
 export default async function Page() {
   const a = await requirePermission("discord.manage");
-  const [settings, staff, members, imports] = await Promise.all([
+  const [settings, imports] = await Promise.all([
     a.client
       .from("discord_settings")
       .select("discord_guild_id,channel_id,enabled,connected_at,application_id")
       .eq("guild_id", GUILD_ID)
       .maybeSingle(),
-    a.client
-      .from("discord_staff")
-      .select("discord_user_id,membership_id")
-      .eq("guild_id", GUILD_ID),
-    a.client
-      .from("member_directory")
-      .select("id,nickname,role_names")
-      .eq("guild_id", GUILD_ID)
-      .eq("status", "active")
-      .limit(500),
     a.client
       .from("discord_imports")
       .select("event_id,message_id,created_at")
@@ -50,7 +40,7 @@ export default async function Page() {
           установки службы.
         </p>
       )}
-      {[settings, staff, members, imports].some((r) => r.error) && (
+      {[settings, imports].some((r) => r.error) && (
         <p className="notice error" role="alert">
           Не удалось загрузить настройки Discord. Проверьте подключение базы.
         </p>
@@ -146,50 +136,17 @@ export default async function Page() {
         </p>
       </section>
       <section className="panel section-panel">
-        <h2>Кто может импортировать</h2>
+        <h2>Кто может создавать активности</h2>
         <p>
-          Свяжите Discord ID сотрудника с его аккаунтом сайта. При каждом
-          импорте заново проверяются права управления активностями,
-          посещаемостью и казной, а также блокировка.
+          Любой участник Discord с доступом к указанному каналу может отправить
+          скрин рейда, разобрать состав и дроп и создать активность. Привязка
+          пользователя к сайту и права администратора не нужны.
         </p>
-        <ActionForm action={saveStaff} label="Связать сотрудника">
-          <label>
-            Discord ID пользователя
-            <input
-              name="discord_user"
-              required
-              inputMode="numeric"
-              pattern="[0-9]{17,22}"
-            />
-          </label>
-          <label>
-            Участник сайта
-            <select name="member" defaultValue={a.membership?.id}>
-              {members.data?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nickname} · {(m.role_names ?? []).join(", ")}
-                </option>
-              ))}
-            </select>
-          </label>
-        </ActionForm>
-        <ul>
-          {staff.data?.map((d) => (
-            <li key={d.discord_user_id}>
-              {members.data?.find((m) => m.id === d.membership_id)?.nickname ??
-                "Участник"}{" "}
-              · Discord {d.discord_user_id}
-              <ActionForm action={saveStaff} label="Отозвать доступ">
-                <input
-                  type="hidden"
-                  name="discord_user"
-                  value={d.discord_user_id}
-                />
-                <input type="hidden" name="remove" value="true" />
-              </ActionForm>
-            </li>
-          ))}
-        </ul>
+        <p>
+          Бот читает только настроенный канал и его ветки. Настройки подключения
+          меняет администрация сайта. В истории импорта сохраняется Discord ID
+          участника, подтвердившего данные.
+        </p>
       </section>
       <section className="panel section-panel">
         <h2>Как пользоваться</h2>

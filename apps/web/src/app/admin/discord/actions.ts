@@ -8,7 +8,6 @@ import {
   discordAdmin,
   encryptDiscordToken,
 } from "@/lib/discord/server";
-import { isUuid } from "@/lib/members";
 export async function saveSettings(
   _: FormState,
   form: FormData,
@@ -61,29 +60,4 @@ export async function saveSettings(
   }
   revalidatePath("/admin/discord");
   return { success: "Настройки сохранены. Бот подключится в течение минуты." };
-}
-export async function saveStaff(
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  await checkOrigin();
-  const { client } = await requirePermission("discord.manage");
-  const user = field(form, "discord_user").trim(),
-    member = field(form, "member"),
-    remove = field(form, "remove") === "true";
-  if (!/^\d{17,22}$/.test(user) || (!remove && !isUuid(member)))
-    return { error: "Проверьте Discord ID и участника сайта." };
-  const { error } = await client.rpc("save_discord_staff", {
-    p_user: user,
-    p_member: remove ? null : member,
-    p_remove: remove,
-  });
-  if (error)
-    return { error: "Не удалось сохранить доступ. Проверьте участника." };
-  revalidatePath("/admin/discord");
-  return {
-    success: remove
-      ? "Доступ отозван."
-      : "Discord привязан. Для импорта нужны права управления активностями, посещаемостью и казной.",
-  };
 }

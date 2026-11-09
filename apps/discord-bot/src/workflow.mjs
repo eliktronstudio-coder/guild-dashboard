@@ -259,7 +259,7 @@ export class ImportWorkflow {
       if (d.owner !== interaction.user.id)
         return interaction.reply({
           content:
-            "Этот черновик открыт другим сотрудником. Начните свой разбор у исходного сообщения.",
+            "Этот черновик открыт другим участником. Начните свой разбор у исходного сообщения.",
           flags: 64,
         });
       if (this.locks.has(id))

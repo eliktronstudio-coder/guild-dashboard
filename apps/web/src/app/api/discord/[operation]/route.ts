@@ -63,7 +63,7 @@ export async function POST(
             {
               error: [
                 "DISCORD_CHANNEL_FORBIDDEN",
-                "DISCORD_STAFF_REQUIRED",
+                "DISCORD_CONNECTION_OWNER_UNAVAILABLE",
               ].includes(error.message)
                 ? error.message
                 : "FORBIDDEN",
@@ -96,7 +96,7 @@ export async function POST(
         "REQUEST_CONFLICT",
         "INVALID_ROSTER",
         "DISCORD_CHANNEL_FORBIDDEN",
-        "DISCORD_STAFF_REQUIRED",
+        "DISCORD_CONNECTION_OWNER_UNAVAILABLE",
         "EVENT_IN_FUTURE",
         "ROSTER_CONFIRMATION_REQUIRED",
       ];

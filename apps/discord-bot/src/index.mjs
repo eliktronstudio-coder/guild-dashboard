@@ -102,7 +102,7 @@ async function connect(config) {
     try {
       await message.reply({
         content:
-          "Добавить состав рейда и дроп на xd-guild.ru? Сотрудник с доступом может начать разбор.",
+          "Добавить состав рейда и дроп на xd-guild.ru? Любой участник этого канала может начать разбор.",
         allowedMentions: { parse: [], repliedUser: false },
         components: [
           {
