@@ -8,86 +8,34 @@ concurrency:
   group: xd-timeweb-operations
   cancel-in-progress: false
 jobs:
-  inspect:
+  import:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
     steps:
-      - name: Deploy open email registration to xd-guild.ru
+      - name: Verify open registration without changing accounts
         env:
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
-          test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
           trap 'rm -f ~/.ssh/xd_operations' EXIT
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = a9022689c3d18cb562ed952765dca8b20dd8402a
-          git merge --ff-only a9022689c3d18cb562ed952765dca8b20dd8402a
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          cd "$app"
-          node <<'JSADMIN'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
-            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw Error('Wrong origin');
-            const c=require('@supabase/supabase-js').createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,process.env.SUPABASE_SECRET_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-            const {error}=await c.auth.admin.listUsers({page:1,perPage:1});
-            if(error)throw Error('Server Auth admin access is not available');
-            console.log('SERVER_EMAIL_AUTH_ADMIN_ACCESS_VERIFIED');
-          })().catch(e=>{console.error(e.message);process.exitCode=1});
-          JSADMIN
-          python3 - "$app/.env.local" <<'PYENV'
-          from pathlib import Path
-          import sys,re,shutil,datetime
-          p=Path(sys.argv[1]);text=p.read_text();backup=p.with_name('.env.registration-backup-'+datetime.datetime.now().strftime('%Y%m%d%H%M%S'));shutil.copy2(p,backup)
-          for key,value in [('AUTH_EMAIL_ENABLED','true'),('AUTH_EMAIL_DELIVERY_READY','false')]:
-            line=key+'='+value
-            text=re.sub(r'^'+key+r'=.*$',lambda _:line,text,flags=re.M) if re.search(r'^'+key+r'=',text,re.M) else text+'\n'+line+'\n'
-          p.write_text(text)
-          print('OPEN_EMAIL_REGISTRATION_ENABLED_WITHOUT_MAIL_DELIVERY')
-          PYENV
-          cd /var/www/xd-guild-command-center
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          else
-            systemctl restart xd-guild
-          fi
-          curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/login
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/activity-banners
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events/new
-          systemctl is-active xd-guild
-          systemctl is-active xd-guild-deploy.timer
-          systemctl show xd-guild --property=WorkingDirectory
-          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          cd "$app"
-          node <<'JS'
-          const manifest=require('./.next/server/app-paths-manifest.json');
-          if(!manifest['/login/page']||!manifest['/onboarding/page'])throw new Error('Missing registration route');
-          console.log('OPEN_REGISTRATION_PRODUCTION_ROUTES_VERIFIED');
+            if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            if(process.env.AUTH_EMAIL_ENABLED!=='true'||process.env.AUTH_EMAIL_DELIVERY_READY!=='false')throw Error('Unexpected registration flags');
+            console.log('LIVE_OPEN_REGISTRATION_ENABLED_NO_EMAIL_CONFIRMATION');
+            const r=await fetch('https://xd-guild.ru/login?mode=register');
+            const html=await r.text();
+            if(!r.ok||!['email','login','password','confirmation','nickname'].every(key=>html.includes('name="'+key+'"')))throw Error('Registration form missing');
+            console.log('LIVE_REGISTRATION_FIELDS_VERIFIED');
+
+          })().catch(()=>{console.error('Registry verification failed');process.exitCode=1;});
           JS
-          python3 - <<'PYHTTP'
-          import urllib.request
-          with urllib.request.urlopen('https://xd-guild.ru/login?mode=register',timeout=20) as r:
-            assert r.status==200
-            html=r.read().decode()
-          for key in ['email','login','password','confirmation','nickname']:
-            assert 'name="'+key+'"' in html,'Missing registration field '+key
-          assert 'без ожидания одобрения' in html
-          print('LIVE_HTTPS_OPEN_REGISTRATION_FORM_VERIFIED')
-          PYHTTP
-          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'systemctl is-active xd-guild; systemctl is-active xd-guild-deploy.timer; cat /var/lib/xd-guild-deploy/deployed'
