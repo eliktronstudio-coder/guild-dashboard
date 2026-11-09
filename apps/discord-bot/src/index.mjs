@@ -5,10 +5,12 @@ import {
   Routes,
   ApplicationCommandType,
   ApplicationCommandOptionType,
+  PermissionFlagsBits,
 } from "discord.js";
 import { siteClient } from "./site.mjs";
 import { draftStore } from "./store.mjs";
 import { ImportWorkflow } from "./workflow.mjs";
+import { gameNickname } from "./nickname-memory.mjs";
 import { downloadImage, ocr, prepareEvidence } from "./ocr.mjs";
 const origin = process.env.XD_SITE_ORIGIN ?? "https://xd-guild.ru",
   secret = process.env.DISCORD_IMPORT_SECRET ?? "";
@@ -61,6 +63,22 @@ async function connect(config) {
         {
           body: [
             { name: "Добавить на сайт", type: ApplicationCommandType.Message },
+            {
+              name: "nickname-memory",
+              description:
+                "Память ников: статистика и удаление ошибочного имени",
+              default_member_permissions: String(
+                PermissionFlagsBits.ManageGuild,
+              ),
+              options: [
+                {
+                  type: ApplicationCommandOptionType.String,
+                  name: "forget",
+                  description: "Ник, исправления которого нужно забыть",
+                  required: false,
+                },
+              ],
+            },
             {
               name: "activity",
               description:
@@ -133,6 +151,39 @@ async function connect(config) {
             "Импорт доступен только в настроенном канале «Активность» и его ветках.",
           flags: 64,
         });
+      if (
+        interaction.isChatInputCommand() &&
+        interaction.commandName === "nickname-memory"
+      ) {
+        if (
+          !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)
+        )
+          return interaction.reply({
+            content: "Управлять памятью может администратор Discord-сервера.",
+            flags: 64,
+          });
+        const forget = interaction.options.getString("forget");
+        if (forget) {
+          const name = gameNickname(forget);
+          if (!name)
+            return interaction.reply({
+              content: "Укажите корректный полный ник.",
+              flags: 64,
+            });
+          const removed = store.forgetNickname(current.server, name);
+          return interaction.reply({
+            content: removed
+              ? "Ник и связанные примеры удалены из памяти."
+              : "Этот ник не найден в памяти.",
+            flags: 64,
+          });
+        }
+        const stats = store.nicknameMemoryStats(current.server);
+        return interaction.reply({
+          content: `В памяти: ${stats.names} ников; ${stats.examples} примеров исправлений. Это память подтверждённых имён, а не переобучение нейросети. Для удаления ошибочного имени укажите forget.`,
+          flags: 64,
+        });
+      }
       if (
         interaction.isMessageContextMenuCommand() &&
         interaction.commandName === "Добавить на сайт"

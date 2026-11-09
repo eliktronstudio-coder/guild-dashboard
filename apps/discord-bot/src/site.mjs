@@ -37,6 +37,14 @@ export function siteClient(origin, secret) {
 }
 export function safeError(error) {
   const messages = {
+    FULL_NICKNAME_REQUIRED:
+      "Перед запоминанием введите полный ник через «Исправить и запомнить».",
+    NAMES_NOT_CONFIRMED: "Сначала проверьте все неразобранные ники.",
+    INVALID_NICKNAME:
+      "Укажите ник из 2–32 букв, цифр, пробелов, дефисов или подчёркиваний.",
+    DRAFT_CHANGED:
+      "Этот ник уже изменён. Выберите актуальную строку в разборе.",
+    TOO_MANY_GUESTS: "В одной активности допускается до 50 гостей.",
     EMPTY_CATALOG:
       "Реестр активностей сайта пуст. Сначала добавьте активности и коэффициенты на сайте.",
     TOO_MANY_IMAGES:

@@ -204,11 +204,224 @@ test("a disputed nickname can be confirmed from hints or explicitly kept as a gu
       },
     },
   });
-  assert.equal(renderDraft(d).components.length, 3);
+  assert.equal(renderDraft(d).components.length, 4);
   await flow.handle(interaction(d.id, "rosterPick", [member.id]));
   assert.equal(saved.roster.members[0].id, member.id);
   assert.deepEqual(saved.roster.unresolved, ["GuestFox"]);
   await flow.handle(interaction(d.id, "rosterPick", ["guest"]));
   assert.deepEqual(saved.roster.guests, ["GuestFox"]);
   assert.equal(saved.roster.unresolved.length, 0);
+});
+test("one-name correction teaches the selected cell, not another row, and works for names absent from the site", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xd-learn-flow-")),
+    store = draftStore(dir);
+  try {
+    const key = "a".repeat(64),
+      id = randomUUID(),
+      d = {
+        id,
+        request: randomUUID(),
+        owner: "staff",
+        context: { server: "guild-a" },
+        message: "source-a",
+        catalog: { members: [] },
+        activity: { name: "Рейд", weight: 100 },
+        mode: "raid",
+        source: "prime",
+        analyzed: true,
+        step: "review",
+        roster: {
+          members: [],
+          guests: [],
+          unresolved: ["Nickname..."],
+          unresolvedKeys: [key],
+          readings: [
+            {
+              key,
+              imageKey: "frame-a",
+              visible: "Nickname...",
+              variants: ["Nickname..."],
+              truncated: true,
+            },
+          ],
+        },
+        loot: { items: [], unresolved: [] },
+      };
+    store.put(d);
+    const flow = new ImportWorkflow({ store });
+    const show = interaction(id, "editnick");
+    show.showModal = async (m) => {
+      const raw = m.toJSON();
+      assert.ok(raw.custom_id.length <= 100);
+      assert.ok(raw.components[0].components[0].label.length <= 45);
+    };
+    await flow.handle(show);
+    assert.equal(show.errorPayload, undefined);
+    const edit = interaction(
+      id,
+      "correctNick_" + key.slice(0, 24),
+      [],
+      "NicknameFull",
+    );
+    await flow.handle(edit);
+    assert.equal(edit.errorPayload, undefined);
+    assert.deepEqual(store.get(id).roster.guests, ["NicknameFull"]);
+    assert.equal(store.get(id).roster.unresolved.length, 0);
+    assert.deepEqual(store.knownNicknames("guild-a"), ["NicknameFull"]);
+    const remembered = store.recallNickname("guild-a", {
+      key,
+      visible: "Nickname...",
+      variants: ["Nickname..."],
+      confidence: 90,
+    });
+    assert.equal(remembered.name, "NicknameFull");
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+test("confirmed guest-only names can be remembered without creating attendance or an activity", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xd-guests-memory-")),
+    store = draftStore(dir);
+  try {
+    const id = randomUUID();
+    store.put({
+      id,
+      request: randomUUID(),
+      owner: "staff",
+      context: { server: "guild" },
+      message: "source",
+      catalog: { members: [] },
+      activity: { name: "Рейд", weight: 100 },
+      mode: "raid",
+      source: "prime",
+      step: "review",
+      analyzed: true,
+      roster: { members: [], guests: ["NewPlayer"], unresolved: [] },
+      loot: { items: [], unresolved: [] },
+    });
+    let mutations = 0;
+    const flow = new ImportWorkflow({
+      store,
+      site: async () => {
+        mutations++;
+      },
+    });
+    await flow.handle(interaction(id, "remember"));
+    assert.deepEqual(store.knownNicknames("guild"), ["NewPlayer"]);
+    assert.equal(mutations, 0);
+    assert.equal(store.get(id).event, undefined);
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+test("an already accepted OCR guest can be corrected and taught; the wrong guest is removed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xd-recheck-name-")),
+    store = draftStore(dir);
+  try {
+    const id = randomUUID(),
+      key = "b".repeat(64);
+    store.put({
+      id,
+      request: randomUUID(),
+      owner: "staff",
+      context: { server: "guild" },
+      message: "source",
+      catalog: { members: [] },
+      activity: { name: "Рейд", weight: 100 },
+      mode: "raid",
+      source: "prime",
+      step: "review",
+      analyzed: true,
+      roster: {
+        members: [],
+        guests: ["IncorrectName"],
+        unresolved: [],
+        unresolvedKeys: [],
+        readings: [
+          {
+            key,
+            imageKey: "image",
+            visible: "IncorrectName",
+            name: "IncorrectName",
+            memberId: null,
+            pending: false,
+            variants: ["IncorrectName"],
+            origin: "read-from-image",
+          },
+        ],
+      },
+      loot: { items: [], unresolved: [] },
+    });
+    const flow = new ImportWorkflow({ store });
+    await flow.handle(interaction(id, "reviewNames"));
+    assert.equal(store.get(id).step, "names");
+    const edit = interaction(id, "editnick");
+    edit.showModal = async (modal) => {
+      assert.ok(modal.toJSON().custom_id.length <= 100);
+    };
+    await flow.handle(edit);
+    assert.equal(edit.errorPayload, undefined);
+    await flow.handle(
+      interaction(id, "correctNick_" + key.slice(0, 24), [], "CorrectName"),
+    );
+    assert.deepEqual(store.get(id).roster.guests, ["CorrectName"]);
+    assert.equal(
+      store.recallNickname("guild", {
+        key,
+        visible: "IncorrectName",
+        confidence: 90,
+        variants: ["IncorrectName"],
+      }).name,
+      "CorrectName",
+    );
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+test("memory storage failure does not report a successfully published activity as failed", async () => {
+  const id = randomUUID(),
+    member = { id: randomUUID(), nickname: "PlayerOne" };
+  let saved = {
+    id,
+    request: randomUUID(),
+    owner: "staff",
+    context: { server: "guild" },
+    message: "source",
+    catalog: { members: [member] },
+    activity: { id: randomUUID(), name: "Рейд", weight: 100, version: 1 },
+    mode: "raid",
+    source: "prime",
+    startsAt: "2026-11-09T10:00:00",
+    step: "confirm",
+    analyzed: true,
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: { items: [], unresolved: [] },
+    lootRequests: {},
+    evidence: [],
+  };
+  const store = {
+    get: () => structuredClone(saved),
+    put: (value) => {
+      saved = structuredClone(value);
+    },
+    rememberNicknames() {
+      throw Error("memory unavailable");
+    },
+  };
+  const flow = new ImportWorkflow({
+      store,
+      site: async () => ({
+        event_id: id,
+        url: "https://xd-guild.ru/events/" + id,
+      }),
+    }),
+    i = interaction(id, "publish");
+  await flow.handle(i);
+  assert.equal(i.errorPayload, undefined);
+  assert.equal(saved.event.event_id, id);
+  assert.equal(saved.nicknameMemoryFailed, true);
+  assert.match(i.replyPayload.content, /Активность сохранена/);
 });
