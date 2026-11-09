@@ -70,16 +70,18 @@ export default async function Page({
     ]);
   if (signups.error || roster.error || revisions.error)
     redirect("/setup?problem=database");
-  const bosses = manage
-    ? await a.client
-        .from("guild_catalog")
-        .select("id,name,weight")
-        .eq("guild_id", GUILD_ID)
-        .eq("kind", "boss")
-        .eq("archived", false)
-        .order("name")
-        .limit(500)
-    : { data: [], error: null };
+  const catalogEnabled = await a.permission("catalog.manage");
+  const bosses =
+    manage && catalogEnabled
+      ? await a.client
+          .from("guild_catalog")
+          .select("id,name,weight")
+          .eq("guild_id", GUILD_ID)
+          .eq("kind", "boss")
+          .eq("archived", false)
+          .order("name")
+          .limit(500)
+      : { data: [], error: null };
   if (bosses.error) throw new Error("BOSS_READ_FAILED");
   const changes = revisions.data ?? [];
   const [affectedMembers, editors] = changes.length
@@ -123,7 +125,7 @@ export default async function Page({
   if (page > maxPage) redirect(`/events/${id}?page=${maxPage}`);
   return (
     <GuildShell current="/events">
-      {manage && (
+      {manage && catalogEnabled && (
         <section className="panel section-panel">
           <h2>Рейд-босс</h2>
           <p>

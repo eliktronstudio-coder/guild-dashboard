@@ -105,9 +105,16 @@ export default async function Page({
       href({ ipage: Math.min(ipage, ipages), spage: Math.min(spage, spages) }),
     );
   const totals = summary.data as TreasuryTotals;
+  const poolSupport = canAllocate
+    ? await a.client
+        .from("treasury_pools")
+        .select("id", { head: true })
+        .eq("guild_id", GUILD_ID)
+        .limit(0)
+    : null;
   return (
     <GuildShell current="/treasury">
-      {canAllocate && (
+      {canAllocate && poolSupport && !poolSupport.error && (
         <Link href="/treasury/pool" className="button secondary inline">
           Распределить фонд по РБ →
         </Link>
@@ -117,11 +124,16 @@ export default async function Page({
       </Link>
       <div className="page-heading">
         <p className="eyebrow">XD · ЗОЛОТО И ДРОП</p>
-        <h1>Казна</h1>
+        <h1>Экономика гильдии</h1>
         <p className="muted">
           Прайм, мини РБ, доля гильдии и имущество — в одном месте.
         </p>
       </div>
+      <nav className="form-links">
+        <Link href="/treasury#settlements">Начисления и выплаты →</Link>
+        <Link href="/archive">История периодов →</Link>
+        <Link href="/statistics">Финансовая статистика →</Link>
+      </nav>
       <TreasurySummary totals={totals} />
       <p className="caption treasury-explanation">
         Первые три казны — остатки золота после продаж, выплат, расходов и

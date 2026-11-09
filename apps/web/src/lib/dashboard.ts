@@ -23,7 +23,21 @@ export function dashboardPeriod(
   const today = new Date(iso(now) + "T00:00:00.000Z");
   let start = new Date(today),
     end = new Date(today);
-  if (period === "week")
+  if (period === "current" || period === "previous") {
+    start = new Date(
+      Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth() - (today.getUTCDate() < 15 ? 1 : 0),
+        15,
+      ),
+    );
+    if (period === "previous") start.setUTCMonth(start.getUTCMonth() - 1);
+    end = new Date(
+      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 15) - DAY,
+    );
+  } else if (period === "7" || period === "30")
+    start.setUTCDate(start.getUTCDate() - Number(period) + 1);
+  else if (period === "week")
     start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
   else if (period === "month") start.setUTCDate(1);
   else if (period === "custom") {

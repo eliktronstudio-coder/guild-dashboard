@@ -1,3 +1,4 @@
+import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { MemberAvatar } from "@/components/members/avatar";
 import { signOut } from "@/app/actions";
@@ -57,9 +58,10 @@ export async function GuildShell({
     a.permission("treasury.read"),
   ]);
   const links = [
-    ["/dashboard", "Обзор", "◈"],
+    ["/dashboard", "Дашборд", "◈"],
+    ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
-    ...(canReadTreasury ? [["/treasury", "Казна", "◉"]] : []),
+    ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
     ...(canRead ? [["/members", "Состав", "◎"]] : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
     ["/account", "Аккаунт", "○"],
@@ -104,6 +106,7 @@ export async function GuildShell({
           <span>
             Гильдия <strong>XD</strong>
           </span>
+          <ThemeToggle />
           <Link
             href="/account"
             className="user-chip"

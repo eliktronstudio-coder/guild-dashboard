@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import "./command-fonts.css";
 const golos = localFont({
   src: "./fonts/golos.woff2",
   variable: "--font-golos",
@@ -23,7 +24,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="ru" className={`${golos.variable} ${cormorant.variable}`}>
+    <html
+      lang="ru"
+      suppressHydrationWarning
+      className={`${golos.variable} ${cormorant.variable}`}
+    >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{document.documentElement.dataset.theme=localStorage.getItem('xd-theme')==='light'?'light':'dark'}catch{}",
+          }}
+        />
+      </head>
       <body>
         <div className="world-background" aria-hidden="true" />
         <a className="skip-link" href="#main">

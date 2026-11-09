@@ -101,6 +101,12 @@ export default async function Page({
     redirect(`/members/${id}?historyPage=${historyPages}#nickname-history`);
   return (
     <GuildShell current="/members">
+      <nav className="form-links">
+        <Link href={"/statistics?q=" + encodeURIComponent(member.nickname)}>
+          Посещаемость и статистика →
+        </Link>
+        <Link href="/treasury#settlements">Начисления и выплаты →</Link>
+      </nav>
       <Link href="/members" className="text-button">
         ← Состав гильдии
       </Link>
