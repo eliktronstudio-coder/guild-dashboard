@@ -15,6 +15,8 @@ export type AttendanceFact = {
     attendance_finalized_at: string | null;
     boss_name: string | null;
     boss_weight: number | null;
+    activity_weight?: number | null;
+    activity_banner_name?: string | null;
   };
 };
 export type AnalyticsRow = {
@@ -63,7 +65,10 @@ export function summarizeAttendance(
     )
       continue;
     const mode = e.kind === "pvp" ? "PvP" : "PvE",
-      fund = resolveAttendanceFund(e.boss_name || e.title, mode);
+      fund = resolveAttendanceFund(
+        e.activity_banner_name || e.boss_name || e.title,
+        mode,
+      );
     if (category && category !== fund && category !== mode) continue;
     const key = e.id + ":" + fact.membership_id;
     if (seen.has(key)) continue;
@@ -80,9 +85,14 @@ export function summarizeAttendance(
     if (fact.mark === "present" || fact.mark === "absent") {
       row.available++;
       const weight =
-        e.boss_weight !== null
-          ? e.boss_weight / 100
-          : activityAttendanceWeight(e.boss_name || e.title, mode);
+        e.activity_weight != null
+          ? e.activity_weight / 100
+          : e.boss_weight !== null
+            ? e.boss_weight / 100
+            : activityAttendanceWeight(
+                e.activity_banner_name || e.boss_name || e.title,
+                mode,
+              );
       if (fund === "Прайм") row.primeAvailable += weight;
       else row.miniAvailable++;
       events.add(e.id);

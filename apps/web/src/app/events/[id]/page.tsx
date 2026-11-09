@@ -162,7 +162,22 @@ export default async function Page({
       </Link>
       <section className="panel section-panel">
         <span className="badge gold">{EVENT_STATUS[e.status]}</span>
+        {e.activity_banner_photo && (
+          <img
+            className="activity-event-hero"
+            src={e.activity_banner_photo}
+            alt={e.activity_banner_name || e.title}
+            width={480}
+            height={180}
+          />
+        )}
         <h1 className="event-title">{e.title}</h1>
+        {e.activity_weight != null && (
+          <p className="badge gold">
+            {e.activity_banner_name} · Коэффициент ×
+            {(e.activity_weight / 100).toLocaleString("ru-RU")}
+          </p>
+        )}
         <p>
           {new Date(e.starts_at).toLocaleString("ru-RU", { timeZone: "UTC" })}{" "}
           UTC

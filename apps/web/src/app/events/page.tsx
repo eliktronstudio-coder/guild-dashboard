@@ -23,6 +23,26 @@ export default async function Page({
 }) {
   const a = await requireMember();
   const p = await searchParams;
+  const bannerPage = Math.max(
+    1,
+    Math.min(10000, parseInt(queryValue(p.bannerPage) ?? "1") || 1),
+  );
+  const bannerResult = await a.client
+    .from("guild_activity_banners")
+    .select("id,name,photo,weight", { count: "exact" })
+    .eq("guild_id", GUILD_ID)
+    .order("name")
+    .order("id")
+    .range((bannerPage - 1) * 20, bannerPage * 20 - 1);
+  const banners = (bannerResult.data ?? []) as {
+    id: string;
+    name: string;
+    photo: string;
+    weight: number;
+  }[];
+  const selectedBanner = banners.some((b) => b.id === queryValue(p.banner))
+    ? queryValue(p.banner)
+    : "";
   const range = monthRange(queryValue(p.month));
   const requested = queryValue(p.status) ?? "";
   const status = Object.hasOwn(EVENT_STATUS, requested) ? requested : "";
@@ -52,6 +72,52 @@ export default async function Page({
           Отчёт посещаемости →
         </Link>
       </div>
+      {banners.length > 0 && (
+        <section className="section-panel">
+          <h2>Баннеры активностей</h2>
+          <div className="activity-banners-grid">
+            {banners.map((b) => (
+              <article className="panel activity-banner-card" key={b.id}>
+                {b.photo && (
+                  <img src={b.photo} alt={b.name} width={480} height={180} />
+                )}
+                <div>
+                  <h3>{b.name}</h3>
+                  <p>Коэффициент ×{(b.weight / 100).toLocaleString("ru-RU")}</p>
+                  {canManage && (
+                    <Link
+                      href={`/events?month=${range.month}&bannerPage=${bannerPage}&banner=${b.id}#create-event`}
+                    >
+                      Создать событие →
+                    </Link>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+          {(bannerResult.count ?? 0) > 20 && (
+            <nav className="pagination" aria-label="Страницы баннеров">
+              {bannerPage > 1 && (
+                <Link
+                  href={`/events?month=${range.month}&bannerPage=${bannerPage - 1}`}
+                >
+                  ← Назад
+                </Link>
+              )}
+              <span>
+                {bannerPage} / {Math.ceil((bannerResult.count ?? 0) / 20)}
+              </span>
+              {bannerPage * 20 < (bannerResult.count ?? 0) && (
+                <Link
+                  href={`/events?month=${range.month}&bannerPage=${bannerPage + 1}`}
+                >
+                  Далее →
+                </Link>
+              )}
+            </nav>
+          )}
+        </section>
+      )}
       <form className="panel section-panel directory-filters">
         <label>
           Месяц
@@ -77,11 +143,15 @@ export default async function Page({
         <button className="button secondary">Показать</button>
       </form>
       {canManage && (
-        <details className="panel section-panel">
+        <details
+          id="create-event"
+          className="panel section-panel"
+          open={!!selectedBanner}
+        >
           <summary>Создать событие</summary>
           <ActionForm action={createEvent} label="Создать событие">
             <input type="hidden" name="requestId" value={randomUUID()} />
-            <EventFields />
+            <EventFields banners={banners} selectedBanner={selectedBanner} />
           </ActionForm>
         </details>
       )}

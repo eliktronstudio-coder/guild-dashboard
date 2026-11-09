@@ -1876,3 +1876,12 @@ h1,h2,h3{font-family:Unbounded,Geist,sans-serif}h1{font-size:clamp(28px,3.4vw,44
 @media(max-width:390px){.command-stats{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 @theme inline{--color-background:var(--bg);--color-border:var(--line);--color-muted:var(--muted);--color-foreground:var(--text);--color-accent:var(--gold);--color-accent-soft:color-mix(in srgb,var(--gold) 12%,transparent);--color-surface:var(--panel)}
+
+.activity-banner-preview { display:block; width:min(100%,480px); height:auto; aspect-ratio:8/3; object-fit:cover; border-radius:12px; }
+.activity-banners-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:20px; }
+.activity-banner-card { overflow:hidden; padding:0; }
+.activity-banner-card > img { display:block; width:100%; height:auto; aspect-ratio:8/3; object-fit:cover; }
+.activity-banner-card > div { padding:20px; }
+.activity-event-hero { display:block; width:min(100%,960px); height:auto; aspect-ratio:8/3; object-fit:cover; border-radius:16px; margin-bottom:20px; }
+
+.activity-banner-heading { display:grid; gap:16px; margin-bottom:16px; min-width:0; }

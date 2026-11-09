@@ -60,14 +60,21 @@ export async function createEvent(
     !isUuid(requestId)
   )
     return { error: "Проверьте поля события." };
-  const { error } = await client.rpc("create_guild_event", {
-    p_request_id: requestId,
-    p_title: title,
-    p_kind: kind,
-    p_starts_at: startsAt,
-    p_description: field(form, "description"),
-    p_counts: form.get("counts") === "on",
-  });
+  const banner = field(form, "activityBanner");
+  if (banner && !isUuid(banner))
+    return { error: "Выберите баннер активности." };
+  const { error } = await client.rpc(
+    banner ? "create_banner_event" : "create_guild_event",
+    {
+      ...(banner ? { p_banner: banner } : {}),
+      p_request_id: requestId,
+      p_title: title,
+      p_kind: kind,
+      p_starts_at: startsAt,
+      p_description: field(form, "description"),
+      p_counts: form.get("counts") === "on",
+    },
+  );
   if (error) return { error: eventError(error.message) };
   scheduleTelegram();
   revalidatePath("/events");

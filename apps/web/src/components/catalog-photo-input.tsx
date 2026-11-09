@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-export function CatalogPhotoInput() {
+export function CatalogPhotoInput({ banner = false }: { banner?: boolean }) {
   const generation = useRef(0);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
@@ -26,21 +26,23 @@ export function CatalogPhotoInput() {
           try {
             const bitmap = await createImageBitmap(file);
             const canvas = document.createElement("canvas");
-            canvas.width = 100;
-            canvas.height = 100;
+            canvas.width = banner ? 480 : 100;
+            canvas.height = banner ? 180 : 100;
             const context = canvas.getContext("2d");
             if (!context) throw new Error();
-            const side = Math.min(bitmap.width, bitmap.height);
+            const ratio = canvas.width / canvas.height;
+            const cropWidth = Math.min(bitmap.width, bitmap.height * ratio);
+            const cropHeight = cropWidth / ratio;
             context.drawImage(
               bitmap,
-              (bitmap.width - side) / 2,
-              (bitmap.height - side) / 2,
-              side,
-              side,
+              (bitmap.width - cropWidth) / 2,
+              (bitmap.height - cropHeight) / 2,
+              cropWidth,
+              cropHeight,
               0,
               0,
-              100,
-              100,
+              canvas.width,
+              canvas.height,
             );
             bitmap.close();
             if (current === generation.current)
@@ -61,9 +63,9 @@ export function CatalogPhotoInput() {
         <img
           src={value}
           alt="Предпросмотр фото"
-          width={50}
-          height={50}
-          className="catalog-photo"
+          width={banner ? 160 : 50}
+          height={banner ? 60 : 50}
+          className={banner ? "activity-banner-preview" : "catalog-photo"}
         />
       )}
     </>

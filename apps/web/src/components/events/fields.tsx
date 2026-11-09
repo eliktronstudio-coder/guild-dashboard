@@ -1,7 +1,11 @@
 import { EVENT_KINDS } from "@/lib/events";
 export function EventFields({
   event,
+  banners = [],
+  selectedBanner = "",
 }: {
+  banners?: { id: string; name: string; weight: number }[];
+  selectedBanner?: string;
   event?: {
     title: string;
     kind: string;
@@ -12,6 +16,19 @@ export function EventFields({
 }) {
   return (
     <>
+      {banners.length > 0 && (
+        <label>
+          Баннер активности
+          <select name="activityBanner" defaultValue={selectedBanner}>
+            <option value="">Без баннера</option>
+            {banners.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name} · ×{b.weight / 100}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label>
         Название
         <input
@@ -19,7 +36,9 @@ export function EventFields({
           required
           minLength={3}
           maxLength={120}
-          defaultValue={event?.title}
+          defaultValue={
+            event?.title ?? banners.find((b) => b.id === selectedBanner)?.name
+          }
         />
       </label>
       <div className="field-grid">

@@ -8,6 +8,9 @@ import { ActionForm } from "@/components/action-form";
 import { reviewApplication } from "@/app/actions";
 export const metadata = { title: "Управление гильдией" };
 const labels: Record<string, string> = {
+  "activity_banner.saved": "Баннер активности сохранён",
+  "activity_banner.deleted": "Баннер активности удалён",
+  "event.banner_selected": "Для события выбран баннер активности",
   "drop_registry.saved": "Дроп сохранён в реестре",
   "drop_registry.deleted": "Дроп удалён из реестра",
   "event.signup_changed": "Изменена запись на событие",
@@ -54,6 +57,12 @@ export default async function Page() {
         <p>
           <Link href="/admin/drops" className="button secondary inline">
             Реестр дропа →
+          </Link>
+          <Link
+            href="/admin/activity-banners"
+            className="button secondary inline"
+          >
+            Баннеры активностей →
           </Link>
         </p>
       )}

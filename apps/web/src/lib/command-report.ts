@@ -43,16 +43,22 @@ export async function loadCommandReport(
     };
   const report = response.data as DashboardReport;
   const facts: AttendanceFact[] = [];
-  let weightedSchema = true;
+  let weightedSchema = 2;
   type RawFact = {
     membership_id: string;
     mark: string | null;
     events: AttendanceFact["event"] | AttendanceFact["event"][];
   };
-  const loadPage = async (offset: number, weights: boolean) => {
-    const selection = weights
-      ? "membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at,boss_name,boss_weight)"
-      : "membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at)";
+  const loadPage = async (offset: number, weights: number) => {
+    const base =
+      "membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at";
+    const selection =
+      base +
+      (weights === 2
+        ? ",boss_name,boss_weight,activity_weight,activity_banner_name)"
+        : weights === 1
+          ? ",activity_weight,activity_banner_name)"
+          : ")");
     return (await access.client
       .from("attendance")
       .select(selection)
@@ -71,9 +77,9 @@ export async function loadCommandReport(
   };
   for (let offset = 0; offset < 100000; offset += 500) {
     let result = await loadPage(offset, weightedSchema);
-    if (result.error?.code === "42703" && weightedSchema) {
-      weightedSchema = false;
-      result = await loadPage(offset, false);
+    while (result.error?.code === "42703" && weightedSchema > 0) {
+      weightedSchema--;
+      result = await loadPage(offset, weightedSchema);
     }
     if (result.error)
       return {
