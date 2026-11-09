@@ -9,6 +9,8 @@ command -v tesseract >/dev/null
 tesseract --list-langs 2>/dev/null | grep -qx rus
 root=/var/www/xd-discord-bot
 mkdir -p "$root" /var/www/xd-discord-releases
+# Type=simple may return before systemd creates StateDirectory on the first start.
+install -d -m 700 -o xd-discord -g xd-discord /var/lib/xd-discord-bot
 revision=$(git -C "$repo" rev-parse HEAD)
 release=/var/www/xd-discord-releases/${revision:0:7}-$(date +%Y%m%d%H%M%S)
 mkdir -p "$release"
