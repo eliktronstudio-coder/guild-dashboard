@@ -367,7 +367,7 @@ export function lootText(text, drops) {
   }
   return { items: [...selected.values()], unresolved };
 }
-export function reviewReady(draft) {
+export function reviewReady(draft, { rosterOnly = false } = {}) {
   return Boolean(
     draft.activity &&
     draft.mode &&
@@ -375,6 +375,6 @@ export function reviewReady(draft) {
     draft.analyzed &&
     draft.roster.members.length &&
     !draft.roster.unresolved.length &&
-    !draft.loot.unresolved.length,
+    (rosterOnly || !draft.loot.unresolved.length),
   );
 }

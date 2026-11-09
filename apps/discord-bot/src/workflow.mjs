@@ -147,7 +147,8 @@ function controls(d) {
           ]
         : []),
       row(
-        button(id("analyze"), "Распознать", 1),
+        button(id("analyze"), "Распознать состав и дроп", 1),
+        button(id("analyzeRoster"), "Только состав — без дропа", 2),
         button(id("extra"), "Дроп из сообщения"),
         button(id("backchoose"), "Назад"),
       ),
@@ -191,7 +192,13 @@ function controls(d) {
   if (d.step === "confirm")
     return [
       row(
-        button(id("publish"), "Подтверждаю состав и дроп — сохранить", 3),
+        button(
+          id("publish"),
+          d.rosterOnly
+            ? "Подтверждаю состав — сохранить"
+            : "Подтверждаю состав и дроп — сохранить",
+          3,
+        ),
         button(id("backreview"), "Вернуться к проверке"),
       ),
     ];
@@ -255,7 +262,20 @@ function controls(d) {
         Boolean(d.roster.unresolved.length) ||
           !(d.roster.members.length + d.roster.guests.length),
       ),
-      button(id("confirm"), "Сохранить на сайт", 3, !reviewReady(d)),
+      button(
+        id("confirm"),
+        d.rosterOnly ? "Сохранить состав" : "Сохранить на сайт",
+        3,
+        !reviewReady(d, { rosterOnly: d.rosterOnly === true }),
+      ),
+    ),
+    row(
+      button(
+        id("confirmRosterOnly"),
+        "Сохранить состав без дропа",
+        3,
+        !reviewReady(d, { rosterOnly: true }),
+      ),
     ),
   ];
 }
@@ -275,7 +295,7 @@ export function reviewText(d) {
     ...d.roster.guests.map((n) => "гость: " + n),
     ...d.roster.unresolved.map((n) => "? " + n),
     "",
-    "Дроп:",
+    d.rosterOnly ? "Дроп отложен: не добавляется в активность." : "Дроп:",
     ...d.loot.items.map(
       (item) =>
         `${item.name} x${item.quantity} (${Number(item.price_units) / 10000} зол./ед.)`,
@@ -287,7 +307,7 @@ export function renderDraft(d) {
   let content;
   if (d.event)
     return {
-      content: `Активность сохранена: ${d.event.url}\n${d.nicknameMemoryFailed ? "Память ников временно недоступна." : "Подтверждённые ники добавлены в память бота."}`,
+      content: `Активность сохранена: ${d.event.url}\n${d.rosterOnly ? "Состав сохранён без дропа. Дроп можно добавить позже в карточке активности.\n" : ""}${d.nicknameMemoryFailed ? "Память ников временно недоступна." : "Подтверждённые ники добавлены в память бота."}`,
       components: [],
       attachments: [],
     };
@@ -296,12 +316,12 @@ export function renderDraft(d) {
       "Выберите активность из реестра сайта, тип и источник. Данные пока не сохраняются на сайт.";
   else if (d.step === "images")
     content =
-      "Укажите, где состав, а где дроп. Первое изображение предварительно выбрано как состав; проверьте выбор. Текст исходного сообщения будет разобран как список дропа. Если скринов нет, состав можно будет ввести вручную.";
+      "Укажите, где состав, а где дроп. Первое изображение предварительно выбрано как состав; проверьте выбор. Для сохранения без дропа нажмите «Только состав — без дропа». В полном разборе текст исходного сообщения будет разобран как список дропа. Если скринов нет, состав можно будет ввести вручную.";
   else if (d.step === "names")
     content =
       "Выберите любой прочитанный ник, даже уже распознанный. «Исправить и запомнить» сохраняет полный игровой ник и пример чтения. Наличие аккаунта на сайте не требуется.";
   else if (d.step === "confirm")
-    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. Дроп: ${d.loot.items.length} позиций. Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
+    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " позиций."} Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
   else {
     const tips = d.roster.unresolved.slice(0, 8).map((n) => {
       const match = suggestion(n, d.catalog.members);
@@ -557,7 +577,8 @@ export class ImportWorkflow {
         }
         d.analyzed = false;
         d.step = "images";
-      } else if (action === "analyze") {
+      } else if (action === "analyze" || action === "analyzeRoster") {
+        d.rosterOnly = action === "analyzeRoster";
         await interaction.editReply({
           content:
             "Читаю подписи ячеек рейда и сверяю с составом сайта… Это может занять до минуты.",
@@ -568,18 +589,18 @@ export class ImportWorkflow {
         const knownNames = this.store.knownNicknames?.(d.context.server) ?? [];
         d.knownNicknameChoices = memoryChoices(knownNames);
         const words = [],
-          lootLines = [d.content];
+          lootLines = d.rosterOnly ? [] : [d.content];
         d.evidence = [];
         for (const attachment of d.attachments) {
           if (
             !d.rosterImages.includes(attachment.id) &&
-            !d.lootImages.includes(attachment.id)
+            (d.rosterOnly || !d.lootImages.includes(attachment.id))
           )
             continue;
           const buffer = await this.download(attachment.url),
             result = await this.ocr(buffer, {
               roster: d.rosterImages.includes(attachment.id),
-              loot: d.lootImages.includes(attachment.id),
+              loot: !d.rosterOnly && d.lootImages.includes(attachment.id),
               members: d.catalog.members,
               drops: d.catalog.drops,
               knownNames,
@@ -597,7 +618,7 @@ export class ImportWorkflow {
             );
             d.evidence.push({ id: randomUUID(), kind: "roster", image });
           }
-          if (d.lootImages.includes(attachment.id)) {
+          if (!d.rosterOnly && d.lootImages.includes(attachment.id)) {
             lootLines.push(result.text);
             d.evidence.push({ id: randomUUID(), kind: "loot", image });
           }
@@ -724,6 +745,7 @@ export class ImportWorkflow {
         );
         d.step = "review";
       } else if (action === "loottext") {
+        d.rosterOnly = false;
         d.loot = lootText(
           interaction.fields.getTextInputValue("value"),
           d.catalog.drops,
@@ -751,12 +773,17 @@ export class ImportWorkflow {
         });
         d.nicknameRemembered = true;
         d.step = "review";
-      } else if (action === "confirm") {
-        if (!reviewReady(d)) throw Error("ROSTER_CONFIRMATION_REQUIRED");
+      } else if (action === "confirm" || action === "confirmRosterOnly") {
+        if (action === "confirmRosterOnly") d.rosterOnly = true;
+        if (!reviewReady(d, { rosterOnly: d.rosterOnly === true }))
+          throw Error("ROSTER_CONFIRMATION_REQUIRED");
         d.step = "confirm";
       } else if (action === "backreview") d.step = "review";
       else if (action === "publish") {
-        if (d.step !== "confirm" || !reviewReady(d))
+        if (
+          d.step !== "confirm" ||
+          !reviewReady(d, { rosterOnly: d.rosterOnly === true })
+        )
           throw Error("ROSTER_CONFIRMATION_REQUIRED");
         // Preserve the identical payload for retries after a lost response.
         if (!d.publication) {
@@ -782,14 +809,18 @@ export class ImportWorkflow {
               confirmRoster: true,
               members: d.roster.members.map((m) => m.id),
               guests: d.roster.guests,
-              description: `Импорт из Discord: https://discord.com/channels/${d.context.server}/${d.context.channel}/${d.message}`,
-              evidence: d.evidence,
-              loot: d.loot.items.map((item) => ({
-                id: item.id,
-                version: item.version,
-                quantity: item.quantity,
-                request_id: d.lootRequests[item.id],
-              })),
+              description: `Импорт из Discord: https://discord.com/channels/${d.context.server}/${d.context.channel}/${d.message}${d.rosterOnly ? "\nСостав сохранён без внесения дропа. Дроп можно добавить позже." : ""}`,
+              evidence: d.rosterOnly
+                ? d.evidence.filter((e) => e.kind === "roster")
+                : d.evidence,
+              loot: d.rosterOnly
+                ? []
+                : d.loot.items.map((item) => ({
+                    id: item.id,
+                    version: item.version,
+                    quantity: item.quantity,
+                    request_id: d.lootRequests[item.id],
+                  })),
               facts: {},
             },
           };
