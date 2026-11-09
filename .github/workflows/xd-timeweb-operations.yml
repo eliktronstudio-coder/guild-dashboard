@@ -32,6 +32,17 @@ jobs:
             const r=await fetch('https://xd-guild.ru/api/discord/runtime',{headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET}});
             if(!r.ok)throw Error('Discord bridge unavailable');
             const v=await r.json();console.log('LIVE_DISCORD_RUNTIME',JSON.stringify({configured:v.enabled}));
+            const read=async(table,select)=>{const res=await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+table+'?select='+select,{headers:{apikey:process.env.SUPABASE_SECRET_KEY}});if(!res.ok)throw Error('Settings read unavailable');return res.json();};
+            const settings=await read('discord_settings','enabled,connected_at,application_id');
+            const bindings=await read('discord_staff','discord_user_id');
+            console.log('DISCORD_CONNECTION_STATE',JSON.stringify({settings_saved:settings.length>0,enabled:settings[0]?.enabled??false,online_recently:!!settings[0]?.connected_at&&Date.now()-Date.parse(settings[0].connected_at)<180000,application_known:!!settings[0]?.application_id,staff_bindings:bindings.length}));
+            if(v.enabled&&v.token){
+              for(const [label,path] of [['SERVER','/guilds/'+v.server],['CHANNEL','/channels/'+v.channel]]){
+                const res=await fetch('https://discord.com/api/v10'+path,{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
+                console.log('DISCORD_ACCESS_'+label,res.status);
+              }
+              for(const binding of bindings){const res=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET,'Content-Type':'application/json'},body:JSON.stringify({context:{server:v.server,channel:v.channel,parent:null,user:binding.discord_user_id}})});console.log('DISCORD_BOUND_STAFF_ACCESS',res.status);}
+            }
             const denied=await fetch('https://xd-guild.ru/api/discord/runtime');if(denied.status!==401)throw Error('Missing bridge authentication');
             console.log('UNAUTHENTICATED_DISCORD_API_DENIED');
 
