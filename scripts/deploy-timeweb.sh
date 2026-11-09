@@ -59,4 +59,5 @@ systemctl daemon-reload
 if ! systemctl restart xd-guild; then rollback; exit 1; fi
 if ! curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/login; then rollback; exit 1; fi
 systemctl is-active xd-guild
+if [ -f /etc/systemd/system/xd-discord-bot.service ]; then bash "$repo/scripts/deploy-discord-timeweb.sh"; fi
 echo 'Обновление запущено. Откройте https://xd-guild.ru/admin и нажмите Ctrl+Shift+R.'
