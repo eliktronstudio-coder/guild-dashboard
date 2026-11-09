@@ -13,17 +13,12 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: 748ce45acd4e46eafec30ee7bde3ae45bda4f250
-      - name: Apply reviewed activity banner migration to production Supabase
+      - name: Deploy activity banners to xd-guild.ru
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
           set -euo pipefail
-          test -n "$SUPABASE_ACCESS_TOKEN" || { echo 'Missing SUPABASE_ACCESS_TOKEN'; exit 1; }
           test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
           test -n "$KNOWN_HOSTS" || { echo 'Missing TIMEWEB_SSH_KNOWN_HOSTS'; exit 1; }
           install -d -m 700 ~/.ssh
@@ -31,55 +26,31 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 - <<'PYRUN'
-          import os,json,subprocess,urllib.request,urllib.error,urllib.parse,re,pathlib
-          remote='app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
-          source="""
-          require('@next/env').loadEnvConfig(process.cwd());
-          console.log(JSON.stringify({origin:process.env.APP_ORIGIN,url:process.env.NEXT_PUBLIC_SUPABASE_URL}));
-          """
-          result=subprocess.run(['ssh','-i',os.path.expanduser('~/.ssh/xd_operations'),'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20','root@200.165.236.194',remote],input=source,text=True,capture_output=True,timeout=45,check=True)
-          target=json.loads(result.stdout)
-          if target.get('origin')!='https://xd-guild.ru':raise SystemExit('Unexpected target origin; no migration applied.')
-          url=urllib.parse.urlsplit(target['url']);ref=url.hostname.removesuffix('.supabase.co')
-          if url.scheme!='https' or not url.hostname.endswith('.supabase.co') or not re.fullmatch('[a-z0-9]{20}',ref):raise SystemExit('Unexpected Supabase project URL; no migration applied.')
-          def query(sql):
-            request=urllib.request.Request('https://api.supabase.com/v1/projects/'+ref+'/database/query',data=json.dumps({'query':sql}).encode(),headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'},method='POST')
-            try:
-              with urllib.request.urlopen(request,timeout=90) as response:return json.load(response)
-            except urllib.error.HTTPError as error:
-              print('SUPABASE_SQL_HTTP_ERROR',error.code)
-              print(error.read().decode()[:1200])
-              raise SystemExit(1)
-          before=query("select to_regclass('public.guild_drop_registry') is not null as drop_registry_ready, to_regclass('public.events') is not null as events_ready")
-          if not(before[0]['drop_registry_ready'] and before[0]['events_ready']):raise SystemExit('Unexpected production schema; migration cancelled')
-          query(pathlib.Path('apps/web/supabase/migrations/202611090020_activity_banners.sql').read_text())
-          print('ACTIVITY_BANNERS_MIGRATION_APPLIED')
-          verified=query("""
-          select
-            (select relrowsecurity from pg_class where oid='public.guild_activity_banners'::regclass) as rls_enabled,
-            to_regprocedure('public.save_activity_banner(uuid,uuid,integer,text,text,integer)') is not null as save_rpc_ready,
-            to_regprocedure('public.delete_activity_banner(uuid,uuid,integer)') is not null as delete_rpc_ready,
-            to_regprocedure('public.create_banner_event(uuid,uuid,text,text,timestamptz,text,boolean)') is not null as event_snapshot_rpc_ready,
-            (select count(*) from public.role_permissions rp join public.roles r on r.id=rp.role_id where rp.permission='activity_banners.manage' and r.code in ('owner','admin')) as admin_role_grants,
-            (select count(*) from public.role_permissions rp join public.roles r on r.id=rp.role_id where rp.permission='activity_banners.manage' and r.code not in ('owner','admin')) as other_role_grants,
-            has_table_privilege('anon','public.guild_activity_banners','SELECT') as anonymous_table_access,
-            has_function_privilege('anon','public.save_activity_banner(uuid,uuid,integer,text,text,integer)','EXECUTE') as anonymous_write_access,
-            has_table_privilege('authenticated','public.guild_activity_banners','INSERT,UPDATE,DELETE') as direct_member_write_access
-          """)
-          print('ACTIVITY_BANNERS_VERIFICATION',json.dumps(verified))
-          row=verified[0]
-          if not(row['rls_enabled'] and row['save_rpc_ready'] and row['delete_rpc_ready'] and row['event_snapshot_rpc_ready'] and row['admin_role_grants']>=2 and row['other_role_grants']==0 and not row['anonymous_table_access'] and not row['anonymous_write_access'] and not row['direct_member_write_access']):raise SystemExit('Registry schema verification failed')
-          api_source="""
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-            const url=process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/guild_activity_banners?select=id&limit=0';
-            const admin=await fetch(url,{headers:{apikey:process.env.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
-            const anon=await fetch(url,{headers:{apikey:process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY},signal:AbortSignal.timeout(15000)});
-            console.log('REGISTRY_API_SCHEMA',admin.status,'ANONYMOUS_ACCESS',anon.status);
-            if(admin.status!==200||![401,403].includes(anon.status))throw new Error('Registry API verification failed');
-          })().catch(()=>{console.error('Registry API verification failed');process.exitCode=1;});
-          """
-          api=subprocess.run(['ssh','-i',os.path.expanduser('~/.ssh/xd_operations'),'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20','root@200.165.236.194',remote],input=api_source,text=True,capture_output=True,timeout=45,check=True)
-          print(api.stdout.strip())
-          PYRUN
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 7a2d30c6d824be9070976e85fcce8f8750d9d688
+          git merge --ff-only 7a2d30c6d824be9070976e85fcce8f8750d9d688
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/activity-banners
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/events
+          systemctl is-active xd-guild
+          systemctl is-active xd-guild-deploy.timer
+          systemctl show xd-guild --property=WorkingDirectory
+          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
+          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          cd "$app"
+          node <<'JS'
+          const manifest=require('./.next/server/app-paths-manifest.json');
+          if(!manifest['/admin/activity-banners/page'])throw new Error('Missing activity banner production route');
+          console.log('ACTIVITY_BANNERS_PRODUCTION_ROUTE_VERIFIED');
+          JS
+          REMOTE
