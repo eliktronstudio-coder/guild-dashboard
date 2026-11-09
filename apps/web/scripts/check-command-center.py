@@ -16,10 +16,17 @@ personal={'allocated_units':'1000000','paid_units':'250000','pending_units':'750
 totals={key:'0' for key in ['prime_units','prime_gross_units','mini_units','guild_units','prime_reserved_units','mini_reserved_units','prime_free_units','mini_free_units','guild_expense_units','inventory_units','general_units','xd_units']}
 totals.update({'prime_units':'70000000','mini_units':'10000000','guild_units':'30000000','inventory_units':'5000000','sales_count':1,'stock_count':0,'priced_count':0,'unpriced_count':0})
 report={'members':1,'pending_applications':0,'active_members':1,'completed_events':1,'attendance':100,'own_attendance':100,'own_present':1,'own_finance':personal,'own_earned_units':'1000000','upcoming':[],'weeks':[{'from':start,'until':start,'active':1,'attendance':100}],'ranking':[{'membership_id':MEMBER,'nickname':member['nickname'],'present':1,'percentage':100}],'finance':{'current':totals,'sales_units':'100000000','reversed_units':'0','opening_units':'0','weeks':[{'from':start,'until':start,'sales_units':'100000000','reversed_units':'0','balance_units':'100000000'}]}}
+drops={}
 class Fixture(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def do_GET(self):self.reply()
- def do_POST(self):self.rfile.read(int(self.headers.get('Content-Length','0')));self.reply()
+ def do_POST(self):
+  payload=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}')
+  if self.path.endswith('/rpc/save_drop_registry'):
+   old=drops.get(payload['p_id'],{})
+   drops[payload['p_id']]={'id':payload['p_id'],'name':payload['p_name'],'photo':payload['p_photo'] if payload['p_photo'] is not None else old.get('photo',''),'price_units':str(payload['p_price']),'version':old.get('version',0)+1}
+  elif self.path.endswith('/rpc/delete_drop_registry'):drops.pop(payload['p_id'],None)
+  self.reply()
  def reply(self):
   path=urllib.parse.urlsplit(self.path).path
   data=[]
@@ -32,6 +39,7 @@ class Fixture(BaseHTTPRequestHandler):
   elif path.endswith('/memberships') or path.endswith('/member_directory'):data=[member]
   elif path.endswith('/attendance'):data=[{'membership_id':MEMBER,'mark':'present','events':event}]
   elif path.endswith('/events'):data=[event]
+  elif path.endswith('/guild_drop_registry'):data=list(drops.values())
   if path.endswith('/attendance') and 'boss_name' in urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get('select',[''])[0]:
    encoded=json.dumps({'code':'42703','message':'column events.boss_name does not exist'}).encode();self.send_response(400);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(encoded);return
   encoded=json.dumps(data).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(encoded)));self.send_header('Content-Range',f'0-{max(0,len(data)-1)}/{len(data)}' if isinstance(data,list) else '0-0/1');self.end_headers();self.wfile.write(encoded)
@@ -54,17 +62,39 @@ with tempfile.TemporaryFile() as log:
     page.evaluate("theme=>{document.documentElement.dataset.theme=theme;localStorage.setItem('xd-theme',theme)}",theme)
     for width in [360,390,768,1024,1440,1920]:
      page.set_viewport_size({'width':width,'height':1000})
-     for path in ['/dashboard','/statistics','/events','/members','/treasury']:
+     for path in ['/dashboard','/statistics','/events','/members','/treasury','/admin/drops']:
       response=page.goto(origin+path,wait_until='networkidle');assert response and response.status==200,(path,response.status if response else None)
       assert '/login' not in page.url and '/setup' not in page.url,(path,page.url)
       assert not [text for text in page.get_by_role('alert').all_text_contents() if text.strip()],(path,page.get_by_role('alert').all_text_contents())
       assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),(theme,width,path,'overflow')
       if theme=='dark' and width==1440 and path in ['/dashboard','/statistics']:page.screenshot(path=str(artifacts/(path[1:]+'-1440.png')),full_page=True)
+   page.goto(origin+'/admin/drops',wait_until='networkidle')
+   page.get_by_text('Добавить дроп',exact=True).first.click()
+   create=page.locator('form').filter(has=page.get_by_role('button',name='Добавить дроп'))
+   create.get_by_label('Название дропа').fill('Тестовый клинок')
+   create.get_by_label('Цена за единицу').fill('123,45')
+   png=page.evaluate("()=>{const c=document.createElement('canvas');c.width=10;c.height=10;c.getContext('2d').fillRect(0,0,10,10);return c.toDataURL('image/png').split(',')[1]}")
+   create.locator('input[type=file]').set_input_files({'name':'drop.png','mimeType':'image/png','buffer':base64.b64decode(png)})
+   create.get_by_alt_text('Предпросмотр фото').wait_for()
+   create.get_by_role('button',name='Добавить дроп').click()
+   page.get_by_role('heading',name='Тестовый клинок',exact=True).wait_for()
+   entry=page.locator('article').filter(has=page.get_by_role('heading',name='Тестовый клинок',exact=True))
+   assert entry.get_by_role('img',name='Тестовый клинок').count()==1
+   entry.get_by_text('Редактировать',exact=True).click()
+   edit=entry.locator('form').filter(has=page.get_by_role('button',name='Сохранить',exact=True))
+   edit.get_by_label('Название дропа').fill('Обновлённый клинок');edit.get_by_label('Цена за единицу').fill('999,99')
+   edit.get_by_role('button',name='Сохранить',exact=True).click()
+   page.get_by_role('heading',name='Обновлённый клинок',exact=True).wait_for()
+   entry=page.locator('article').filter(has=page.get_by_role('heading',name='Обновлённый клинок',exact=True))
+   entry.get_by_text('Удалить',exact=True).click()
+   entry.get_by_label('Подтверждаю удаление').check();entry.get_by_role('button',name='Удалить дроп',exact=True).click()
+   page.get_by_text('Реестр пуст. Добавьте первый дроп.',exact=True).wait_for()
+   assert not drops
    assert not errors,errors[:3]
    page.goto(origin+'/dashboard',wait_until='networkidle');page.get_by_role('button',name='Настроить',exact=True).click();page.get_by_label('Видимость панелей').get_by_label('Динамика казны',exact=True).uncheck();page.reload(wait_until='networkidle');assert page.locator('[data-panel-id="treasury"]').count()==0
    page.goto(origin+'/statistics/export',wait_until='commit') if False else None
    response=context.request.get(origin+'/statistics/export');assert response.status==200 and 'Тестовый участник' in response.text()
    anonymous=browser.new_context();r=anonymous.request.get(origin+'/statistics',max_redirects=0);assert r.status in [200,303,307,308] and '/login' in r.text() and 'Тестовый участник' not in r.text()
-   browser.close();print('PASS: real authenticated Supabase-shaped SSR, 5 sections × 6 widths × 2 themes, private access, CSV and saved panels; no real accounts or production data used',flush=True)
+   browser.close();print('PASS: real authenticated Supabase-shaped SSR, 6 sections × 6 widths × 2 themes and drop photo/create/edit/delete, private access, CSV and saved panels; no real accounts or production data used',flush=True)
  finally:
   server.terminate();server.wait(timeout=15);fixture.shutdown()
