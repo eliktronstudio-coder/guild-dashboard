@@ -34,8 +34,8 @@ jobs:
           test "$(git branch --show-current)" = codex/xd-foundation-20261031
           test -z "$(git status --porcelain)"
           git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = a80b65769909204fc5137bbef64199d185f359f0
-          git merge --ff-only a80b65769909204fc5137bbef64199d185f359f0
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 15fc68723e7bad807726700ad78a6c6b99c42ad5
+          git merge --ff-only 15fc68723e7bad807726700ad78a6c6b99c42ad5
           app=$(systemctl show xd-guild --property=WorkingDirectory --value)
           python3 - "$app/.env.local" <<'PYENV'
           import sys,re,secrets,os
