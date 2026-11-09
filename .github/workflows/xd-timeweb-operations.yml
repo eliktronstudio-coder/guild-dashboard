@@ -10,10 +10,10 @@ concurrency:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     environment: production
     steps:
-      - name: Inspect deployed applications without changing them
+      - name: Deploy verified command center to xd-guild.ru
         env:
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
@@ -28,12 +28,30 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
           set -euo pipefail
+          umask 077
           systemctl stop xd-guild-deploy.timer
           install -d -m 700 /var/lib/xd-guild-deploy
           exec 9>/var/lib/xd-guild-deploy/lock
           flock -w 180 9
-          systemctl is-active xd-guild
-          git -C /var/www/xd-guild-command-center status --porcelain
-          systemctl cat xd-guild-deploy.timer
-          echo AUTOMATIC_DEPLOY_PAUSED
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          old_app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          backup=/var/lib/xd-guild-deploy/backups/$(date +%Y%m%d%H%M%S)
+          install -d -m 700 "$backup"
+          cp -a /etc/systemd/system/xd-guild.service "$backup/xd-guild.service"
+          install -m 600 "$old_app/.env.local" "$backup/env.local"
+          git rev-parse HEAD > "$backup/revision"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = ac55653ea59999134a1b3d6ab0a811e3d36271ce
+          git merge --ff-only ac55653ea59999134a1b3d6ab0a811e3d36271ce
+          bash scripts/deploy-timeweb.sh
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/login
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/command/art/kpi-prime.webp
+          git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          systemctl enable --now xd-guild-deploy.timer
+          echo DEPLOYED_REVISION=$(git rev-parse HEAD)
+          systemctl show xd-guild --property=WorkingDirectory --property=ActiveState
+          systemctl is-active xd-guild-deploy.timer
+          echo XD_GUILD_PRODUCTION_DEPLOYMENT_VERIFIED
           REMOTE
