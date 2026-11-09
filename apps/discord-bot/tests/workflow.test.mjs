@@ -204,7 +204,7 @@ test("a disputed nickname can be confirmed from hints or explicitly kept as a gu
       },
     },
   });
-  assert.equal(renderDraft(d).components.length, 4);
+  assert.equal(renderDraft(d).components.length, 5);
   await flow.handle(interaction(d.id, "rosterPick", [member.id]));
   assert.equal(saved.roster.members[0].id, member.id);
   assert.deepEqual(saved.roster.unresolved, ["GuestFox"]);
@@ -424,4 +424,130 @@ test("memory storage failure does not report a successfully published activity a
   assert.equal(saved.event.event_id, id);
   assert.equal(saved.nicknameMemoryFailed, true);
   assert.match(i.replyPayload.content, /Активность сохранена/);
+});
+test("roster-only publication skips unresolved or selected loot and loot screenshots while preserving the original draft", async () => {
+  const id = randomUUID(),
+    member = { id: randomUUID(), nickname: "PlayerOne" },
+    drop = {
+      id: randomUUID(),
+      name: "Коготь",
+      version: 1,
+      quantity: 2,
+      price_units: "10000",
+    };
+  let saved = {
+    id,
+    request: randomUUID(),
+    owner: "staff",
+    context: { server: "guild" },
+    message: "source",
+    catalog: { members: [member] },
+    activity: { id: randomUUID(), name: "Рейд", weight: 100, version: 1 },
+    mode: "raid",
+    source: "prime",
+    startsAt: "2026-11-09T10:00:00",
+    step: "review",
+    analyzed: true,
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: { items: [drop], unresolved: ["Подпись к скриншоту"] },
+    lootRequests: {},
+    evidence: [
+      { id: randomUUID(), kind: "roster", image: "roster-image" },
+      { id: randomUUID(), kind: "loot", image: "loot-image" },
+    ],
+  };
+  const publications = [],
+    store = {
+      get: () => structuredClone(saved),
+      put: (value) => {
+        saved = structuredClone(value);
+      },
+    },
+    flow = new ImportWorkflow({
+      store,
+      site: async (op, body) => {
+        publications.push(body);
+        return { event_id: id, url: "https://xd-guild.ru/events/" + id };
+      },
+    });
+  const blocked = interaction(id, "confirm");
+  await flow.handle(blocked);
+  assert.ok(blocked.errorPayload);
+  assert.equal(publications.length, 0);
+  const controls = renderDraft(saved).components;
+  assert.ok(controls.length <= 5);
+  assert.ok(controls.every((r) => r.components.length <= 5));
+  await flow.handle(interaction(id, "confirmRosterOnly"));
+  assert.equal(saved.step, "confirm");
+  await flow.handle(interaction(id, "publish"));
+  assert.deepEqual(publications[0].activity.loot, []);
+  assert.deepEqual(
+    publications[0].activity.evidence.map((e) => e.kind),
+    ["roster"],
+  );
+  assert.deepEqual(publications[0].activity.members, [member.id]);
+  assert.equal(publications[0].activity.confirmRoster, true);
+  assert.equal(saved.loot.items.length, 1);
+  assert.equal(saved.loot.unresolved.length, 1);
+});
+test("roster-only analysis ignores caption text and loot-only attachments; unreviewed names still cannot publish", async () => {
+  const id = randomUUID(),
+    member = { id: randomUUID(), nickname: "PlayerOne" };
+  let saved = {
+    id,
+    request: randomUUID(),
+    owner: "staff",
+    context: { server: "guild" },
+    message: "source",
+    catalog: { members: [member], drops: [] },
+    activity: { name: "Рейд", weight: 100 },
+    mode: "raid",
+    source: "prime",
+    step: "images",
+    content: "Это состав рейда, а не список предметов",
+    attachments: [
+      { id: "roster", url: "roster-url" },
+      { id: "loot", url: "loot-url" },
+    ],
+    rosterImages: ["roster"],
+    lootImages: ["loot"],
+    roster: { members: [], guests: [], unresolved: [] },
+    loot: { items: [], unresolved: [] },
+  };
+  const downloads = [],
+    store = {
+      get: () => structuredClone(saved),
+      put: (value) => {
+        saved = structuredClone(value);
+      },
+    },
+    flow = new ImportWorkflow({
+      store,
+      site: async () => ({}),
+      download: async (url) => {
+        downloads.push(url);
+        return Buffer.from("image");
+      },
+      ocr: async (_buffer, options) => {
+        assert.equal(options.loot, false);
+        return {
+          words: [{ text: "PlayerOne", confidence: 95, line: "1" }],
+          text: "Not loot",
+        };
+      },
+      prepareEvidence: async () => "prepared",
+    });
+  await flow.handle(interaction(id, "analyzeRoster"));
+  assert.deepEqual(downloads, ["roster-url"]);
+  assert.equal(saved.roster.members.length, 1);
+  assert.deepEqual(saved.loot, { items: [], unresolved: [] });
+  assert.deepEqual(
+    saved.evidence.map((e) => e.kind),
+    ["roster"],
+  );
+  saved.roster.unresolved = ["Unknown"];
+  const attempt = interaction(id, "confirmRosterOnly");
+  await flow.handle(attempt);
+  assert.ok(attempt.errorPayload);
+  assert.equal(saved.event, undefined);
 });
