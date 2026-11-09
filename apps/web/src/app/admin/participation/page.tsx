@@ -39,7 +39,7 @@ export default async function Page() {
     activities = new Map(eventResult.data?.map((e) => [e.id, e]));
   const names = new Map(members?.map((m) => [m.id, m.nickname]));
   return (
-    <GuildShell current="/admin">
+    <GuildShell current="/admin/participation">
       <section className="panel section-panel">
         <h1>Заявки на участие</h1>
         <p>
