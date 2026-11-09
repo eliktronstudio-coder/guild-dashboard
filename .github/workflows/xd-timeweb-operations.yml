@@ -27,8 +27,9 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' < operations/scripts/export-private-ocr-diagnostic.cjs > ocr-diagnostic.enc.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: private-ocr-diagnostic
-          path: ocr-diagnostic.enc.json
-          retention-days: 1
+          python3 - <<'PYENC'
+          import base64
+          from pathlib import Path
+          text=base64.b64encode(Path('ocr-diagnostic.enc.json').read_bytes()).decode()
+          for i in range(0,len(text),3000):print('ENCRYPTED_OCR_CHUNK_'+str(i//3000)+':'+text[i:i+3000])
+          PYENC
