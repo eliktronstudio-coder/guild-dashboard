@@ -82,6 +82,13 @@ export default async function Page() {
           </Link>
         </p>
       )}
+      {(await a.permission("discord.manage")) && (
+        <p>
+          <Link href="/admin/discord" className="button secondary inline">
+            Discord-бот: импорт активностей →
+          </Link>
+        </p>
+      )}
       <div className="applications-grid">
         {data?.map((application) => (
           <article className="panel section-panel" key={application.id}>

@@ -1,0 +1,24 @@
+[Unit]
+Description=XD Discord activity import bot
+After=network-online.target xd-guild.service
+Wants=network-online.target
+[Service]
+Type=simple
+User=xd-discord
+Group=xd-discord
+WorkingDirectory=/var/www/xd-discord-bot/current
+EnvironmentFile=/etc/xd-discord-bot.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/index.mjs
+Restart=always
+RestartSec=10
+StateDirectory=xd-discord-bot
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/xd-discord-bot
+[Install]
+WantedBy=multi-user.target
