@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run as root from the updated checkout, after applying migrations 017 and 018.
+# Root-only deployment of xd-guild.ru. Database writes/migrations are not performed.
 set -euo pipefail
 umask 022
 repo=$(cd "$(dirname "$0")/.." && pwd)
@@ -18,11 +18,12 @@ require('@next/env').loadEnvConfig(process.cwd());
 (async()=>{
  const e=process.env;
  if(!e.SUPABASE_SECRET_KEY) throw new Error('Не задан SUPABASE_SECRET_KEY.');
- for(const query of ['guild_catalog?select=id&limit=1','memberships?select=payout_weight,weight_version&limit=1','treasury_pools?select=id&limit=1']){
+ if(e.APP_ORIGIN!=='https://xd-guild.ru') throw new Error('Неверный целевой домен.');
+ for(const query of ['events?select=id,title,status,attendance_finalized_at&limit=0','member_directory?select=id,nickname,character_class&limit=0','treasury_sales?select=id&limit=0']){
   const r=await fetch(e.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/'+query,{headers:{apikey:e.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
-  if(!r.ok)throw new Error('Проверка базы не прошла. Примените миграции 017 и 018 и проверьте ключ Supabase.');
+  if(!r.ok)throw new Error('Проверка рабочей схемы Supabase не прошла; установка отменена.');
  }
- console.log('Новые таблицы и коэффициенты доступны.');
+ console.log('Рабочая схема и целевой домен xd-guild.ru подтверждены.');
 })().catch(e=>{console.error(e.message);process.exitCode=1;});
 JS
 release=/var/www/xd-guild-releases/$(git -C "$repo" rev-parse --short HEAD)-$(date +%Y%m%d%H%M%S)
