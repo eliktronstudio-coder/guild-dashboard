@@ -28,11 +28,31 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
           set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = baab65debdaff81b71b74c6daca01d54d5d51c35
+          git merge --ff-only baab65debdaff81b71b74c6daca01d54d5d51c35
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$(git rev-parse HEAD)" ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/admin/drops
+          systemctl is-active xd-guild
+          systemctl is-active xd-guild-deploy.timer
+          systemctl show xd-guild --property=WorkingDirectory
+          echo DEPLOYED_REVISION=$(cat /var/lib/xd-guild-deploy/deployed)
           app=$(systemctl show xd-guild --property=WorkingDirectory --value)
           cd "$app"
           node <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
-          console.log('AVAILABLE_CONFIGURATION_NAMES',Object.keys(process.env).filter(k=>/SUPABASE|DATABASE|POSTGRES|PGHOST|PGUSER|PGPASSWORD/.test(k)).sort().join(','));
+          (async()=>{
+            const r=await fetch(process.env.NEXT_PUBLIC_SUPABASE_URL+'/rest/v1/guild_drop_registry?select=id&limit=0',{headers:{apikey:process.env.SUPABASE_SECRET_KEY},signal:AbortSignal.timeout(15000)});
+            console.log('DROP_REGISTRY_SCHEMA_HTTP_STATUS',r.status);
+            console.log(r.ok?'DROP_REGISTRY_SCHEMA_READY':'DROP_REGISTRY_SQL_EDITOR_SETUP_REQUIRED');
+          })().catch(()=>{console.log('DROP_REGISTRY_SCHEMA_CHECK_UNAVAILABLE');process.exitCode=1;});
           JS
-          command -v psql || true
           REMOTE
