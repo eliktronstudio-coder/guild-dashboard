@@ -79,14 +79,17 @@ export async function listInventoryAuction(
     quantity > 1000000 ||
     !price ||
     BigInt(price) <= 0n ||
+    (price !== null &&
+      Number.isSafeInteger(quantity) &&
+      BigInt(price) * BigInt(quantity) > 100000000000000n) ||
     f.get("confirm") !== "on"
   )
     return {
       error:
-        "Укажите количество и цену за единицу, подтвердите выставление в игре.",
+        "Укажите количество и цену за единицу. Общая сумма должна быть не больше 10 000 000 000 золота. Подтвердите запись продажи.",
     };
   return mutate(
-    "list_inventory_auction",
+    "sell_inventory_auction_now",
     {
       p_request: request,
       p_loot: loot,
@@ -94,7 +97,7 @@ export async function listInventoryAuction(
       p_quantity: quantity,
       p_unit_price: price,
     },
-    "Лот записан. Количество зарезервировано; золото будет начислено после продажи.",
+    "Аукционная продажа записана автоматически. Количество списано, золото начислено в казны.",
   );
 }
 export async function completeInventoryAuction(
