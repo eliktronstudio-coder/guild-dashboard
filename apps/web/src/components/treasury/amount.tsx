@@ -6,14 +6,20 @@ import {
   formatGold,
   type TreasurySource,
 } from "@/lib/treasury";
-export function SaleAmount({ source }: { source: TreasurySource }) {
+export function SaleAmount({
+  source,
+  label = "Общая сумма этой продажи, золото",
+}: {
+  source: TreasurySource;
+  label?: string;
+}) {
   const [value, setValue] = useState("");
   const amount = parseGold(value),
     split = amount === null ? null : splitSale(amount, source);
   return (
     <>
       <label>
-        Общая сумма этой продажи, золото
+        {label}
         <input
           name="amount"
           inputMode="decimal"

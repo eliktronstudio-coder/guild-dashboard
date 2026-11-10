@@ -1685,6 +1685,31 @@ td details label {
   opacity: 0;
   pointer-events: none;
 }
+.inventory-bag { display: grid; grid-template-columns: repeat(auto-fill,72px); gap: 14px; padding: 18px 0; align-items: start; }
+.inventory-slot { width: 72px; min-width: 0; }
+.loot-auction-badge { position: absolute; top: 3px; left: 3px; padding: 0 5px; border-radius: 4px; color: #fff; background: #245c9c; font-size: 11px; font-weight: 800; }
+.loot-icon-description.inventory-tooltip { position: fixed; visibility: visible; opacity: 1; pointer-events: auto; width: min(340px,calc(100vw - 32px)); overflow: auto; z-index: 100; }
+.inventory-tooltip::before { display: none; }
+.codex-description { white-space: pre-line; font-size: 13px; line-height: 1.65; margin: 12px 0; }
+.codex-source { display: inline-block; margin-top: 8px; color: #ffb743; }
+.inventory-dialog { width: min(620px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; margin: auto; padding: 24px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 100px #0009; }
+.inventory-dialog::backdrop { background: #000a; backdrop-filter: blur(4px); }
+.inventory-dialog-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.inventory-dialog-header h2 { margin: 4px 0 0; font-size: 22px; overflow-wrap: anywhere; }
+.inventory-dialog-header > button { flex-shrink: 0; width: 40px; min-height: 40px; padding: 8px; justify-content: center; }
+.inventory-stock-line { margin: 18px 0; font-size: 13px; color: var(--muted); }
+.inventory-codex { margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.inventory-codex summary { cursor: pointer; color: var(--gold); }
+.inventory-action-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 18px 0; }
+.inventory-action-tabs > button { justify-content: center; padding: 10px 6px; }
+.inventory-dialog [hidden] { display: none !important; }
+.inventory-dialog details { margin: 16px 0; }
+.inventory-dialog h3 { margin: 20px 0 12px; }
+.inventory-dialog .form-stack { margin-top: 16px; }
+.inventory-dialog .form-stack label { overflow-wrap: anywhere; }
+.inventory-auction-lot { border: 1px solid var(--line); padding: 16px; margin: 14px 0; border-radius: 10px; }
+.inventory-auction-lot h4 { margin: 0 0 8px; }
+@media(max-width:500px) { .inventory-dialog { padding: 18px; } .inventory-dialog-header h2 { font-size: 18px; } }
 .treasury-month {
   margin: 24px 0;
   align-items: flex-end;

@@ -1,0 +1,202 @@
+"use server";
+import { revalidatePath } from "next/cache";
+import { requirePermission } from "@/lib/access";
+import { checkOrigin, field } from "@/lib/mutations";
+import { isUuid } from "@/lib/members";
+import { parseGold, treasuryError } from "@/lib/treasury";
+import type { FormState } from "@/lib/identity";
+const integer = (f: FormData, key: string) =>
+  /^\d{1,10}$/.test(field(f, key)) ? Number(field(f, key)) : NaN;
+async function mutate(
+  name: string,
+  payload: Record<string, unknown>,
+  success: string,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.manage");
+  const { error } = await a.client.rpc(name, payload);
+  if (error) return { error: treasuryError(error.message) };
+  revalidatePath("/", "layout");
+  return { success };
+}
+export async function recordInventorySale(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  const request = field(f, "requestId"),
+    loot = field(f, "lootId"),
+    version = integer(f, "version"),
+    quantity = integer(f, "quantity"),
+    amount = parseGold(field(f, "amount")),
+    buyer = field(f, "buyer").trim();
+  if (
+    !isUuid(request) ||
+    !isUuid(loot) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000 ||
+    !amount ||
+    BigInt(amount) <= 0n ||
+    buyer.length < 2 ||
+    buyer.length > 80 ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error:
+        "Укажите количество, покупателя, полученную сумму и подтвердите продажу.",
+    };
+  return mutate(
+    "record_inventory_sale",
+    {
+      p_request: request,
+      p_loot: loot,
+      p_version: version,
+      p_quantity: quantity,
+      p_gross: amount,
+      p_buyer: buyer,
+    },
+    "Продажа записана. Покупатель сохранён, остаток и казны обновлены.",
+  );
+}
+export async function listInventoryAuction(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  const request = field(f, "requestId"),
+    loot = field(f, "lootId"),
+    version = integer(f, "version"),
+    quantity = integer(f, "quantity"),
+    price = parseGold(field(f, "unitPrice"));
+  if (
+    !isUuid(request) ||
+    !isUuid(loot) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000 ||
+    !price ||
+    BigInt(price) <= 0n ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error:
+        "Укажите количество и цену за единицу, подтвердите выставление в игре.",
+    };
+  return mutate(
+    "list_inventory_auction",
+    {
+      p_request: request,
+      p_loot: loot,
+      p_version: version,
+      p_quantity: quantity,
+      p_unit_price: price,
+    },
+    "Лот записан. Количество зарезервировано; золото будет начислено после продажи.",
+  );
+}
+export async function completeInventoryAuction(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  const request = field(f, "requestId"),
+    auction = field(f, "auctionId"),
+    version = integer(f, "auctionVersion"),
+    lootVersion = integer(f, "version"),
+    quantity = integer(f, "quantity"),
+    amount = parseGold(field(f, "amount")),
+    buyer = field(f, "buyer").trim();
+  if (
+    !isUuid(request) ||
+    !isUuid(auction) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(lootVersion) ||
+    lootVersion < 1 ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000 ||
+    !amount ||
+    BigInt(amount) <= 0n ||
+    buyer.length < 2 ||
+    buyer.length > 80 ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error: "Проверьте количество, покупателя и фактически полученное золото.",
+    };
+  return mutate(
+    "complete_inventory_auction",
+    {
+      p_request: request,
+      p_auction: auction,
+      p_version: version,
+      p_loot_version: lootVersion,
+      p_quantity: quantity,
+      p_gross: amount,
+      p_buyer: buyer,
+    },
+    "Продажа с аукциона записана. Остаток и казны обновлены.",
+  );
+}
+export async function cancelInventoryAuction(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  const auction = field(f, "auctionId"),
+    version = integer(f, "auctionVersion");
+  if (
+    !isUuid(auction) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error:
+        "Подтвердите, что непроданные предметы сняты с аукциона и возвращены.",
+    };
+  return mutate(
+    "cancel_inventory_auction",
+    { p_auction: auction, p_version: version },
+    "Лот снят. Его непроданное количество снова доступно на складе.",
+  );
+}
+export async function discardInventoryStock(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  const request = field(f, "requestId"),
+    loot = field(f, "lootId"),
+    version = integer(f, "version"),
+    quantity = integer(f, "quantity"),
+    reason = field(f, "reason").trim();
+  if (
+    !isUuid(request) ||
+    !isUuid(loot) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000 ||
+    reason.length < 3 ||
+    reason.length > 500 ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error:
+        "Укажите количество и причину удаления, затем подтвердите списание.",
+    };
+  return mutate(
+    "discard_inventory_stock",
+    {
+      p_request: request,
+      p_loot: loot,
+      p_version: version,
+      p_quantity: quantity,
+      p_reason: reason,
+    },
+    "Количество списано со склада. Причина и история сохранены; золото не начислено.",
+  );
+}
