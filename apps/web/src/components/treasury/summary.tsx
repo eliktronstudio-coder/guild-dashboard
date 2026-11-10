@@ -8,7 +8,7 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.prime_units)} <small>зол.</small>
         </strong>
-        <p>Остаток после выплат</p>
+        <p>Текущий период · остаток после выплат</p>
         <p className="caption">
           К выплате: {formatGold(t.prime_reserved_units)} · свободно:{" "}
           {formatGold(t.prime_free_units)} зол.
@@ -23,7 +23,7 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.mini_units)} <small>зол.</small>
         </strong>
-        <p>Выручка мини РБ сохраняется здесь</p>
+        <p>Текущий период · выручка после выплат</p>
       </article>
       <article className="panel treasury-total">
         <span className="eyebrow">ДОЛЯ ГИЛЬДИИ · 30%</span>
@@ -31,7 +31,7 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.guild_units)} <small>зол.</small>
         </strong>
-        <p>Отчисления только от прайма</p>
+        <p>Текущий период · отчисления от прайма</p>
         <span className="caption">
           Расходы: {formatGold(t.guild_expense_units)} зол.
         </span>

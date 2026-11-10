@@ -1,4 +1,5 @@
 import { PeriodCountdown } from "@/components/dashboard/period-countdown";
+import { ClosingNotice } from "@/components/settlements/closing-notice";
 import Link from "next/link";
 import { GuildShell } from "@/components/shell";
 import { SeriesChart } from "@/components/dashboard/series-chart";
@@ -69,6 +70,7 @@ export default async function Page({
   );
   return (
     <GuildShell current="/dashboard">
+      <ClosingNotice />
       <section className="command-hero">
         <p className="eyebrow">XD / ХД · GUILD COMMAND CENTER</p>
         <h1>

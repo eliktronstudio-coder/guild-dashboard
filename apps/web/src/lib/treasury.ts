@@ -38,6 +38,8 @@ export function splitSale(units: string, source: TreasurySource) {
 }
 export function treasuryError(message: string) {
   const messages: Record<string, string> = {
+    PERIOD_CLOSED:
+      "Период закрыт. Его исходные операции зафиксированы в архиве.",
     FORBIDDEN: "Недостаточно прав. Обновите страницу.",
     STALE_VERSION:
       "Партия или событие уже изменились. Обновите страницу перед сохранением.",
@@ -63,6 +65,9 @@ export function treasuryError(message: string) {
   );
 }
 export type TreasuryTotals = {
+  archive_prime_units?: string;
+  archive_mini_units?: string;
+  archive_guild_units?: string;
   prime_units: string;
   prime_gross_units: string;
   mini_units: string;
@@ -81,6 +86,7 @@ export type TreasuryTotals = {
   unpriced_count: number;
 };
 export type Loot = {
+  archived_period?: string | null;
   id: string;
   event_id: string;
   source: TreasurySource;

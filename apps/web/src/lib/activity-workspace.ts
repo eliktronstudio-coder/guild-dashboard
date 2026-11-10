@@ -314,6 +314,8 @@ export function parseActivityPayload(raw: string) {
 }
 export function activityError(message: string) {
   for (const [code, label] of Object.entries({
+    PERIOD_CLOSED:
+      "Расчётный период архивирован. Состав и активности в нём зафиксированы.",
     FORBIDDEN: "Недостаточно прав для этого действия.",
     STALE_VERSION: "Запись уже изменена. Обновите страницу.",
     REQUEST_CONFLICT: "Этот запрос уже сохранён с другими данными.",
