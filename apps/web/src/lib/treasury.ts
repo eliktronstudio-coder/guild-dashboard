@@ -38,6 +38,11 @@ export function splitSale(units: string, source: TreasurySource) {
 }
 export function treasuryError(message: string) {
   const messages: Record<string, string> = {
+    BUYER_REQUIRED: "Укажите покупателя: от 2 до 80 символов.",
+    STOCK_RESERVED:
+      "Это количество зарезервировано на аукционе. Сначала снимите соответствующий лот.",
+    AUCTION_CLOSED:
+      "Этот лот уже продан или снят с аукциона. Обновите страницу.",
     PERIOD_CLOSED:
       "Период закрыт. Его исходные операции зафиксированы в архиве.",
     FORBIDDEN: "Недостаточно прав. Обновите страницу.",
@@ -86,6 +91,9 @@ export type TreasuryTotals = {
   unpriced_count: number;
 };
 export type Loot = {
+  catalog_id?: string | null;
+  auction_quantity?: number;
+  available_quantity?: number;
   archived_period?: string | null;
   id: string;
   event_id: string;
@@ -101,6 +109,8 @@ export type Loot = {
   event_title: string;
 };
 export type TreasurySale = {
+  buyer_name?: string;
+  sale_channel?: "direct" | "auction";
   id: string;
   source: TreasurySource;
   item_name: string;
@@ -114,4 +124,14 @@ export type TreasurySale = {
   created_at: string;
   voided_at: string | null;
   void_reason: string | null;
+};
+export type InventoryAuction = {
+  id: string;
+  loot_id: string;
+  quantity: number;
+  quantity_remaining: number;
+  unit_price_units: string;
+  status: "active" | "sold" | "cancelled";
+  version: number;
+  created_at: string;
 };

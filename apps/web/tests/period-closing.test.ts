@@ -166,6 +166,37 @@ test("closing freezes composition, reserves awards, retains stock; late sales an
       ),
       7,
     );
+    const auction = randomUUID();
+    await db.query("select public.list_inventory_auction($1,$2,3,2,10000)", [
+      auction,
+      loot,
+    ]);
+    await db.query(
+      "select public.complete_inventory_auction($1,$2,1,4,1,100000,'Аукцион')",
+      [randomUUID(), auction],
+    );
+    r = await report();
+    assert.equal(r.rows.find((x) => x.id === m[1])?.prime_projection, "35000");
+    assert.equal(r.rows.find((x) => x.id === m[1])?.prime_paid, "70000");
+    await db.query("select public.cancel_inventory_auction($1,2)", [auction]);
+    await db.query(
+      "select public.discard_inventory_stock($1,$2,6,1,'Списание остатка архива')",
+      [randomUUID(), loot],
+    );
+    assert.equal(
+      await c.scalar(
+        "select quantity_remaining from public.treasury_loot where id=$1",
+        [loot],
+      ),
+      5,
+    );
+    assert.deepEqual(
+      await c.scalar(
+        "select snapshot from public.period_archives where id=$1",
+        [archive],
+      ),
+      snapshot,
+    );
     await db.exec("reset role");
     assert.equal(
       await c.scalar(

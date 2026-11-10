@@ -14,6 +14,7 @@ import {
   type TreasurySale,
   type TreasuryTotals,
   type TreasurySource,
+  type InventoryAuction,
 } from "@/lib/treasury";
 import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
@@ -34,6 +35,7 @@ export default async function Page({
   const inventory: TreasurySource =
     queryValue(p.inventory) === "mini_rb" ? "mini_rb" : "prime";
   const stock = queryValue(p.stock) === "all" ? "all" : "available";
+  const auctionOnly = queryValue(p.auction) === "1";
   const ipage = pageNumber(queryValue(p.ipage)),
     spage = pageNumber(queryValue(p.spage)),
     epage = pageNumber(queryValue(p.epage));
@@ -48,6 +50,7 @@ export default async function Page({
     const params = new URLSearchParams({
       inventory,
       stock,
+      auction: auctionOnly ? "1" : "0",
       ipage: String(ipage),
       spage: String(spage),
       epage: String(epage),
@@ -63,6 +66,7 @@ export default async function Page({
     .eq("source", inventory);
   if (stock === "available")
     inventoryQuery = inventoryQuery.gt("quantity_remaining", 0);
+  if (auctionOnly) inventoryQuery = inventoryQuery.gt("auction_quantity", 0);
   const [summary, items, sales, events] = await Promise.all([
     a.client.rpc("treasury_summary"),
     inventoryQuery
@@ -107,6 +111,33 @@ export default async function Page({
         .limit(500)
     : { data: [], error: null };
   if (registry.error) throw new Error("REGISTRY_READ_FAILED");
+  const [auctionRows, buyerRows] = await Promise.all([
+    items.data?.length
+      ? a.client
+          .from("inventory_auctions")
+          .select(
+            "id,loot_id,quantity,quantity_remaining,unit_price_units::text,status,version,created_at",
+          )
+          .eq("guild_id", GUILD_ID)
+          .eq("status", "active")
+          .in(
+            "loot_id",
+            items.data.map((item) => item.id),
+          )
+          .order("created_at")
+      : Promise.resolve({ data: [], error: null }),
+    manage && (await a.permission("members.read"))
+      ? a.client
+          .from("member_directory")
+          .select("nickname")
+          .eq("guild_id", GUILD_ID)
+          .eq("status", "active")
+          .order("nickname")
+          .limit(1000)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (auctionRows.error || buyerRows.error)
+    throw new Error("INVENTORY_OPTIONS_READ_FAILED");
   const epages = Math.max(1, Math.ceil((events.count ?? 0) / 50));
   if (epage > epages) redirect(href({ epage: epages }));
   const ipages = Math.max(1, Math.ceil((items.count ?? 0) / 20)),
@@ -206,7 +237,7 @@ export default async function Page({
       )}
       <section className="panel section-panel" id="inventory">
         <div className="section-heading">
-          <h2>Инвентарь</h2>
+          <h2>{auctionOnly ? "Предметы на аукционе" : "Инвентарь"}</h2>
           <span className="caption">{items.count ?? 0} поз. по фильтру</span>
         </div>
         <nav className="treasury-tabs" aria-label="Разделы инвентаря">
@@ -222,6 +253,9 @@ export default async function Page({
           ))}
         </nav>
         <div className="treasury-filters">
+          <Link href={href({ auction: auctionOnly ? "0" : "1", ipage: 1 })}>
+            {auctionOnly ? "Весь склад" : "На аукционе"}
+          </Link>
           <span className="caption">
             {inventory === "prime"
               ? "Только дроп прайма"
@@ -238,7 +272,17 @@ export default async function Page({
               : "Показать все партии"}
           </Link>
         </div>
-        <InventoryList items={(items.data ?? []) as Loot[]} manage={manage} />
+        <p className="caption">
+          Наведите на иконку, чтобы увидеть свойства предмета. Нажмите для
+          продажи, аукциона или списания. Метка «А» — есть количество на
+          аукционе.
+        </p>
+        <InventoryList
+          items={(items.data ?? []) as Loot[]}
+          manage={manage}
+          auctions={(auctionRows.data ?? []) as InventoryAuction[]}
+          buyers={(buyerRows.data ?? []).map((row) => row.nickname)}
+        />
         <nav className="pagination" aria-label="Страницы инвентаря">
           {ipage > 1 && <Link href={href({ ipage: ipage - 1 })}>← Назад</Link>}
           <span>
@@ -280,6 +324,15 @@ export default async function Page({
                 <Link href={`/events/${s.event_id}`}>{s.event_title}</Link>
               </p>
               <dl className="character-details">
+                {s.buyer_name && (
+                  <>
+                    <dt>Кому</dt>
+                    <dd>
+                      {s.buyer_name}
+                      {s.sale_channel === "auction" ? " · аукцион" : ""}
+                    </dd>
+                  </>
+                )}
                 <dt>Сумма продажи</dt>
                 <dd>{formatGold(s.gross_units)} зол.</dd>
                 <dt>{s.source === "prime" ? "В прайм" : "В мини РБ"}</dt>
