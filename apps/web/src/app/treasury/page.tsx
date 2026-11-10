@@ -20,6 +20,7 @@ import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { TreasurySummary } from "@/components/treasury/summary";
 import { InventoryList } from "@/components/treasury/inventory";
+import { SettlePendingAuctions } from "@/components/treasury/settle-pending-auctions";
 import { addLoot, voidSale } from "./actions";
 import { SettlementPanel } from "@/components/settlements/panel";
 export const metadata = { title: "Казна" };
@@ -36,6 +37,7 @@ export default async function Page({
     queryValue(p.inventory) === "mini_rb" ? "mini_rb" : "prime";
   const stock = queryValue(p.stock) === "all" ? "all" : "available";
   const auctionOnly = queryValue(p.auction) === "1";
+  const auctionSales = queryValue(p.channel) === "auction";
   const ipage = pageNumber(queryValue(p.ipage)),
     spage = pageNumber(queryValue(p.spage)),
     epage = pageNumber(queryValue(p.epage));
@@ -51,6 +53,7 @@ export default async function Page({
       inventory,
       stock,
       auction: auctionOnly ? "1" : "0",
+      channel: auctionSales ? "auction" : "all",
       ipage: String(ipage),
       spage: String(spage),
       epage: String(epage),
@@ -67,16 +70,18 @@ export default async function Page({
   if (stock === "available")
     inventoryQuery = inventoryQuery.gt("quantity_remaining", 0);
   if (auctionOnly) inventoryQuery = inventoryQuery.gt("auction_quantity", 0);
+  let salesQuery = a.client
+    .from("treasury_sales_log")
+    .select("*", { count: "exact" })
+    .eq("guild_id", GUILD_ID);
+  if (auctionSales) salesQuery = salesQuery.eq("sale_channel", "auction");
   const [summary, items, sales, events] = await Promise.all([
     a.client.rpc("treasury_summary"),
     inventoryQuery
       .order("created_at", { ascending: false })
       .order("id")
       .range((ipage - 1) * 20, ipage * 20 - 1),
-    a.client
-      .from("treasury_sales_log")
-      .select("*", { count: "exact" })
-      .eq("guild_id", GUILD_ID)
+    salesQuery
       .order("created_at", { ascending: false })
       .order("id")
       .range((spage - 1) * 10, spage * 10 - 1),
@@ -111,7 +116,7 @@ export default async function Page({
         .limit(500)
     : { data: [], error: null };
   if (registry.error) throw new Error("REGISTRY_READ_FAILED");
-  const [auctionRows, buyerRows] = await Promise.all([
+  const [auctionRows, buyerRows, pendingAuto] = await Promise.all([
     items.data?.length
       ? a.client
           .from("inventory_auctions")
@@ -135,8 +140,17 @@ export default async function Page({
           .order("nickname")
           .limit(1000)
       : Promise.resolve({ data: [], error: null }),
+    manage
+      ? a.client
+          .from("inventory_auctions")
+          .select("id,version")
+          .eq("guild_id", GUILD_ID)
+          .eq("status", "active")
+          .order("created_at")
+          .limit(20)
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (auctionRows.error || buyerRows.error)
+  if (auctionRows.error || buyerRows.error || pendingAuto.error)
     throw new Error("INVENTORY_OPTIONS_READ_FAILED");
   const epages = Math.max(1, Math.ceil((events.count ?? 0) / 50));
   if (epage > epages) redirect(href({ epage: epages }));
@@ -253,8 +267,14 @@ export default async function Page({
           ))}
         </nav>
         <div className="treasury-filters">
-          <Link href={href({ auction: auctionOnly ? "0" : "1", ipage: 1 })}>
-            {auctionOnly ? "Весь склад" : "На аукционе"}
+          <Link
+            href={
+              auctionOnly
+                ? href({ auction: "0", ipage: 1 })
+                : `${href({ channel: "auction", spage: 1 })}#sales`
+            }
+          >
+            {auctionOnly ? "Весь склад" : "Продажи аукциона"}
           </Link>
           <span className="caption">
             {inventory === "prime"
@@ -274,9 +294,17 @@ export default async function Page({
         </div>
         <p className="caption">
           Наведите на иконку, чтобы увидеть свойства предмета. Нажмите для
-          продажи, аукциона или списания. Метка «А» — есть количество на
-          аукционе.
+          продажи, аукциона или списания. Выставление на аукцион сразу считается
+          продажей.
         </p>
+        {manage && !!pendingAuto.data?.length && (
+          <SettlePendingAuctions
+            pending={pendingAuto.data.map((row) => ({
+              id: row.id,
+              version: row.version,
+            }))}
+          />
+        )}
         <InventoryList
           items={(items.data ?? []) as Loot[]}
           manage={manage}
@@ -295,11 +323,19 @@ export default async function Page({
       </section>
       <section className="panel section-panel" id="sales">
         <div className="section-heading">
-          <h2>История продаж</h2>
+          <h2>{auctionSales ? "Продажи с аукциона" : "История продаж"}</h2>
           <span className="caption">
             Оба инвентаря · {sales.count ?? 0} записей
           </span>
         </div>
+        <nav className="form-links" aria-label="Фильтр истории продаж">
+          <Link href={`${href({ channel: "all", spage: 1 })}#sales`}>
+            Все продажи
+          </Link>
+          <Link href={`${href({ channel: "auction", spage: 1 })}#sales`}>
+            Только аукцион
+          </Link>
+        </nav>
         {!sales.data?.length && (
           <p className="muted">
             Продаж пока нет. Они появятся после регистрации продажи из партии.

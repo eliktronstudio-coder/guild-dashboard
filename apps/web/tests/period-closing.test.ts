@@ -197,6 +197,19 @@ test("closing freezes composition, reserves awards, retains stock; late sales an
       ),
       snapshot,
     );
+    await db.query(
+      "select public.sell_inventory_auction_now($1,$2,7,1,100000)",
+      [randomUUID(), loot],
+    );
+    r = await report();
+    assert.equal(r.rows.find((x) => x.id === m[1])?.prime_projection, "70000");
+    assert.deepEqual(
+      await c.scalar(
+        "select snapshot from public.period_archives where id=$1",
+        [archive],
+      ),
+      snapshot,
+    );
     await db.exec("reset role");
     assert.equal(
       await c.scalar(
