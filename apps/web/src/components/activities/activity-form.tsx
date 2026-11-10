@@ -74,7 +74,6 @@ export function ActivityForm({
     >({});
   const [guestInput, setGuestInput] = useState(""),
     [guests, setGuests] = useState<string[]>(initial?.report.guests ?? []),
-    [confirmRoster, setConfirmRoster] = useState(existing?.finalized ?? false),
     [counts, setCounts] = useState(existing?.counts ?? true),
     [description, setDescription] = useState(existing?.description ?? "");
   const [rosterImages, setRosterImages] = useState<Evidence[]>([]),
@@ -125,7 +124,7 @@ export function ActivityForm({
     description,
     guests,
     ...(canRoster ? { members: chosen } : {}),
-    confirmRoster,
+    confirmRoster: true,
     evidence: [...rosterImages, ...lootImages],
     removeEvidence: removeImages,
     loot:
@@ -320,15 +319,11 @@ export function ActivityForm({
               {!visibleMembers.length && <p>Участники не найдены.</p>}
             </div>
             {status === "completed" && (
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={confirmRoster}
-                  onChange={(e) => setConfirmRoster(e.target.checked)}
-                />
-                Подтверждаю состав: выбранные присутствовали, остальные
-                применимые участники отсутствовали. Включить отчёт в статистику.
-              </label>
+              <p className="caption">
+                После сохранения выбранные игроки сразу учитываются как
+                присутствовавшие, остальные применимые участники — как
+                отсутствовавшие.
+              </p>
             )}
             <label className="check">
               <input
@@ -499,7 +494,9 @@ export function ActivityForm({
                     ))}
                   <EvidenceInput
                     kind={kind}
-                    onBusyChange={kind === "roster" ? setRosterBusy : setLootBusy}
+                    onBusyChange={
+                      kind === "roster" ? setRosterBusy : setLootBusy
+                    }
                     onChange={
                       kind === "roster" ? setRosterImages : setLootImages
                     }

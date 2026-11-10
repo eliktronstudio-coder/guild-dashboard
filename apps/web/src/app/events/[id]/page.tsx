@@ -15,7 +15,6 @@ import {
   editEvent,
   changeEvent,
   markAttendance,
-  finalizeAttendance,
   tagEventTreasury,
 } from "../actions";
 export const metadata = { title: "Событие гильдии" };
@@ -313,8 +312,8 @@ export default async function Page({
                 <label className="check">
                   <input type="checkbox" name="confirm" required />
                   <span>
-                    Подтверждаю закрытие события. После завершения нужно
-                    проверить посещаемость.
+                    Подтверждаю завершение события. Сохранённый состав будет
+                    учтён автоматически.
                   </span>
                 </label>
               </ActionForm>
@@ -330,8 +329,8 @@ export default async function Page({
             </h2>
             <p className="notice">
               {e.attendance_finalized_at
-                ? "Отчёт подтверждён. Исправление любой отметки потребует повторной проверки."
-                : "Отчёт ещё не подтверждён и не входит в статистику."}
+                ? "Сохранённый состав учитывается автоматически. Изменения отметок сразу обновляют посещаемость."
+                : "Сохраните состав активности, чтобы учесть посещаемость."}
             </p>
             {attendanceManage && (
               <p className="muted">
@@ -398,23 +397,6 @@ export default async function Page({
               <p className="muted">
                 Нет записей посещаемости на этой странице.
               </p>
-            )}
-            {attendanceManage && !e.attendance_finalized_at && (
-              <ActionForm
-                action={finalizeAttendance}
-                revision={e.version}
-                label="Подтвердить весь отчёт"
-              >
-                <input type="hidden" name="eventId" value={id} />
-                <input type="hidden" name="version" value={e.version} />
-                <label className="check">
-                  <input type="checkbox" name="confirm" required />
-                  <span>
-                    Проверил состав и отметки на всех страницах. Неприменимые
-                    участники исключены.
-                  </span>
-                </label>
-              </ActionForm>
             )}
             <Link href="/attendance" className="text-button">
               К отчёту посещаемости →

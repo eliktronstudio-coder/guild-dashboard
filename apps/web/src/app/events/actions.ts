@@ -200,32 +200,7 @@ export async function markAttendance(
   revalidatePath("/attendance");
   revalidatePath("/members", "layout");
   revalidatePath("/treasury");
-  return { success: "Отметка сохранена. Отчёт требует подтверждения." };
-}
-export async function finalizeAttendance(
-  _: FormState,
-  form: FormData,
-): Promise<FormState> {
-  await checkOrigin();
-  const { client } = await requirePermission("attendance.manage");
-  const event = field(form, "eventId"),
-    version = Number(field(form, "version"));
-  if (
-    !isUuid(event) ||
-    !Number.isSafeInteger(version) ||
-    version < 1 ||
-    form.get("confirm") !== "on"
-  )
-    return { error: "Подтвердите проверку состава и всех отметок." };
-  const { error } = await client.rpc("finalize_attendance", {
-    p_event_id: event,
-    p_version: version,
-  });
-  if (error) return { error: eventError(error.message) };
-  scheduleTelegram();
-  revalidatePath("/events", "layout");
-  revalidatePath("/attendance");
-  revalidatePath("/members", "layout");
-  revalidatePath("/treasury");
-  return { success: "Отчёт подтверждён." };
+  return {
+    success: "Отметка сохранена. Посещаемость обновлена автоматически.",
+  };
 }

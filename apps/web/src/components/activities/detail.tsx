@@ -198,10 +198,10 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
               <p className="caption">
                 {DIFFICULTIES[r.difficulty]} ·{" "}
                 {e.finalized
-                  ? "Посещаемость подтверждена"
+                  ? "Посещаемость учтена"
                   : e.status === "scheduled"
                     ? "Ожидается проведение"
-                    : "Посещаемость ожидает проверки"}
+                    : "Состав ещё не сохранён"}
               </p>
             </div>
           </section>
@@ -414,7 +414,7 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
               </div>
             ))}
             {!classes.size && (
-              <p className="caption">Нет доступного подтверждённого состава.</p>
+              <p className="caption">Нет сохранённого состава.</p>
             )}
           </section>
           {(["roster", "loot"] as const).map((kind) => (
