@@ -103,6 +103,29 @@ test("closing freezes composition, reserves awards, retains stock; late sales an
       "select snapshot from public.period_archives where id=$1",
       [archive],
     );
+    await db.exec("reset role");
+    await assert.rejects(
+      db.query(
+        "update public.events set title='Подмена закрытого рейда' where id=$1",
+        [event],
+      ),
+      /PERIOD_CLOSED/,
+    );
+    await assert.rejects(
+      db.query(
+        "update public.activity_reports set difficulty='hard' where event_id=$1",
+        [event],
+      ),
+      /PERIOD_CLOSED/,
+    );
+    await assert.rejects(
+      db.query(
+        "insert into public.activity_evidence(id,guild_id,event_id,kind,image) values($1,$2,$3,'roster','data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF1sAAAAASUVORK5CYII=')",
+        [randomUUID(), guild, event],
+      ),
+      /PERIOD_CLOSED/,
+    );
+    await c.as(1);
     r = await report();
     assert.equal(r.rows.find((x) => x.id === m[1])?.prime_projection, "0");
     assert.equal(r.rows.find((x) => x.id === m[1])?.prime_fixed, "35000");
