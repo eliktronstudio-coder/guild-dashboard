@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Verify period closing and live services without creating records
+      - name: Deploy inventory drop icons and descriptions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,11 +27,31 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = d9407dd4a84bbea55d2cf11cc5c5d240b1cb2810
+          git merge --ff-only d9407dd4a84bbea55d2cf11cc5c5d240b1cb2810
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != d9407dd4a84bbea55d2cf11cc5c5d240b1cb2810 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = d9407dd4a84bbea55d2cf11cc5c5d240b1cb2810
+          echo PERIOD_CLOSING_RELEASE_VERIFIED
+          REMOTE
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            const iconSource=require('node:fs').readFileSync('src/components/treasury/loot-icon.tsx','utf8');
+            if(!iconSource.includes('loot-icon-quantity')||!iconSource.includes('role="tooltip"'))throw Error('Inventory icon component missing');
+            console.log('INVENTORY_DROP_ICONS_QUANTITIES_AND_DESCRIPTIONS_DEPLOYED');
             const formSource=require('node:fs').readFileSync('src/components/activities/activity-form.tsx','utf8');
             const detailSource=require('node:fs').readFileSync('src/app/events/[id]/page.tsx','utf8');
             if(formSource.includes('Подтверждаю состав:')||detailSource.includes('Подтвердить весь отчёт'))throw Error('Manual roster confirmation still present');
