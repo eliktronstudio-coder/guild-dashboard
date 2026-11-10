@@ -92,8 +92,14 @@ export function InventoryList({
   if (!items.length)
     return (
       <div className="empty-state">
-        <h3>Здесь пока нет дропа</h3>
-        <p>Добавьте предметы или измените фильтр.</p>
+        <h4>
+          {warehouse === "general" ? "Пока пусто" : "Нет предметов для продажи"}
+        </h4>
+        <p>
+          {warehouse === "general"
+            ? "Добавьте полученный дроп в общий инвентарь."
+            : "Перенесите нужное количество из общего инвентаря."}
+        </p>
       </div>
     );
   return (

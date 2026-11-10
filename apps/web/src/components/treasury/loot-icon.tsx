@@ -133,6 +133,12 @@ export function LootIcon({
             }}
           >
             <strong>{item.name}</strong>
+            <span className="caption">
+              {item.warehouse === "general"
+                ? "Общий инвентарь"
+                : "Инвентарь ХД"}{" "}
+              · {item.source === "prime" ? "Прайм" : "Мини РБ"}
+            </span>
             {description ? (
               <>
                 <p className="codex-description">{description.text}</p>
