@@ -129,6 +129,7 @@ export default async function Page({
         </p>
       </div>
       <nav className="form-links">
+        <Link href="/rb-purchase">Расчёт покупки РБ →</Link>
         <Link href="/treasury#settlements">Начисления и выплаты →</Link>
         <Link href="/archive">История периодов →</Link>
         <Link href="/statistics">Финансовая статистика →</Link>
