@@ -10,6 +10,7 @@ export function InventoryItem({
   sale,
   auction,
   discard,
+  transfer,
 }: {
   item: Loot;
   description: DropDescription | null;
@@ -17,9 +18,12 @@ export function InventoryItem({
   sale: ReactNode;
   auction: ReactNode;
   discard: ReactNode;
+  transfer: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
     [mode, setMode] = useState("sale");
+  const common = item.warehouse === "general",
+    titleId = `inventory-title-${item.warehouse}-${item.id}`;
   return (
     <div className="inventory-slot">
       <LootIcon
@@ -27,9 +31,11 @@ export function InventoryItem({
         description={description}
         onActivate={() => {
           setMode(
-            (item.available_quantity ?? item.quantity_remaining) > 0
-              ? "sale"
-              : "auction",
+            common
+              ? "transfer"
+              : (item.available_quantity ?? item.quantity_remaining) > 0
+                ? "sale"
+                : "auction",
           );
           dialog.current?.showModal();
         }}
@@ -37,7 +43,7 @@ export function InventoryItem({
       <dialog
         ref={dialog}
         className="inventory-dialog"
-        aria-labelledby={`inventory-title-${item.id}`}
+        aria-labelledby={titleId}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             const r = e.currentTarget.getBoundingClientRect();
@@ -54,9 +60,10 @@ export function InventoryItem({
         <div className="inventory-dialog-header">
           <div>
             <p className="eyebrow">
+              {common ? "ОБЩИЙ ИНВЕНТАРЬ" : "ИНВЕНТАРЬ ХД"} ·{" "}
               {item.source === "prime" ? "ПРАЙМ" : "МИНИ РБ"}
             </p>
-            <h2 id={`inventory-title-${item.id}`}>{item.name}</h2>
+            <h2 id={titleId}>{item.name}</h2>
           </div>
           <button
             type="button"
@@ -89,12 +96,23 @@ export function InventoryItem({
             <nav
               className="inventory-action-tabs"
               aria-label="Действия с предметом"
+              style={
+                common
+                  ? { gridTemplateColumns: "repeat(2,minmax(0,1fr))" }
+                  : undefined
+              }
             >
-              {[
-                ["sale", "Продать"],
-                ["auction", "Аукцион"],
-                ["discard", "Удалить"],
-              ].map(([key, label]) => (
+              {(common
+                ? [
+                    ["transfer", "В инвентарь ХД"],
+                    ["discard", "Удалить"],
+                  ]
+                : [
+                    ["sale", "Продать"],
+                    ["auction", "Аукцион"],
+                    ["discard", "Удалить"],
+                  ]
+              ).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
@@ -106,13 +124,19 @@ export function InventoryItem({
                 </button>
               ))}
             </nav>
-            <div hidden={mode !== "sale"}>{sale}</div>
-            <div hidden={mode !== "auction"}>{auction}</div>
+            {common ? (
+              <div hidden={mode !== "transfer"}>{transfer}</div>
+            ) : (
+              <>
+                <div hidden={mode !== "sale"}>{sale}</div>
+                <div hidden={mode !== "auction"}>{auction}</div>
+              </>
+            )}
             <div hidden={mode !== "discard"}>{discard}</div>
           </>
         ) : (
           <p className="caption">
-            Продажа, аукцион и списание доступны управляющим казной.
+            Действия с предметами доступны управляющим казной.
           </p>
         )}
       </dialog>

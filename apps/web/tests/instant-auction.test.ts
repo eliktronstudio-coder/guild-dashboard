@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { memberDatabase, guild } from "./support/database";
+import { memberDatabase, readyForSaleFixture, guild } from "./support/database";
 test("posting immediately sells exact quantity × unit price, with no outstanding reservation or duplicate cash", async () => {
   const c = await memberDatabase(),
     { db } = c;
@@ -17,6 +17,7 @@ test("posting immediately sells exact quantity × unit price, with no outstandin
           !/^20261103001[78]/.test(f),
       ))
       await db.exec(await readFile("supabase/migrations/" + f, "utf8"));
+    await readyForSaleFixture(db);
     await c.as(1);
     const loot = randomUUID(),
       catalog = randomUUID(),

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { memberDatabase, guild } from "./support/database";
+import { memberDatabase, readyForSaleFixture, guild } from "./support/database";
 import type { PayrollReport } from "../src/lib/payroll";
 test("closing freezes composition, reserves awards, retains stock; late sales and payments preserve immutable snapshot", async () => {
   const c = await memberDatabase(),
@@ -18,6 +18,7 @@ test("closing freezes composition, reserves awards, retains stock; late sales an
           !/^20261103001[78]/.test(f),
       ))
       await db.exec(await readFile("supabase/migrations/" + f, "utf8"));
+    await readyForSaleFixture(db);
     await db.exec("update public.memberships set joined_at='2020-01-01'");
     const d = new Date();
     d.setUTCDate(15);
@@ -216,6 +217,29 @@ test("closing freezes composition, reserves awards, retains stock; late sales an
         "select accounting_period::text from public.treasury_sales order by created_at desc limit 1",
       ),
       from,
+    );
+    // Seed archived general storage, then exercise the real transfer workflow.
+    await db.query(
+      "update public.treasury_loot set xd_quantity=0 where id=$1",
+      [loot],
+    );
+    await c.as(1);
+    await db.query("select public.transfer_inventory_to_xd($1,$2,9,1)", [
+      randomUUID(),
+      loot,
+    ]);
+    await db.query(
+      "select public.sell_inventory_auction_now($1,$2,10,1,100000)",
+      [randomUUID(), loot],
+    );
+    r = await report();
+    assert.equal(r.rows.find((x) => x.id === m[1])?.prime_projection, "105000");
+    assert.deepEqual(
+      await c.scalar(
+        "select snapshot from public.period_archives where id=$1",
+        [archive],
+      ),
+      snapshot,
     );
   } finally {
     await db.close();

@@ -8,12 +8,10 @@ import { GUILD_ID } from "@/lib/config";
 import { monthRange, queryValue } from "@/lib/events";
 import {
   formatGold,
-  inventoryName,
   sourceName,
   type Loot,
   type TreasurySale,
   type TreasuryTotals,
-  type TreasurySource,
   type InventoryAuction,
 } from "@/lib/treasury";
 import { GuildShell } from "@/components/shell";
@@ -33,14 +31,11 @@ export default async function Page({
 }) {
   const a = await requirePermission("treasury.read"),
     p = await searchParams;
-  const inventory: TreasurySource =
-    queryValue(p.inventory) === "mini_rb" ? "mini_rb" : "prime";
-  const stock = queryValue(p.stock) === "all" ? "all" : "available";
-  const auctionOnly = queryValue(p.auction) === "1";
-  const auctionSales = queryValue(p.channel) === "auction";
-  const ipage = pageNumber(queryValue(p.ipage)),
+  const gp = pageNumber(queryValue(p.gp)),
+    xp = pageNumber(queryValue(p.xp)),
     spage = pageNumber(queryValue(p.spage)),
     epage = pageNumber(queryValue(p.epage));
+  const auctionSales = queryValue(p.channel) === "auction";
   const range = monthRange(queryValue(p.eventMonth));
   const [manage, canAllocate, canPay, canSpend] = await Promise.all([
     a.permission("treasury.manage"),
@@ -50,37 +45,39 @@ export default async function Page({
   ]);
   const href = (changes: Record<string, string | number>) => {
     const params = new URLSearchParams({
-      inventory,
-      stock,
-      auction: auctionOnly ? "1" : "0",
-      channel: auctionSales ? "auction" : "all",
-      ipage: String(ipage),
+      gp: String(gp),
+      xp: String(xp),
       spage: String(spage),
       epage: String(epage),
+      channel: auctionSales ? "auction" : "all",
       eventMonth: range.month,
     });
     for (const [k, v] of Object.entries(changes)) params.set(k, String(v));
     return `/treasury?${params}`;
   };
-  let inventoryQuery = a.client
-    .from("treasury_inventory")
-    .select("*", { count: "exact" })
-    .eq("guild_id", GUILD_ID)
-    .eq("source", inventory);
-  if (stock === "available")
-    inventoryQuery = inventoryQuery.gt("quantity_remaining", 0);
-  if (auctionOnly) inventoryQuery = inventoryQuery.gt("auction_quantity", 0);
+  const inventoryQuery = (
+    position: "general_quantity" | "xd_quantity",
+    page: number,
+  ) =>
+    a.client
+      .from("treasury_inventory")
+      .select("*", { count: "exact" })
+      .eq("guild_id", GUILD_ID)
+      .gt(position, 0)
+      .order(position === "xd_quantity" ? "xd_received_at" : "created_at", {
+        ascending: false,
+      })
+      .order("id")
+      .range((page - 1) * 20, page * 20 - 1);
   let salesQuery = a.client
     .from("treasury_sales_log")
     .select("*", { count: "exact" })
     .eq("guild_id", GUILD_ID);
   if (auctionSales) salesQuery = salesQuery.eq("sale_channel", "auction");
-  const [summary, items, sales, events] = await Promise.all([
+  const [summary, general, xd, sales, events] = await Promise.all([
     a.client.rpc("treasury_summary"),
-    inventoryQuery
-      .order("created_at", { ascending: false })
-      .order("id")
-      .range((ipage - 1) * 20, ipage * 20 - 1),
+    inventoryQuery("general_quantity", gp),
+    inventoryQuery("xd_quantity", xp),
     salesQuery
       .order("created_at", { ascending: false })
       .order("id")
@@ -102,7 +99,8 @@ export default async function Page({
   if (
     summary.error ||
     !summary.data ||
-    items.error ||
+    general.error ||
+    xd.error ||
     sales.error ||
     events.error
   )
@@ -116,8 +114,9 @@ export default async function Page({
         .limit(500)
     : { data: [], error: null };
   if (registry.error) throw new Error("REGISTRY_READ_FAILED");
+  const items = [...(general.data ?? []), ...(xd.data ?? [])];
   const [auctionRows, buyerRows, pendingAuto] = await Promise.all([
-    items.data?.length
+    items.length
       ? a.client
           .from("inventory_auctions")
           .select(
@@ -127,7 +126,7 @@ export default async function Page({
           .eq("status", "active")
           .in(
             "loot_id",
-            items.data.map((item) => item.id),
+            items.map((item) => item.id),
           )
           .order("created_at")
       : Promise.resolve({ data: [], error: null }),
@@ -154,12 +153,37 @@ export default async function Page({
     throw new Error("INVENTORY_OPTIONS_READ_FAILED");
   const epages = Math.max(1, Math.ceil((events.count ?? 0) / 50));
   if (epage > epages) redirect(href({ epage: epages }));
-  const ipages = Math.max(1, Math.ceil((items.count ?? 0) / 20)),
+  const gpages = Math.max(1, Math.ceil((general.count ?? 0) / 20)),
+    xpages = Math.max(1, Math.ceil((xd.count ?? 0) / 20)),
     spages = Math.max(1, Math.ceil((sales.count ?? 0) / 10));
-  if (ipage > ipages || spage > spages)
+  if (gp > gpages || xp > xpages || spage > spages)
     redirect(
-      href({ ipage: Math.min(ipage, ipages), spage: Math.min(spage, spages) }),
+      href({
+        gp: Math.min(gp, gpages),
+        xp: Math.min(xp, xpages),
+        spage: Math.min(spage, spages),
+      }),
     );
+  const panes = [
+    {
+      warehouse: "general" as const,
+      title: "Общий инвентарь",
+      rows: general.data ?? [],
+      count: general.count ?? 0,
+      page: gp,
+      pages: gpages,
+      pageKey: "gp",
+    },
+    {
+      warehouse: "xd" as const,
+      title: "Инвентарь ХД",
+      rows: xd.data ?? [],
+      count: xd.count ?? 0,
+      page: xp,
+      pages: xpages,
+      pageKey: "xp",
+    },
+  ];
   const totals = summary.data as TreasuryTotals;
   return (
     <GuildShell current="/treasury">
@@ -202,14 +226,12 @@ export default async function Page({
       </p>
       {manage && (
         <section className="panel section-panel">
-          <h2>Внести дроп с активности</h2>
+          <h2>Добавить полученный дроп</h2>
           <p className="muted">
-            Прайм → общий инвентарь. Мини РБ → инвентарь ХД. Направление
-            определяется пометкой события.
+            Новый дроп поступает в общий инвентарь. Для продажи перенесите
+            нужное количество в инвентарь ХД.
           </p>
           <form className="search-form treasury-month">
-            <input type="hidden" name="inventory" value={inventory} />
-            <input type="hidden" name="stock" value={stock} />
             <label>
               Месяц завершённой активности
               <input
@@ -251,51 +273,14 @@ export default async function Page({
       )}
       <section className="panel section-panel" id="inventory">
         <div className="section-heading">
-          <h2>{auctionOnly ? "Предметы на аукционе" : "Инвентарь"}</h2>
-          <span className="caption">{items.count ?? 0} поз. по фильтру</span>
-        </div>
-        <nav className="treasury-tabs" aria-label="Разделы инвентаря">
-          {(["prime", "mini_rb"] as const).map((source) => (
-            <Link
-              key={source}
-              href={href({ inventory: source, ipage: 1 })}
-              aria-current={inventory === source ? "page" : undefined}
-            >
-              {inventoryName(source)}
-              <span>{sourceName(source)}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="treasury-filters">
-          <Link
-            href={
-              auctionOnly
-                ? href({ auction: "0", ipage: 1 })
-                : `${href({ channel: "auction", spage: 1 })}#sales`
-            }
-          >
-            {auctionOnly ? "Весь склад" : "Продажи аукциона"}
-          </Link>
-          <span className="caption">
-            {inventory === "prime"
-              ? "Только дроп прайма"
-              : "Только дроп мини РБ"}
-          </span>
-          <Link
-            href={href({
-              stock: stock === "all" ? "available" : "all",
-              ipage: 1,
-            })}
-          >
-            {stock === "all"
-              ? "Показать только в наличии"
-              : "Показать все партии"}
+          <h2>Инвентарь</h2>
+          <Link href={`${href({ channel: "auction", spage: 1 })}#sales`}>
+            Продажи аукциона →
           </Link>
         </div>
         <p className="caption">
-          Наведите на иконку, чтобы увидеть свойства предмета. Нажмите для
-          продажи, аукциона или списания. Выставление на аукцион сразу считается
-          продажей.
+          Наведите на иконку для просмотра свойств, нажмите для действий.
+          Категория Прайм/Мини РБ сохраняется при переносе.
         </p>
         {manage && !!pendingAuto.data?.length && (
           <SettlePendingAuctions
@@ -305,21 +290,54 @@ export default async function Page({
             }))}
           />
         )}
-        <InventoryList
-          items={(items.data ?? []) as Loot[]}
-          manage={manage}
-          auctions={(auctionRows.data ?? []) as InventoryAuction[]}
-          buyers={(buyerRows.data ?? []).map((row) => row.nickname)}
-        />
-        <nav className="pagination" aria-label="Страницы инвентаря">
-          {ipage > 1 && <Link href={href({ ipage: ipage - 1 })}>← Назад</Link>}
-          <span>
-            {ipage} / {ipages}
-          </span>
-          {ipage < ipages && (
-            <Link href={href({ ipage: ipage + 1 })}>Далее →</Link>
-          )}
-        </nav>
+        <div className="inventory-columns">
+          {panes.map((pane) => (
+            <section
+              className="inventory-column"
+              key={pane.warehouse}
+              aria-labelledby={`warehouse-${pane.warehouse}-title`}
+            >
+              <div className="inventory-column-heading">
+                <h3 id={`warehouse-${pane.warehouse}-title`}>{pane.title}</h3>
+                <span className="caption">{pane.count} поз.</span>
+              </div>
+              <p className="caption">
+                {pane.warehouse === "general"
+                  ? "Полученный дроп · удаление и перенос в ХД"
+                  : "Дроп для продажи · игрокам и на аукционе"}
+              </p>
+              <InventoryList
+                items={pane.rows as Loot[]}
+                warehouse={pane.warehouse}
+                manage={manage}
+                auctions={(auctionRows.data ?? []) as InventoryAuction[]}
+                buyers={(buyerRows.data ?? []).map((row) => row.nickname)}
+              />
+              <nav
+                className="pagination"
+                aria-label={`Страницы: ${pane.title}`}
+              >
+                {pane.page > 1 && (
+                  <Link
+                    href={`${href({ [pane.pageKey]: pane.page - 1 })}#inventory`}
+                  >
+                    ← Назад
+                  </Link>
+                )}
+                <span>
+                  {pane.page} / {pane.pages}
+                </span>
+                {pane.page < pane.pages && (
+                  <Link
+                    href={`${href({ [pane.pageKey]: pane.page + 1 })}#inventory`}
+                  >
+                    Далее →
+                  </Link>
+                )}
+              </nav>
+            </section>
+          ))}
+        </div>
       </section>
       <section className="panel section-panel" id="sales">
         <div className="section-heading">

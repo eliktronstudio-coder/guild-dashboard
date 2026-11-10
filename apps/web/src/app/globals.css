@@ -1710,6 +1710,15 @@ td details label {
 .inventory-auction-lot { border: 1px solid var(--line); padding: 16px; margin: 14px 0; border-radius: 10px; }
 .inventory-auction-lot h4 { margin: 0 0 8px; }
 @media(max-width:500px) { .inventory-dialog { padding: 18px; } .inventory-dialog-header h2 { font-size: 18px; } }
+.inventory-columns { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-top: 20px; }
+.inventory-column { min-width: 0; min-height: 280px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column; }
+.inventory-column-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.inventory-column-heading h3 { margin: 0; font-size: 16px; font-weight: 700; }
+.inventory-column > .caption { margin: 8px 0 0; }
+.inventory-column .inventory-bag { flex: 1; align-content: start; }
+.inventory-column .empty-state { flex: 1; font-size: 13px; }
+.inventory-column .pagination { margin-top: auto; padding-top: 16px; }
+@media(max-width:760px) { .inventory-columns { grid-template-columns: minmax(0,1fr); } .inventory-column { min-height: 230px; padding: 15px; } }
 .treasury-month {
   margin: 24px 0;
   align-items: flex-end;
