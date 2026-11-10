@@ -176,6 +176,40 @@ test("posting immediately sells exact quantity × unit price, with no outstandin
       ),
       "0",
     );
+    const oldLot = randomUUID();
+    await db.query("select public.list_inventory_auction($1,$2,3,2,10000)", [
+      oldLot,
+      loot,
+    ]);
+    await c.as(2);
+    await assert.rejects(
+      db.query("select public.sell_pending_auction_now($1,1)", [oldLot]),
+      /FORBIDDEN/,
+    );
+    await c.as(1);
+    await db.query("select public.sell_pending_auction_now($1,1)", [oldLot]);
+    await db.query("select public.sell_pending_auction_now($1,1)", [oldLot]);
+    assert.equal(
+      await c.scalar(
+        "select gross_units::text from public.treasury_sales where id=$1",
+        [oldLot],
+      ),
+      "20000",
+    );
+    assert.equal(
+      await c.scalar(
+        "select quantity_remaining from public.treasury_inventory where id=$1",
+        [loot],
+      ),
+      5,
+    );
+    assert.equal(
+      await c.scalar(
+        "select auction_quantity from public.treasury_inventory where id=$1",
+        [loot],
+      ),
+      0,
+    );
   } finally {
     await db.close();
   }

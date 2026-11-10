@@ -20,6 +20,7 @@ import { GuildShell } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { TreasurySummary } from "@/components/treasury/summary";
 import { InventoryList } from "@/components/treasury/inventory";
+import { SettlePendingAuctions } from "@/components/treasury/settle-pending-auctions";
 import { addLoot, voidSale } from "./actions";
 import { SettlementPanel } from "@/components/settlements/panel";
 export const metadata = { title: "Казна" };
@@ -115,7 +116,7 @@ export default async function Page({
         .limit(500)
     : { data: [], error: null };
   if (registry.error) throw new Error("REGISTRY_READ_FAILED");
-  const [auctionRows, buyerRows] = await Promise.all([
+  const [auctionRows, buyerRows, pendingAuto] = await Promise.all([
     items.data?.length
       ? a.client
           .from("inventory_auctions")
@@ -139,8 +140,17 @@ export default async function Page({
           .order("nickname")
           .limit(1000)
       : Promise.resolve({ data: [], error: null }),
+    manage
+      ? a.client
+          .from("inventory_auctions")
+          .select("id,version")
+          .eq("guild_id", GUILD_ID)
+          .eq("status", "active")
+          .order("created_at")
+          .limit(20)
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (auctionRows.error || buyerRows.error)
+  if (auctionRows.error || buyerRows.error || pendingAuto.error)
     throw new Error("INVENTORY_OPTIONS_READ_FAILED");
   const epages = Math.max(1, Math.ceil((events.count ?? 0) / 50));
   if (epage > epages) redirect(href({ epage: epages }));
@@ -287,6 +297,14 @@ export default async function Page({
           продажи, аукциона или списания. Выставление на аукцион сразу считается
           продажей.
         </p>
+        {manage && !!pendingAuto.data?.length && (
+          <SettlePendingAuctions
+            pending={pendingAuto.data.map((row) => ({
+              id: row.id,
+              version: row.version,
+            }))}
+          />
+        )}
         <InventoryList
           items={(items.data ?? []) as Loot[]}
           manage={manage}
