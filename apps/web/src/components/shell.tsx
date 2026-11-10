@@ -71,7 +71,12 @@ export async function GuildShell({
     ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
     ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
-    ...(canRead ? [["/members", "Состав", "◎"]] : []),
+    ...(canRead
+      ? [
+          ["/members", "Состав", "◎"],
+          ["/rb-purchase", "Покупка РБ", "◈"],
+        ]
+      : []),
     ...(canReview ? [["/admin", "Управление", "◇"]] : []),
     ...(canAttend
       ? [
