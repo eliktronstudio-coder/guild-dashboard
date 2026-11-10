@@ -1568,6 +1568,123 @@ td details label {
 .treasury-sales details {
   margin-top: 18px;
 }
+.inventory-item-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.inventory-item-heading > .section-heading {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.loot-icon-wrap {
+  position: relative;
+  flex: 0 0 72px;
+  z-index: 1;
+}
+.loot-icon-wrap:hover,
+.loot-icon-wrap:focus-within {
+  z-index: 10;
+}
+.loot-icon-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  padding: 3px;
+  border: 1px solid #9b733d;
+  border-radius: 10px;
+  background: #19151e;
+  cursor: pointer;
+  overflow: hidden;
+}
+.loot-icon-button img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+.loot-icon-placeholder {
+  font-size: 38px;
+  color: #ffb743;
+}
+.loot-icon-quantity {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  background: #08070ceb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+  text-shadow: 0 1px 2px #000;
+}
+.loot-icon-description {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(310px, calc(100vw - 84px));
+  padding: 16px;
+  border: 1px solid #987246;
+  border-radius: 10px;
+  background: #1b1720;
+  color: #f6f0e7;
+  box-shadow: 0 12px 34px #0007;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.loot-icon-description::before {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: 0;
+  width: 100%;
+  height: 10px;
+}
+.loot-icon-description > strong {
+  display: block;
+  color: #ffb743;
+  margin-bottom: 5px;
+  font-size: 15px;
+}
+.loot-icon-description .caption {
+  color: #c6bccc;
+}
+.loot-icon-description dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin: 12px 0;
+}
+.loot-icon-description dd {
+  margin: 0;
+  text-align: right;
+}
+.loot-description-note {
+  white-space: pre-wrap;
+  margin-top: 12px;
+}
+.loot-icon-wrap:hover .loot-icon-description,
+.loot-icon-wrap:focus-within .loot-icon-description,
+.loot-icon-description.is-open {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+.loot-icon-wrap[data-dismissed="true"] .loot-icon-description {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
 .treasury-month {
   margin: 24px 0;
   align-items: flex-end;
