@@ -22,6 +22,10 @@ if not state[0]['migrated']:
  after=query("select (select count(*) from public.treasury_payouts) payouts,(select count(*) from public.treasury_allocations) allocations,(select count(*) from public.events) events,(select sum(quantity_remaining) from public.treasury_loot) stock")
  assert before==after
  print('PERIOD_CLOSING_SCHEMA_APPLIED_WITHOUT_CLOSING_OR_PAYING',flush=True)
+evidence=query("select exists(select 1 from pg_trigger where tgname='closed_activity_evidence' and not tgisinternal) as migrated")
+if not evidence[0]['migrated']:
+ query((ROOT/'operations/archive-evidence.sql').read_text())
+ print('ARCHIVE_EVIDENCE_REFERENCES_AND_GUARDS_INSTALLED',flush=True)
 checks=query("select not has_function_privilege('authenticated','private.freeze_period_sales(uuid,date,jsonb)','execute') private_allocator, not has_table_privilege('authenticated','public.period_archives','update') immutable_archive, not has_table_privilege('authenticated','public.period_archives','insert') rpc_only_close,not exists(select 1 from public.treasury_sales where accounting_period is null) sales_mapped")
 assert len(checks)==1 and all(checks[0].values())
 print('PERIOD_CLOSING_SCHEMA_AND_PRIVATE_ACCESS_VERIFIED',flush=True)
