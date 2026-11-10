@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ActionForm } from "@/components/action-form";
 import { SaleAmount } from "./amount";
+import { LootIcon } from "./loot-icon";
 import { reviseLoot, sellLoot } from "@/app/treasury/actions";
 import { formatGold, goldInput, type Loot } from "@/lib/treasury";
 export function LootFields({ item }: { item?: Loot }) {
@@ -51,12 +52,13 @@ export function LootFields({ item }: { item?: Loot }) {
         </label>
       </div>
       <label>
-        Примечание
+        Описание предмета / примечание
         <textarea
           name="note"
           rows={2}
           maxLength={1000}
           defaultValue={item?.note}
+          placeholder="Это описание появится при наведении на иконку предмета"
         />
       </label>
     </>
@@ -80,11 +82,14 @@ export function InventoryList({
     <div className="treasury-items">
       {items.map((item) => (
         <article className="character-card treasury-item" key={item.id}>
-          <div className="section-heading">
-            <h3>{item.name}</h3>
-            <span className="badge gold">
-              {item.quantity_remaining > 0 ? "В наличии" : "Нет остатка"}
-            </span>
+          <div className="inventory-item-heading">
+            <LootIcon item={item} />
+            <div className="section-heading">
+              <h3>{item.name}</h3>
+              <span className="badge gold">
+                {item.quantity_remaining > 0 ? "В наличии" : "Нет остатка"}
+              </span>
+            </div>
           </div>
           <p className="caption">
             {item.category || "Без категории"} · Получен на склад
