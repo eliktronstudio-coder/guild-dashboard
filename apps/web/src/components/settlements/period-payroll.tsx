@@ -9,11 +9,11 @@ import {
 } from "@/lib/payroll";
 import { ActionForm } from "@/components/action-form";
 import { payPeriodMember } from "@/app/treasury/payroll-actions";
-export async function PeriodPayroll() {
+export async function PeriodPayroll({ from }: { from?: string } = {}) {
   const a = await requireMember(),
     range = dashboardPeriod({ period: "current" });
   const { data, error } = await a.client.rpc("period_payroll_report", {
-    p_from: range.from,
+    p_from: from ?? range.from,
   });
   if (error) return <p role="alert">Расчёт зарплаты временно недоступен.</p>;
   const report = data as PayrollReport;
@@ -28,7 +28,8 @@ export async function PeriodPayroll() {
         Общая посещаемость от 20% по завершённым активностям с сохранённым
         составом. Доля = вес посещённых активностей × коэффициент участника.
         Прайм: 70% выручки, Мини РБ: 100%. Продажи относятся к периоду по дате
-        продажи (UTC).
+        продажи (UTC). После закрытия периода остаток его дропа при продаже
+        создаёт доплату по зафиксированным архивным долям.
       </p>
       <p>
         До первой выплаты доли пересчитываются после каждой продажи и изменения
@@ -97,7 +98,7 @@ export async function PeriodPayroll() {
                               <input
                                 type="hidden"
                                 name="from"
-                                value={range.from}
+                                value={from ?? range.from}
                               />
                               <input
                                 type="hidden"

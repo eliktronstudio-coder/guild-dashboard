@@ -135,6 +135,21 @@ export default async function Page({
         <Link href="/statistics">Финансовая статистика →</Link>
       </nav>
       <TreasurySummary totals={totals} />
+      {totals.archive_prime_units !== undefined && (
+        <section className="panel section-panel">
+          <h2>Остатки прошлых периодов</h2>
+          <p>
+            Прайм: {formatGold(totals.archive_prime_units)} · Мини РБ:{" "}
+            {formatGold(totals.archive_mini_units ?? "0")} · Накопления гильдии:{" "}
+            {formatGold(totals.archive_guild_units ?? "0")} зол.
+          </p>
+          <p>
+            Золото сохраняется для выплат и расходов. Непроданный дроп остаётся
+            на складе.
+          </p>
+          <Link href="/archive">Закрытие периода и выплаты из архива →</Link>
+        </section>
+      )}
       <p className="caption treasury-explanation">
         Первые три казны — остатки золота после продаж, выплат, расходов и
         отмен. Общая казна — оценка оставшегося имущества; она не складывается с

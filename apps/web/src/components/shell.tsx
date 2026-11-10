@@ -71,6 +71,10 @@ export async function GuildShell({
     ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
     ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
+    ...((await a.permission("treasury.allocate")) ||
+    (await a.permission("periods.close"))
+      ? [["/archive", "Архив и закрытие", "▣"]]
+      : []),
     ...(canRead
       ? [
           ["/members", "Состав", "◎"],

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { ActionForm } from "@/components/action-form";
 import { SaleAmount } from "./amount";
@@ -88,8 +87,8 @@ export function InventoryList({
             </span>
           </div>
           <p className="caption">
-            {item.category || "Без категории"} ·{" "}
-            <Link href={`/events/${item.event_id}`}>{item.event_title}</Link>
+            {item.category || "Без категории"} · Получен на склад
+            {item.archived_period ? ` · архив с ${item.archived_period}` : ""}
           </p>
           <dl className="character-details">
             <dt>Осталось</dt>
