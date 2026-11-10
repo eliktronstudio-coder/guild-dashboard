@@ -4,86 +4,30 @@ import { SaleAmount } from "./amount";
 import { AuctionPrice } from "./auction-price";
 import { InventoryItem } from "./inventory-item";
 import { dropDescription } from "@/lib/drop-descriptions";
-import { reviseLoot } from "@/app/treasury/actions";
+import {
+  inventoryPosition,
+  type InventoryWarehouse,
+} from "@/lib/inventory-position";
 import {
   recordInventorySale,
   listInventoryAuction,
   completeInventoryAuction,
   cancelInventoryAuction,
   discardInventoryStock,
+  transferInventoryToXd,
 } from "@/app/treasury/inventory-actions";
-import {
-  formatGold,
-  goldInput,
-  type Loot,
-  type InventoryAuction,
-} from "@/lib/treasury";
-export function LootFields({ item }: { item?: Loot }) {
-  return (
-    <>
-      <label>
-        Название предмета
-        <input
-          name="name"
-          required
-          minLength={2}
-          maxLength={120}
-          defaultValue={item?.name}
-        />
-      </label>
-      <label>
-        Категория
-        <input
-          name="category"
-          maxLength={80}
-          defaultValue={item?.category}
-          placeholder="Оружие, материалы…"
-        />
-      </label>
-      <div className="field-grid">
-        <label>
-          {item ? "Общее количество партии" : "Количество"}
-          <input
-            name="quantity"
-            type="number"
-            min={item ? item.quantity_total - item.quantity_remaining : 1}
-            max={1000000}
-            step="1"
-            required
-            defaultValue={item?.quantity_total}
-          />
-        </label>
-        <label>
-          Оценка за единицу, золото
-          <input
-            name="estimate"
-            inputMode="decimal"
-            pattern="[0-9]+([.,][0-9]{1,4})?"
-            maxLength={16}
-            defaultValue={goldInput(item?.estimated_unit_units ?? null)}
-            placeholder="Можно оставить без оценки"
-          />
-        </label>
-      </div>
-      <label>
-        Примечание к партии
-        <textarea
-          name="note"
-          rows={2}
-          maxLength={1000}
-          defaultValue={item?.note}
-          placeholder="Для внутреннего учёта. Свойства предмета берутся из ArcheAge Codex."
-        />
-      </label>
-    </>
-  );
-}
+import { formatGold, type Loot, type InventoryAuction } from "@/lib/treasury";
 function StockFields({ item }: { item: Loot }) {
   return (
     <>
       <input type="hidden" name="requestId" value={randomUUID()} />
       <input type="hidden" name="lootId" value={item.id} />
       <input type="hidden" name="version" value={item.version} />
+      <input
+        type="hidden"
+        name="warehouse"
+        value={item.warehouse ?? "general"}
+      />
     </>
   );
 }
@@ -134,11 +78,13 @@ function Quantity({ max }: { max: number }) {
 }
 export function InventoryList({
   items,
+  warehouse,
   manage,
   auctions = [],
   buyers = [],
 }: {
   items: Loot[];
+  warehouse: InventoryWarehouse;
   manage: boolean;
   auctions?: InventoryAuction[];
   buyers?: string[];
@@ -146,13 +92,20 @@ export function InventoryList({
   if (!items.length)
     return (
       <div className="empty-state">
-        <h3>Здесь пока нет дропа</h3>
-        <p>Добавьте предметы или измените фильтр.</p>
+        <h4>
+          {warehouse === "general" ? "Пока пусто" : "Нет предметов для продажи"}
+        </h4>
+        <p>
+          {warehouse === "general"
+            ? "Добавьте полученный дроп в общий инвентарь."
+            : "Перенесите нужное количество из общего инвентаря."}
+        </p>
       </div>
     );
   return (
     <div className="inventory-bag">
-      {items.map((item) => {
+      {items.map((raw) => {
+        const item = inventoryPosition(raw, warehouse);
         const available = item.available_quantity ?? item.quantity_remaining,
           lots = auctions.filter(
             (a) => a.loot_id === item.id && a.status === "active",
@@ -163,6 +116,23 @@ export function InventoryList({
             item={item}
             description={dropDescription(item)}
             manage={manage}
+            transfer={
+              <>
+                <h3>Перенести в инвентарь ХД</h3>
+                <p>
+                  Переносится выбранное количество. Категория Прайм/Мини РБ и
+                  расчётный период сохраняются; золото не начисляется.
+                </p>
+                <ActionForm
+                  action={transferInventoryToXd}
+                  revision={item.version}
+                  label="Перенести в инвентарь ХД"
+                >
+                  <StockFields item={item} />
+                  <Quantity max={available} />
+                </ActionForm>
+              </>
+            }
             sale={
               <>
                 <h3>Продать игроку</h3>
@@ -193,27 +163,6 @@ export function InventoryList({
                 {item.note && (
                   <p className="caption">Примечание партии: {item.note}</p>
                 )}
-                <details>
-                  <summary>Исправить партию или оценку</summary>
-                  <ActionForm
-                    action={reviseLoot}
-                    revision={item.version}
-                    label="Сохранить исправление"
-                  >
-                    <input type="hidden" name="lootId" value={item.id} />
-                    <input type="hidden" name="version" value={item.version} />
-                    <LootFields item={item} />
-                    <label>
-                      Причина исправления
-                      <textarea
-                        name="reason"
-                        minLength={3}
-                        maxLength={500}
-                        required
-                      />
-                    </label>
-                  </ActionForm>
-                </details>
               </>
             }
             auction={

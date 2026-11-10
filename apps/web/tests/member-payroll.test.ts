@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { memberDatabase, guild } from "./support/database";
+import { memberDatabase, readyForSaleFixture, guild } from "./support/database";
 import type { PayrollReport } from "../src/lib/payroll";
 import { payrollDue } from "../src/lib/payroll";
 import { dashboardPeriod } from "../src/lib/dashboard";
@@ -20,6 +20,7 @@ async function setup(optional = false) {
         (optional || !/^20261103001[78]/.test(f)),
     ))
     await ctx.db.exec(await readFile("supabase/migrations/" + file, "utf8"));
+  await readyForSaleFixture(ctx.db);
   await ctx.db.exec("update public.memberships set joined_at='2020-01-01'");
   const period = dashboardPeriod({ period: "current" });
   async function event(present: string[], source = "prime", kind = "raid") {

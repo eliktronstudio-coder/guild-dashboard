@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
 import { checkOrigin, field } from "@/lib/mutations";
 import { isUuid } from "@/lib/members";
@@ -7,6 +8,36 @@ import { parseGold, treasuryError } from "@/lib/treasury";
 import type { FormState } from "@/lib/identity";
 const integer = (f: FormData, key: string) =>
   /^\d{1,10}$/.test(field(f, key)) ? Number(field(f, key)) : NaN;
+export async function transferInventoryToXd(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.manage");
+  const request = field(f, "requestId"),
+    loot = field(f, "lootId"),
+    version = integer(f, "version"),
+    quantity = integer(f, "quantity");
+  if (
+    !isUuid(request) ||
+    !isUuid(loot) ||
+    !Number.isSafeInteger(version) ||
+    version < 1 ||
+    !Number.isSafeInteger(quantity) ||
+    quantity < 1 ||
+    quantity > 1000000
+  )
+    return { error: "Укажите доступное количество для переноса." };
+  const { error } = await a.client.rpc("transfer_inventory_to_xd", {
+    p_request: request,
+    p_loot: loot,
+    p_version: version,
+    p_quantity: quantity,
+  });
+  if (error) return { error: treasuryError(error.message) };
+  revalidatePath("/", "layout");
+  redirect("/treasury#inventory");
+}
 export async function settlePendingAuctions(
   pending: { id: string; version: number }[],
 ): Promise<{ settled: number; error?: string }> {
@@ -209,7 +240,8 @@ export async function discardInventoryStock(
     loot = field(f, "lootId"),
     version = integer(f, "version"),
     quantity = integer(f, "quantity"),
-    reason = field(f, "reason").trim();
+    reason = field(f, "reason").trim(),
+    warehouse = field(f, "warehouse");
   if (
     !isUuid(request) ||
     !isUuid(loot) ||
@@ -220,6 +252,7 @@ export async function discardInventoryStock(
     quantity > 1000000 ||
     reason.length < 3 ||
     reason.length > 500 ||
+    !["general", "xd"].includes(warehouse) ||
     f.get("confirm") !== "on"
   )
     return {
@@ -227,13 +260,14 @@ export async function discardInventoryStock(
         "Укажите количество и причину удаления, затем подтвердите списание.",
     };
   return mutate(
-    "discard_inventory_stock",
+    "discard_inventory_position",
     {
       p_request: request,
       p_loot: loot,
       p_version: version,
       p_quantity: quantity,
       p_reason: reason,
+      p_warehouse: warehouse,
     },
     "Количество списано со склада. Причина и история сохранены; золото не начислено.",
   );

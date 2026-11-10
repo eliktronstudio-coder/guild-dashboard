@@ -269,7 +269,7 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
         allocation = randomUUID(),
         w = randomUUID();
       await db.query(
-        "insert into public.treasury_loot(id,guild_id,event_id,source,name,quantity_total,quantity_remaining,created_by) values($1,$2,$3,'prime','Трофей',1,0,$4)",
+        "insert into public.treasury_loot(id,guild_id,event_id,source,name,quantity_total,quantity_remaining,xd_quantity,created_by) values($1,$2,$3,'prime','Трофей',1,1,1,$4)",
         [loot, guild, countedEvent, id(1)],
       );
       const gross = Math.floor((amount * 10) / 7),
@@ -278,6 +278,10 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
       await db.query(
         "insert into public.treasury_sales(id,guild_id,loot_id,source,quantity,gross_units,guild_units,fund_units,created_by) values($1,$2,$3,'prime',1,$4,$5,$6,$7)",
         [sale, guild, loot, gross, guildPart, amount, id(1)],
+      );
+      await db.query(
+        "update public.treasury_loot set quantity_remaining=0 where id=$1",
+        [loot],
       );
       await db.query(
         "insert into public.treasury_allocations(id,guild_id,sale_id,recipient_ids,reason,created_by,created_at) values($1,$2,$3,$4,'Тестовая запись',$5,$6)",

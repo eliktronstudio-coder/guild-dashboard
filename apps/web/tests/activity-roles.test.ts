@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { memberDatabase, guild } from "./support/database";
+import { memberDatabase, readyForSaleFixture, guild } from "./support/database";
 import { ROLE_OPTIONS } from "../src/lib/members";
 const image =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF1sAAAAASUVORK5CYII=";
@@ -18,6 +18,7 @@ async function setup() {
         !/^20261103001[78]/.test(f),
     ))
     await c.db.exec(await readFile("supabase/migrations/" + f, "utf8"));
+  await readyForSaleFixture(c.db);
   await c.db.exec("update public.memberships set joined_at='2020-01-01'");
   await c.as(1);
   for (const [n, role] of [

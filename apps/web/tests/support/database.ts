@@ -7,6 +7,11 @@ export const sid = (n: number) =>
   `20000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 export const cid = (n: number) =>
   `30000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+/** Financial/ACL fixtures start after the warehouse-transfer stage. */
+export async function readyForSaleFixture(db: PGlite) {
+  await db.exec(`create function private.fixture_ready_xd_stock() returns trigger language plpgsql as $$begin new.xd_quantity:=new.quantity_remaining;new.xd_received_at:=new.created_at;return new;end $$;
+ create trigger fixture_ready_xd_stock before insert on public.treasury_loot for each row execute function private.fixture_ready_xd_stock();`);
+}
 export async function memberDatabase() {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create schema auth;
@@ -21,7 +26,10 @@ export async function memberDatabase() {
     await readFile("supabase/migrations/202610310001_foundation.sql", "utf8"),
   );
   for (let n = 1; n <= 6; n++) {
-    await db.query("insert into auth.users(id,email_confirmed_at) values($1,now())", [id(n)]);
+    await db.query(
+      "insert into auth.users(id,email_confirmed_at) values($1,now())",
+      [id(n)],
+    );
     await db.query("insert into auth.sessions values($1,$2)", [sid(n), id(n)]);
   }
   await db.query("select private.bootstrap_owner($1,$2)", [id(1), "Владелец"]);

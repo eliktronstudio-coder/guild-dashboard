@@ -19,7 +19,7 @@ export function LootIcon({
   const button = useRef<HTMLButtonElement>(null),
     tip = useRef<HTMLDivElement>(null),
     timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const id = `loot-description-${item.id}`;
+  const id = `loot-description-${item.warehouse}-${item.id}`;
   const clear = () => {
     if (timer.current) clearTimeout(timer.current);
   };
@@ -133,6 +133,12 @@ export function LootIcon({
             }}
           >
             <strong>{item.name}</strong>
+            <span className="caption">
+              {item.warehouse === "general"
+                ? "Общий инвентарь"
+                : "Инвентарь ХД"}{" "}
+              · {item.source === "prime" ? "Прайм" : "Мини РБ"}
+            </span>
             {description ? (
               <>
                 <p className="codex-description">{description.text}</p>

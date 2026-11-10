@@ -38,6 +38,8 @@ export function splitSale(units: string, source: TreasurySource) {
 }
 export function treasuryError(message: string) {
   const messages: Record<string, string> = {
+    USE_XD_INVENTORY:
+      "Продажа доступна только из инвентаря ХД. Сначала перенесите туда нужное количество.",
     BUYER_REQUIRED: "Укажите покупателя: от 2 до 80 символов.",
     STOCK_RESERVED:
       "Это количество зарезервировано на аукционе. Сначала снимите соответствующий лот.",
@@ -91,6 +93,9 @@ export type TreasuryTotals = {
   unpriced_count: number;
 };
 export type Loot = {
+  warehouse?: "general" | "xd";
+  xd_quantity?: number;
+  general_quantity?: number;
   catalog_id?: string | null;
   auction_quantity?: number;
   available_quantity?: number;
