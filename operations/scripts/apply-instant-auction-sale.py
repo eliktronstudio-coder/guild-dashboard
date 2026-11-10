@@ -19,6 +19,10 @@ state=query("select to_regprocedure('public.sell_inventory_auction_now(uuid,uuid
 if not state[0]['migrated']:
  query((ROOT/'operations/instant-auction-sale.sql').read_text())
  print('INSTANT_AUCTION_SALE_FUNCTION_INSTALLED',flush=True)
+legacy=query("select to_regprocedure('public.sell_pending_auction_now(uuid,integer)') is not null as migrated")
+if not legacy[0]['migrated']:
+ query((ROOT/'operations/settle-pending-auctions.sql').read_text())
+ print('MANAGER_AUTHENTICATED_LEGACY_SETTLEMENT_INSTALLED',flush=True)
 pending=query("select count(*)::int as count from public.inventory_auctions where status='active'")
 print('EXISTING_PENDING_AUCTION_LOTS',pending[0]['count'],flush=True)
 checks=query("select has_function_privilege('authenticated','public.sell_inventory_auction_now(uuid,uuid,integer,integer,bigint)','execute') member_rpc,not has_function_privilege('anon','public.sell_inventory_auction_now(uuid,uuid,integer,integer,bigint)','execute') anonymous_denied")
