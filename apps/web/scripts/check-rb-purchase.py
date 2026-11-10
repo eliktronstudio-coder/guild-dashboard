@@ -36,7 +36,7 @@ with tempfile.TemporaryFile() as log:
    page.get_by_label('Поиск по нику',exact=True).fill('40');expect(page.get_by_role('checkbox')).to_have_count(1);checkbox(40).uncheck();expect(units(20)).to_have_text('60');expect(units(80)).to_have_text('240');page.get_by_label('Поиск по нику',exact=True).fill('')
    page.get_by_role('button',name='Снять выбор',exact=True).click();expect(page.locator('table.rb-breakdown')).to_have_count(0)
    experience.fill('1.5');expect(page.get_by_role('alert').filter(has_text='Укажите положительное')).to_be_visible();checkbox(20).check();experience.fill('1000000000000000000');checkbox(40).check();expect(units(20)).to_have_text('333\u202f333\u202f333\u202f333\u202f333\u202f333');expect(units(40)).to_have_text('666\u202f666\u202f666\u202f666\u202f666\u202f667')
-   participants=[];page.reload(wait_until='networkidle');expect(page.get_by_text('За этот период нет участников с подтверждённой посещаемостью Мини РБ от 20%.',exact=True)).to_be_visible()
+   participants=[];page.reload(wait_until='networkidle');expect(page.get_by_text('За этот период нет участников с посещаемостью Мини РБ от 20%.',exact=True)).to_be_visible()
    anonymous=browser.new_context();response=anonymous.request.get(origin+'/rb-purchase');assert '/login' in response.text() and 'Игрок 20' not in response.text();assert not errors,errors
    browser.close();print('PASS: checkbox add/remove, proportional shares, exact totals and large integers, search, empty/invalid states, private access, active navigation; 390/1440px × dark/light; fixtures only',flush=True)
  finally:

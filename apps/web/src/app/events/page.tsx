@@ -92,7 +92,7 @@ export default async function Page({
             {
               title: "Средняя посещаемость",
               value: report?.kpis.average,
-              note: "участников на подтверждённую активность",
+              note: "участников на завершённую активность",
             },
             {
               title: "Лучший показатель",

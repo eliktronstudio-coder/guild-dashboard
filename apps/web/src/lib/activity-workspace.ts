@@ -4,7 +4,7 @@ import { isUuid } from "./members";
 import { utcInput } from "./events";
 export const JOURNAL_STATUSES: Record<string, string> = {
   scheduled: "Запланирована",
-  unconfirmed: "На проверке",
+  unconfirmed: "Состав не сохранён",
   completed: "Завершена",
   pending_payout: "К выплате",
   paid: "Выплачено",
@@ -298,7 +298,7 @@ export function parseActivityPayload(raw: string) {
         ...(p.members !== undefined
           ? { members: [...new Set(p.members)] }
           : {}),
-        confirm_roster: p.confirmRoster === true,
+        confirm_roster: true,
         evidence,
         remove_evidence: remove,
         loot,
@@ -330,7 +330,7 @@ export function activityError(message: string) {
     EVENT_CLOSED: "Активность отменена или закрыта для этого действия.",
     UNMARKED_MEMBERS:
       "Подтвердите отметки всего состава перед завершением отчёта.",
-    EMPTY_ROSTER: "Нет состава для подтверждения.",
+    EMPTY_ROSTER: "Состав активности не заполнен.",
     TOO_MANY_IMAGES: "Максимум 8 скриншотов на активность.",
     REASON_REQUIRED: "Укажите причину изменения от 3 до 500 символов.",
   }))

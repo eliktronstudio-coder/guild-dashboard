@@ -93,7 +93,7 @@ with tempfile.TemporaryFile() as log:
    print('PASS: journal/create/detail at 6 widths and 2 themes',flush=True)
    page.goto(origin+'/events',wait_until='networkidle');page.get_by_role('link',name='Далее →',exact=True).click();page.get_by_text('Страница 2 из 2',exact=True).wait_for()
    page.goto(origin+'/events/new?banner='+BANNER,wait_until='networkidle');expect(page.get_by_label('Название',exact=True)).to_have_value('Левиафан')
-   page.get_by_label('Коэффициент',exact=True).fill('1,5');page.get_by_label('Золото за посещение — план',exact=True).fill('10,5');page.locator('#roster').get_by_label('Тестовый участник',exact=False).check();page.get_by_label('Подтверждаю состав:',exact=False).check();page.get_by_label('Ночная активность',exact=True).check()
+   page.get_by_label('Коэффициент',exact=True).fill('1,5');page.get_by_label('Золото за посещение — план',exact=True).fill('10,5');page.locator('#roster').get_by_label('Тестовый участник',exact=False).check();assert page.get_by_label('Подтверждаю состав:',exact=False).count()==0;page.get_by_label('Ночная активность',exact=True).check()
    page.get_by_label('Имя незарегистрированного игрока').fill('Гость теста');page.get_by_role('button',name='Добавить',exact=True).click();page.get_by_label('Адамантовый коготь',exact=False).check();page.get_by_label('Количество',exact=True).fill('2')
    from PIL import Image
    import io
