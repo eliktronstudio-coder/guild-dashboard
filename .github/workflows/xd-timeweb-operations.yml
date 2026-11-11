@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Diagnose latency and database access without changing user records
+      - name: Apply tested access-query optimization and measure production latency
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -29,6 +29,7 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'uptime; free -m; df -h /; systemctl show xd-guild --property=MemoryCurrent --property=CPUUsageNSec --property=NRestarts; journalctl -u xd-guild --since "2 hours ago" --no-pager -o cat > /tmp/xd-web-diagnostic.log'
           cat operations/diagnose-performance.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
+          python3 operations/scripts/apply-access-query-plans.py
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
