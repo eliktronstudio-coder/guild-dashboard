@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Apply historical roster saving without registration-date restriction
+      - name: Deploy historical roster saving independent of registration date
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,13 +27,32 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'rm -f /root/xd-channel-recognition-audit.json'
-          python3 operations/scripts/apply-activity-registration-date.py
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = a8e6ffd997b0acd061ac963f758513d5ea3528f7
+          git merge --ff-only a8e6ffd997b0acd061ac963f758513d5ea3528f7
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != a8e6ffd997b0acd061ac963f758513d5ea3528f7 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = a8e6ffd997b0acd061ac963f758513d5ea3528f7
+          echo REGISTRATION_DATE_RELEASE_VERIFIED
+          REMOTE
+          python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            const dateFs=require('node:fs');
+            if(dateFs.readFileSync('/var/www/xd-discord-bot/current/src/workflow.mjs','utf8').includes('new Date(m.joined_at).getTime() <= message.createdTimestamp')||!dateFs.existsSync('supabase/migrations/202611120040_activity_registration_date.sql')||dateFs.readFileSync('src/lib/activity-workspace.ts','utf8').includes('игрока, вступившего позже даты активности'))throw Error('Historical roster fix missing');
+            console.log('ACTIVITY_AND_DISCORD_ROSTERS_IGNORE_WEBSITE_REGISTRATION_DATE');
             const botFs=require('node:fs'),botRoot='/var/www/xd-discord-bot/current/';
             if(!botFs.readFileSync(botRoot+'src/ocr.mjs','utf8').includes('refineRosterWords')||!botFs.readFileSync(botRoot+'src/workflow.mjs','utf8').includes('confirmedExamples')||!botFs.existsSync(botRoot+'tests/ocr-refinement.test.mjs'))throw Error('Nickname OCR refinement missing');
             console.log('CELL_RETRY_AND_CONFIRMED_ROSTER_LEARNING_DEPLOYED');
