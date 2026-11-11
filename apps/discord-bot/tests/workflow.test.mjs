@@ -26,6 +26,48 @@ function interaction(id, action, values = [], text = "") {
     },
   };
 }
+test("historical screenshot drafts retain current members even if website registration happened after the screenshot", async () => {
+  const member = {
+    id: "later-member",
+    nickname: "Ронин",
+    joined_at: new Date().toISOString(),
+  };
+  let saved;
+  const flow = new ImportWorkflow({
+    store: {
+      put: (d) => {
+        saved = d;
+      },
+    },
+    site: async () => ({
+      members: [member],
+      activities: [{ id: "activity", name: "Рейд", weight: 100 }],
+      drops: [],
+    }),
+  });
+  const input = {
+    user: { id: "staff" },
+    deferred: false,
+    async deferReply() {
+      this.deferred = true;
+    },
+    async editReply(v) {
+      this.response = v;
+    },
+  };
+  await flow.start(input, {
+    guildId: "guild",
+    channelId: "channel",
+    channel: { isThread: () => false },
+    id: "historical-message",
+    createdTimestamp: Date.now() - 86400000,
+    content: "Старый рейд",
+    attachments: new Map(),
+  });
+  assert.ok(saved);
+  assert.deepEqual(saved.catalog.members, [member]);
+  assert.equal(saved.step, "choose");
+});
 test("explicitly approved full roster cells teach OCR examples across distinct images without publishing an activity", async () => {
   const dir = mkdtempSync(join(tmpdir(), "xd-approved-examples-")),
     store = draftStore(dir);

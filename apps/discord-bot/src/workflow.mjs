@@ -389,9 +389,6 @@ export class ImportWorkflow {
       if (attachments.length > 4) throw Error("TOO_MANY_IMAGES");
       if (attachments.some((a) => a.size > 12 * 1024 * 1024))
         throw Error("IMAGE_TOO_LARGE");
-      catalog.members = catalog.members.filter(
-        (m) => new Date(m.joined_at).getTime() <= message.createdTimestamp,
-      );
       const d = {
         id: randomUUID(),
         request: randomUUID(),
