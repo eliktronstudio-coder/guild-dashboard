@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Apply required player class without changing memberships or finances
+      - name: Deploy required player class and one-time prompt with live verification
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,12 +27,36 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/apply-player-class.py
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 48278a9ed556f95f05d564ca8b10baae5cbbdb31
+          git merge --ff-only 48278a9ed556f95f05d564ca8b10baae5cbbdb31
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 48278a9ed556f95f05d564ca8b10baae5cbbdb31 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 48278a9ed556f95f05d564ca8b10baae5cbbdb31
+          echo PLAYER_CLASS_RELEASE_VERIFIED
+          REMOTE
+          python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            const fsClass=require('node:fs');
+            const classPrompt=fsClass.readFileSync('src/components/members/player-class-prompt.tsx','utf8');
+            if(!classPrompt.includes('setSelected')||!classPrompt.includes('savePlayerClass')||!fsClass.readFileSync('src/components/shell.tsx','utf8').includes('class_selected_at')||!fsClass.readFileSync('src/app/actions.ts','utf8').includes('game_class: input.playerClass'))throw Error('Required player class code missing');
+            const registration=await fetch('https://xd-guild.ru/login?mode=register');
+            const registrationHtml=await registration.text();
+            if(!registration.ok||!registrationHtml.includes('name="playerClass"')||!['Лучник','Маг','Милик','Танк'].every(c=>registrationHtml.includes(c)))throw Error('Registration class selector unavailable');
+            console.log('REQUIRED_CLASS_REGISTRATION_AND_PERSISTENT_ONE_TIME_PROMPT_DEPLOYED');
             const accessSource=require('node:fs').readFileSync('src/lib/access.ts','utf8');
             const recoverySource=require('node:fs').readFileSync('src/app/error.tsx','utf8');
             const shellSource=require('node:fs').readFileSync('src/components/shell.tsx','utf8');
