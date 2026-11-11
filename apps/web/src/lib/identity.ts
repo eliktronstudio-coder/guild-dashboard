@@ -24,6 +24,10 @@ export function safeNext(value: string | null) {
 export type FormState = { error?: string; success?: string };
 export function messageFor(error: { message: string }): string {
   const messages: Record<string, string> = {
+    CLASS_REQUIRED: "Выберите класс игрока.",
+    INVALID_PLAYER_CLASS:
+      "Выберите один из классов: Лучник, Маг, Милик или Танк.",
+    CLASS_ALREADY_SELECTED: "Класс уже выбран. Обновите страницу.",
     INVALID_LOGIN: "Проверьте логин: 3–32 латинских символа, начиная с буквы.",
     MEMBERSHIP_INACTIVE:
       "Участие в гильдии прекращено. Для возвращения обратитесь к администрации.",

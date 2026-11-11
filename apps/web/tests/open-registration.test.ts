@@ -13,6 +13,7 @@ test("registration validates email/login/nickname, matching passwords and explic
     email: " Player@Example.com ",
     login: " Dragon_XD ",
     nickname: " Волк ",
+    playerClass: "Маг",
     password: "a-strong-password",
     confirmation: "a-strong-password",
     rules: "on",
@@ -24,6 +25,12 @@ test("registration validates email/login/nickname, matching passwords and explic
   assert.equal(good.login, "dragon_xd");
   assert.equal(good.nickname, "Волк");
   assert.equal(good.email, "player@example.com");
+  assert.equal(good.playerClass, "Маг");
+  form.delete("playerClass");
+  assert.match(registrationInput(form).error!, /Выберите класс/);
+  form.set("playerClass", "owner");
+  assert.match(registrationInput(form).error!, /Выберите класс/);
+  form.set("playerClass", "Маг");
   form.set("confirmation", "wrong-password");
   assert.match(registrationInput(form).error!, /не совпадают/);
   form.set("confirmation", "a-strong-password");

@@ -2063,3 +2063,23 @@ html[data-theme="light"] .activity-workspace{--aw-bg:#faf7f3;--aw-panel:#fff;--a
 .rb-breakdown td:first-child { min-width:100px; max-width:180px; white-space:normal; overflow-wrap:anywhere; }
 .rb-result { padding-top:16px; font-size:18px; }
 @media(max-width:1100px) { .rb-purchase-grid { grid-template-columns:minmax(0,1fr); } }
+
+.player-class-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  margin: auto;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--text);
+}
+.player-class-dialog::backdrop { background: rgb(0 0 0 / 75%); }
+.player-class-dialog h2 { margin: 10px 0 16px; }
+.player-class-dialog .muted { margin-bottom: 24px; }
+.player-class-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.player-class-options label { display: flex; align-items: center; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.player-class-options label:has(input:checked) { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, transparent); }
+.player-class-options label:focus-within { outline: 2px solid var(--gold); outline-offset: 3px; }
+.player-class-options input[type="radio"] { width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; flex-shrink: 0; accent-color: var(--gold); }

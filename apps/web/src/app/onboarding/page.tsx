@@ -5,14 +5,18 @@ import { PublicFrame } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { completeRegistration, signOut } from "@/app/actions";
 import { messageFor } from "@/lib/identity";
+import { PlayerClassField } from "@/components/members/player-class-field";
 export const metadata = { title: "Завершение регистрации" };
 export default async function Page() {
   const { client, user, membership } = await getAccess();
   if (membership?.status === "active") redirect("/dashboard");
   const { error } = await client.rpc("complete_open_registration");
   if (!error) redirect("/dashboard");
-  const enrollmentError =
-    error.message === "CONSENT_REQUIRED" ? null : messageFor(error);
+  const enrollmentError = ["CONSENT_REQUIRED", "CLASS_REQUIRED"].includes(
+    error.message,
+  )
+    ? null
+    : messageFor(error);
   return (
     <PublicFrame
       title={"Станьте частью\nнашей истории"}
@@ -62,6 +66,7 @@ export default async function Page() {
           2–32 символа. Русские или латинские буквы, цифры, пробел, дефис и
           подчёркивание. Не смешивайте алфавиты.
         </p>
+        <PlayerClassField />
         <label className="check">
           <input type="checkbox" name="rules" required />
           <span>

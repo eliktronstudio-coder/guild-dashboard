@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MemberAvatar } from "@/components/members/avatar";
 import { signOut } from "@/app/actions";
 import { getAccess } from "@/lib/access";
+import { PlayerClassPrompt } from "@/components/members/player-class-prompt";
 export function Brand() {
   return (
     <Link href="/" className="brand" aria-label="XD — главная">
@@ -101,6 +102,9 @@ export async function GuildShell({
   ];
   return (
     <div className="guild-layout">
+      {a.membership?.status === "active" && !a.membership.class_selected_at && (
+        <PlayerClassPrompt />
+      )}
       <aside className="sidebar">
         <Brand />
         <p className="eyebrow nav-label">КОМАНДНЫЙ ЦЕНТР</p>
