@@ -91,9 +91,9 @@ export function suggestion(value, rows) {
 }
 export function readingSuggestions(reading, rows) {
   const ranked = new Map();
-  for (const text of new Set(
-    [reading.visible, ...(reading.variants ?? [])].filter(Boolean),
-  )) {
+  for (const text of [
+    ...new Set([reading.visible, ...(reading.variants ?? [])].filter(Boolean)),
+  ].slice(0, 8)) {
     for (const match of nicknameSuggestions(text, rows)) {
       const old = ranked.get(match.id);
       if (!old || match.matchCost < old.matchCost) ranked.set(match.id, match);

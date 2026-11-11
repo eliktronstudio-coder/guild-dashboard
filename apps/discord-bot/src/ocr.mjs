@@ -356,7 +356,8 @@ export async function ocr(buffer, options = {}) {
         }
       words = await refineRosterWords(words, sheets, {
         members: options.members ?? [],
-        deadline,
+        // Leave time for loot when one screenshot contains both kinds of text.
+        deadline: options.loot ? deadline - 15000 : deadline,
       });
     }
     let text = "";
