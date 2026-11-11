@@ -17,5 +17,7 @@ require('@next/env').loadEnvConfig(process.cwd());
  const counts=[...text.matchAll(/(?:Распознано участников|Сопоставлено с сайтом|гостей|Не разобрано|участников|Участники|Состав)\s*[:(]\s*(\d+)/giu)].map(x=>({label:x[0].replace(/\d+$/,''),count:Number(x[1])}));
  if(b.examples.length<6)b.examples.push({id:m.id,date:m.timestamp,counts,files:(m.attachments??[]).length,embeds:(m.embeds??[]).length,model_mentions:[...new Set((text.match(/GPT[- \w.]*|OpenAI|Gemini|Tesseract|PaddleOCR|EasyOCR|Claude/gi)??[]))]});
  bots.set(m.author.id,b);}
+ const targetMessages=messages.filter(m=>m.author?.id==='1541835111153143858');
+ console.log('REFERENCE_BOT_DETAILS',JSON.stringify(targetMessages.slice(0,10).map(m=>({id:m.id,date:m.timestamp,excerpt:(m.content??'').slice(0,600).replace(/sk-ant-[A-Za-z0-9_-]+/g,'[REDACTED]').replace(/https?:\/\/\S+/g,'[URL]')}))));
  console.log('CHANNEL_BOT_HISTORY',JSON.stringify({messages:messages.length,bots:[...bots.values()],images:messages.flatMap(m=>(m.attachments??[]).filter(a=>a.content_type?.startsWith('image/')).map(a=>({message:m.id,width:a.width,height:a.height,bytes:a.size}))).slice(0,12)}));
 })().catch(e=>{console.error('CHANNEL_AUDIT_FAILED',e.message);process.exitCode=1});
