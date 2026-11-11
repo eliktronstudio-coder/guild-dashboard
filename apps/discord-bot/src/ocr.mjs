@@ -6,6 +6,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { raidRegions } from "./raid-regions.mjs";
+import { recognizeIndependentRoster } from "./recognition.mjs";
 let busy = 0;
 export async function downloadImage(url) {
   const target = new URL(url);
@@ -60,7 +61,7 @@ export async function prepareEvidence(buffer) {
 }
 async function runTesseract(
   image,
-  { language = "rus+eng", psm = 11, dictionary, deadline } = {},
+  { language = "rus+eng", psm = 11, dictionary, deadline, roster = false } = {},
 ) {
   const args = [
     "stdin",
@@ -81,6 +82,9 @@ async function runTesseract(
       : null);
   if (modelDir) args.push("--tessdata-dir", modelDir);
   if (dictionary) args.push("--user-words", dictionary);
+  // Nicknames are not ordinary language words. Keep the supplied player
+  // vocabulary, but do not autocorrect a new nickname into a dictionary word.
+  if (roster) args.push("-c", "load_system_dawg=0", "-c", "load_freq_dawg=0");
   return new Promise((resolve, reject) => {
     const child = spawn("tesseract", args, {
         stdio: ["pipe", "pipe", "pipe"],
@@ -215,20 +219,25 @@ export async function raidLabelSheets(buffer) {
             .toBuffer();
         else {
           const crop = await input.raw().toBuffer({ resolveWithObject: true }),
-            mask = Buffer.alloc(width * height, 255);
+            mask = Buffer.alloc(width * height);
           for (let p = 0; p < mask.length; p++) {
             const r = crop.data[p * 3],
               g = crop.data[p * 3 + 1],
               blue = crop.data[p * 3 + 2];
+            // Preserve antialiasing before enlargement. A hard threshold on
+            // the tiny source removes whole strokes from 8–11 px letters.
+            // The minimum RGB channel separates white text from both blue
+            // and pink panels without their different luminance interfering.
+            mask[p] = 255 - Math.min(r, g, blue);
             if (
               Math.min(r, g, blue) > 155 &&
               Math.max(r, g, blue) - Math.min(r, g, blue) < 90
             ) {
-              mask[p] = 0;
               if (p % width >= width - 2) b.clipped = true;
             }
           }
           label = await sharp(mask, { raw: { width, height, channels: 1 } })
+            .normalize()
             .resize({
               width: 600,
               height: 64,
@@ -300,6 +309,7 @@ export async function ocr(buffer, options = {}) {
             psm: 6,
             dictionary: language === "rus+eng" ? undefined : dictionary,
             deadline,
+            roster: true,
           });
           const rows = new Map();
           for (const w of found) {
@@ -344,6 +354,10 @@ export async function ocr(buffer, options = {}) {
             });
           }
         }
+      words = await refineRosterWords(words, sheets, {
+        members: options.members ?? [],
+        deadline,
+      });
     }
     let text = "";
     if (!regionCount || options.loot) {
@@ -374,4 +388,73 @@ export async function ocr(buffer, options = {}) {
     busy--;
     if (directory) await rm(directory, { recursive: true, force: true });
   }
+}
+
+// Only uncertain cells get a second segmentation strategy. A full-sheet failure
+// or timeout must never discard the usable readings from the first pass.
+export async function refineRosterWords(
+  words,
+  sheets,
+  {
+    members = [],
+    deadline = Date.now() + 24000,
+    read = runTesseract,
+    maxCells = 12,
+  } = {},
+) {
+  const output = [...words];
+  const retryDeadline = Math.min(deadline - 2000, Date.now() + 24000);
+  const readings = recognizeIndependentRoster(words, members)
+    .readings.filter((r) => r.pending || r.origin === "read-from-image")
+    .slice(0, maxCells);
+  for (const reading of readings) {
+    const template = reading.observations[0];
+    const index = Number(template.region);
+    for (const variant of ["gray", "white"]) {
+      if (Date.now() >= retryDeadline) return output;
+      const sheet = sheets.find(
+        (s) =>
+          s.variant === variant &&
+          index >= s.start &&
+          index < s.start + s.count,
+      );
+      if (!sheet) continue;
+      const image = await sharp(sheet.image)
+        .extract({
+          left: 0,
+          top: (index - sheet.start) * 88,
+          width: 640,
+          height: 88,
+        })
+        .png()
+        .toBuffer();
+      try {
+        const found = await read(image, {
+          language: "rus+eng",
+          psm: 7,
+          roster: true,
+          deadline: Math.min(retryDeadline, Date.now() + 3000),
+        });
+        const text = found
+          .sort((a, b) => a.left - b.left)
+          .map((w) => w.text)
+          .join(" ");
+        const length = found.reduce((sum, w) => sum + w.text.length, 0);
+        output.push({
+          ...template,
+          text,
+          confidence: length
+            ? found.reduce((sum, w) => sum + w.confidence * w.text.length, 0) /
+              length
+            : 0,
+          pass: variant + ":line:rus+eng",
+          line: variant + ":line:" + index,
+          unbiased: true,
+        });
+      } catch (error) {
+        if (!["OCR_TIMEOUT", "OCR_FAILED"].includes(error.message)) throw error;
+      }
+    }
+  }
+  return output;
 }

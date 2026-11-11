@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import { recognizeRoster, rosterText } from "./matching.mjs";
+import {
+  recognizeRoster,
+  rosterText,
+  nicknameSuggestions,
+} from "./matching.mjs";
 import {
   gameNickname,
   nicknameKey,
@@ -114,7 +118,14 @@ export function recognizeIndependentRoster(
         !reading.truncated &&
         reading.confidence >= 85 &&
         reading.passes >= 2 &&
-        reading.unbiased
+        reading.unbiased &&
+        nicknameKey(reading.visible).replace(/[^\p{L}\p{N}]/gu, "").length >=
+          4 &&
+        // A one-letter OCR error must not turn a registered player into a
+        // confidently "new" guest. Offer the close player for review instead.
+        !nicknameSuggestions(reading.visible, members).some(
+          (m) => m.matchCost <= 1.05,
+        )
       ) {
         name = gameNickname(reading.visible);
         reading.origin = "read-from-image";
