@@ -53,12 +53,21 @@ export async function GuildShell({
   current: string;
 }) {
   const a = await getAccess();
-  const [canReview, canRead, canReadTreasury] = await Promise.all([
+  const [
+    canReview,
+    canRead,
+    canReadTreasury,
+    canAttend,
+    canAllocate,
+    canClose,
+  ] = await Promise.all([
     a.permission("applications.review"),
     a.permission("members.read"),
     a.permission("treasury.read"),
+    a.permission("attendance.manage"),
+    a.permission("treasury.allocate"),
+    a.permission("periods.close"),
   ]);
-  const canAttend = await a.permission("attendance.manage");
   const claims = canAttend
     ? await a.client
         .from("participation_claims")
@@ -71,10 +80,7 @@ export async function GuildShell({
     ["/statistics", "Статистика", "◴"],
     ["/events", "Активности", "◷"],
     ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
-    ...((await a.permission("treasury.allocate")) ||
-    (await a.permission("periods.close"))
-      ? [["/archive", "Архив и закрытие", "▣"]]
-      : []),
+    ...(canAllocate || canClose ? [["/archive", "Архив и закрытие", "▣"]] : []),
     ...(canRead
       ? [
           ["/members", "Состав", "◎"],
@@ -103,6 +109,7 @@ export async function GuildShell({
             <Link
               key={href}
               href={href}
+              prefetch={false}
               aria-label={label}
               className={href === "/account" ? "nav-account" : undefined}
               aria-current={current === href ? "page" : undefined}

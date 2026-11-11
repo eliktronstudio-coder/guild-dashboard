@@ -7,21 +7,33 @@ export default async function SetupPage({
   searchParams: Promise<{ problem?: string }>;
 }) {
   const { problem } = await searchParams;
+  if (problem === "database")
+    return (
+      <PublicFrame
+        eyebrow="XD · ВОССТАНОВЛЕНИЕ СОЕДИНЕНИЯ"
+        title="Не удалось\nзагрузить данные"
+        subtitle="Повторите загрузку командного центра."
+      >
+        <h2>Соединение временно недоступно</h2>
+        <p className="muted">
+          Не удалось связаться с базой данных. Повторите попытку; если ошибка
+          сохраняется, сообщите администрации.
+        </p>
+        <Link className="button primary" href="/dashboard" prefetch={false}>
+          Повторить загрузку <span>↗</span>
+        </Link>
+      </PublicFrame>
+    );
   return (
     <PublicFrame
       title={"Новая глава\nгильдии XD"}
       subtitle="Основа командного центра готовится к первому запуску."
     >
       <p className="eyebrow">ПОДГОТОВКА К ЗАПУСКУ</p>
-      <h2>
-        {problem === "database"
-          ? "Сервис временно недоступен"
-          : "Гильдия скоро откроется"}
-      </h2>
+      <h2>Гильдия скоро откроется</h2>
       <p className="muted">
-        {problem === "database"
-          ? "Не удалось получить данные. Повторите попытку позже или сообщите администратору."
-          : "Администратор подключает хранение данных и вход в аккаунт. После этого вы сможете отправить заявку со своим игровым ником."}
+        Администратор подключает хранение данных и вход в аккаунт. После этого
+        вы сможете отправить заявку со своим игровым ником.
       </p>
       <ol className="steps">
         <li>
