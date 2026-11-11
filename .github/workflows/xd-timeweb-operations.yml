@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Verify required registration class and one-time prompt without changing records
+      - name: Deploy nickname OCR improvements and verify worker recognition
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,12 +27,33 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = f07a0af1418004af3f5d6dbf842877062264783a
+          git merge --ff-only f07a0af1418004af3f5d6dbf842877062264783a
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != f07a0af1418004af3f5d6dbf842877062264783a ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = f07a0af1418004af3f5d6dbf842877062264783a
+          echo NICKNAME_OCR_RELEASE_VERIFIED
+          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'cd /var/www/xd-discord-bot/current; runuser -u xd-discord -- env XD_TESSDATA_DIR=/var/lib/xd-discord-ocr-models node scripts/benchmark-ocr.mjs' | python3 -c 'import sys,json;rows=[json.loads(line) for line in sys.stdin if line.strip()];assert len(rows)==4 and all(r["slots"]==12 for r in rows);print("LIVE_SYNTHETIC_OCR_SMOKE",json.dumps([{k:r[k] for k in ["font","cellWidth","recognized","pending","wrong","ms"]} for r in rows]))'
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            const botFs=require('node:fs'),botRoot='/var/www/xd-discord-bot/current/';
+            if(!botFs.readFileSync(botRoot+'src/ocr.mjs','utf8').includes('refineRosterWords')||!botFs.readFileSync(botRoot+'src/workflow.mjs','utf8').includes('confirmedExamples')||!botFs.existsSync(botRoot+'tests/ocr-refinement.test.mjs'))throw Error('Nickname OCR refinement missing');
+            console.log('CELL_RETRY_AND_CONFIRMED_ROSTER_LEARNING_DEPLOYED');
             const fsClass=require('node:fs');
             const classPrompt=fsClass.readFileSync('src/components/members/player-class-prompt.tsx','utf8');
             if(!classPrompt.includes('setSelected')||!classPrompt.includes('savePlayerClass')||!fsClass.readFileSync('src/components/shell.tsx','utf8').includes('class_selected_at')||!fsClass.readFileSync('src/app/actions.ts','utf8').includes('game_class: input.playerClass'))throw Error('Required player class code missing');
