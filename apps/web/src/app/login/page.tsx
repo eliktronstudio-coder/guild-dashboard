@@ -3,6 +3,7 @@ import { getConfig } from "@/lib/config";
 import { PublicFrame } from "@/components/shell";
 import { ActionForm } from "@/components/action-form";
 import { login, signUp, telegramLogin } from "@/app/actions";
+import { PlayerClassField } from "@/components/members/player-class-field";
 export const metadata = { title: "Вход в гильдию" };
 export default async function LoginPage({
   searchParams,
@@ -128,6 +129,7 @@ export default async function LoginPage({
                 Ник: 2–32 символа. Русские или латинские буквы, без смешивания
                 алфавитов.
               </p>
+              <PlayerClassField />
               <label className="check">
                 <input type="checkbox" name="rules" required />
                 <span>

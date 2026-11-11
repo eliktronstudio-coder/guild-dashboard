@@ -10,7 +10,8 @@ import {
   registrationInput,
 } from "@/lib/registration";
 import { allowAuthAttempt, registrationAdmin } from "@/lib/registration-server";
-import { getAccess, requirePermission } from "@/lib/access";
+import { getAccess, requireMember, requirePermission } from "@/lib/access";
+import { isPlayerClass } from "@/lib/player-class";
 import {
   nicknameError,
   normalizeNickname,
@@ -80,6 +81,7 @@ export async function signUp(_: FormState, form: FormData): Promise<FormState> {
         registration_flow: "open_email_v1",
         login: input.login,
         game_nickname: input.nickname,
+        game_class: input.playerClass,
         rules_accepted: true,
         privacy_accepted: true,
         email_ownership_verified: false,
@@ -115,11 +117,14 @@ export async function completeRegistration(
     nickname = normalizeNickname(field(form, "nickname"));
   const error = loginError(login) ?? nicknameError(nickname);
   if (error) return { error };
+  const playerClass = field(form, "playerClass");
+  if (!isPlayerClass(playerClass)) return { error: "Выберите класс игрока." };
   const result = await client.rpc("complete_open_registration", {
     p_login: login,
     p_nickname: nickname,
     p_rules: form.get("rules") === "on",
     p_privacy: form.get("privacy") === "on",
+    p_class: playerClass,
   });
   if (result.error)
     return {
@@ -130,6 +135,21 @@ export async function completeRegistration(
     };
   revalidatePath("/members");
   redirect("/dashboard");
+}
+export async function savePlayerClass(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const { client } = await requireMember();
+  const playerClass = field(form, "playerClass");
+  if (!isPlayerClass(playerClass)) return { error: "Выберите класс игрока." };
+  const { error } = await client.rpc("set_own_player_class", {
+    p_class: playerClass,
+  });
+  if (error) return { error: messageFor(error) };
+  revalidatePath("/", "layout");
+  return { success: "Класс сохранён." };
 }
 export async function telegramLogin(): Promise<void> {
   await checkOrigin();

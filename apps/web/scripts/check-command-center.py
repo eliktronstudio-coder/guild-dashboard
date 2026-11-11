@@ -10,7 +10,7 @@ MEMBER='22222222-2222-4222-8222-222222222222'
 EVENT='33333333-3333-4333-8333-333333333333'
 GUILD='00000000-0000-4000-8000-000000000001'
 now=time.time();start=time.strftime('%Y-%m-%dT12:00:00Z',time.gmtime(now-86400))
-member={'id':MEMBER,'user_id':USER,'nickname':'Тестовый участник','status':'active','joined_at':'2024-01-01T00:00:00Z','avatar_style':'moon','payout_weight':100,'weight_version':1,'character_class':'Маг','main_character':'Тестовый персонаж','specialization':'Маг','game_server':'Тестовый','role_codes':['owner'],'role_names':['Владелец']}
+member={'id':MEMBER,'user_id':USER,'nickname':'Тестовый участник','status':'active','joined_at':'2024-01-01T00:00:00Z','avatar_style':'moon','player_class':'Маг','class_selected_at':'2026-11-11T00:00:00Z','payout_weight':100,'weight_version':1,'character_class':'Маг','main_character':'Тестовый персонаж','specialization':'Маг','game_server':'Тестовый','role_codes':['owner'],'role_names':['Владелец']}
 event={'id':EVENT,'guild_id':GUILD,'title':'Разъярённый Левиафан','kind':'raid','starts_at':start,'status':'completed','counts_for_attendance':True,'attendance_finalized_at':start,'treasury_source':'prime','boss_name':'Разъярённый Левиафан','boss_weight':150}
 personal={'allocated_units':'1000000','paid_units':'250000','pending_units':'750000'}
 totals={key:'0' for key in ['prime_units','prime_gross_units','mini_units','guild_units','prime_reserved_units','mini_reserved_units','prime_free_units','mini_free_units','guild_expense_units','inventory_units','general_units','xd_units']}

@@ -1,4 +1,5 @@
 import { nicknameError, normalizeNickname } from "./identity";
+import { isPlayerClass } from "./player-class";
 export function normalizeLogin(value: string) {
   return value.trim().toLowerCase();
 }
@@ -13,12 +14,14 @@ export function registrationInput(form: FormData) {
   const email = value("email").trim().toLowerCase(),
     login = normalizeLogin(value("login")),
     nickname = normalizeNickname(value("nickname")),
-    password = value("password");
+    password = value("password"),
+    playerClass = value("playerClass");
   const error =
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254
       ? "Укажите корректный email."
       : (loginError(login) ??
         nicknameError(nickname) ??
+        (!isPlayerClass(playerClass) ? "Выберите класс игрока." : null) ??
         (password.length < 12 || password.length > 128
           ? "Пароль должен содержать от 12 до 128 символов."
           : password !== value("confirmation")
@@ -28,5 +31,5 @@ export function registrationInput(form: FormData) {
               : value("website")
                 ? "Не удалось зарегистрироваться."
                 : null));
-  return { email, login, nickname, password, error };
+  return { email, login, nickname, password, playerClass, error };
 }

@@ -28,7 +28,7 @@ export default async function Page({
   const { data: member, error } = await a.client
     .from("memberships")
     .select(
-      "id,user_id,nickname,joined_at,status,about,avatar_style,profile_version,payout_weight,weight_version,membership_roles(roles(code,name))",
+      "id,user_id,nickname,joined_at,status,about,avatar_style,profile_version,payout_weight,weight_version,player_class,membership_roles(roles(code,name))",
     )
     .eq("guild_id", GUILD_ID)
     .eq("id", id)
@@ -152,6 +152,9 @@ export default async function Page({
             {roles.map((r) => r.name).join(", ") || "Без роли"}
           </p>
           <div className="profile-badges">
+            {member.player_class && (
+              <span className="badge">{member.player_class}</span>
+            )}
             <span
               className={`badge ${member.status === "active" ? "green" : "gold"}`}
             >
@@ -182,7 +185,7 @@ export default async function Page({
             <>
               <h3>{activeMain.name}</h3>
               <p className="muted">
-                {activeMain.character_class || "Класс не указан"} ·{" "}
+                {member.player_class || activeMain.character_class || "Класс не указан"} ·{" "}
                 {activeMain.game_server || "Сервер не указан"}
               </p>
               <p className="caption">
