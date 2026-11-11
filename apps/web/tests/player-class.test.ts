@@ -16,6 +16,57 @@ async function setup() {
     await c.db.exec(await readFile("supabase/migrations/" + f, "utf8"));
   return c;
 }
+test("Хил is accepted at registration and existing-member selection, and appears in the roster", async () => {
+  const c = await setup();
+  try {
+    await c.as(2);
+    await c.db.query("select public.set_own_player_class('Хил')");
+    assert.equal(
+      await c.scalar(
+        "select character_class from public.member_directory where id=$1",
+        [c.members[2]],
+      ),
+      "Хил",
+    );
+    await c.db.exec("reset role");
+    await c.db.query(
+      "insert into auth.users(id,email_confirmed_at,raw_user_meta_data) values($1,now(),$2)",
+      [
+        id(7),
+        {
+          registration_flow: "open_email_v1",
+          login: "healer_7",
+          game_nickname: "Целитель",
+          game_class: "Хил",
+          rules_accepted: true,
+          privacy_accepted: true,
+        },
+      ],
+    );
+    await c.db.query("insert into auth.sessions values($1,$2)", [
+      sid(7),
+      id(7),
+    ]);
+    await c.as(7);
+    const member = await c.scalar("select public.complete_open_registration()");
+    assert.equal(
+      await c.scalar(
+        "select player_class from public.memberships where id=$1",
+        [member],
+      ),
+      "Хил",
+    );
+    assert.equal(
+      await c.scalar(
+        "select class_selected_at is not null from public.memberships where id=$1",
+        [member],
+      ),
+      true,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
 test("legacy players explicitly select once; retries, permissions and session revocation remain safe", async () => {
   const c = await setup();
   const { db, as, scalar, members: m } = c;
@@ -28,7 +79,7 @@ test("legacy players explicitly select once; retries, permissions and session re
     );
     await as(2);
     await assert.rejects(
-      db.query("select public.set_own_player_class('Хил')"),
+      db.query("select public.set_own_player_class('Администратор')"),
       /INVALID_PLAYER_CLASS/,
     );
     await db.query("select public.set_own_player_class('Маг')");

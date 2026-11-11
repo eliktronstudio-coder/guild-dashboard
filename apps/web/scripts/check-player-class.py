@@ -10,7 +10,7 @@ class ClassFixture(Fixture):
    saves.append(payload)
    if fail:
     encoded=json.dumps({'code':'P0001','message':'FORBIDDEN'}).encode();self.send_response(400);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(encoded);return
-   assert set(payload)=={'p_class'} and payload['p_class'] in ['Лучник','Маг','Милик','Танк']
+   assert set(payload)=={'p_class'} and payload['p_class'] in ['Лучник','Маг','Милик','Танк','Хил']
    selected=payload['p_class']
   self.reply()
  def reply(self):
@@ -34,13 +34,13 @@ with tempfile.TemporaryFile() as log:
    for i in range(100):
     try:page.goto(origin+'/login');break
     except Exception:time.sleep(.2)
-   page.goto(origin+'/login?mode=register',wait_until='networkidle');field=page.get_by_role('combobox',name='Класс игрока',exact=True);expect(field).to_have_attribute('required','');assert field.locator('option:not([disabled])').all_text_contents()==['Лучник','Маг','Милик','Танк']
+   page.goto(origin+'/login?mode=register',wait_until='networkidle');field=page.get_by_role('combobox',name='Класс игрока',exact=True);expect(field).to_have_attribute('required','');assert field.locator('option:not([disabled])').all_text_contents()==['Лучник','Маг','Милик','Танк','Хил']
    for width in [390,1440]:
-    selected=None;saves.clear();page.set_viewport_size({'width':width,'height':1000});page.goto(origin+'/events',wait_until='networkidle');dialog=page.get_by_role('dialog',name='Выберите свой класс');expect(dialog).to_be_visible();expect(dialog.get_by_role('radio')).to_have_count(4)
+    selected=None;saves.clear();page.set_viewport_size({'width':width,'height':1000});page.goto(origin+'/events',wait_until='networkidle');dialog=page.get_by_role('dialog',name='Выберите свой класс');expect(dialog).to_be_visible();expect(dialog.get_by_role('radio')).to_have_count(5)
     page.keyboard.press('Escape');expect(dialog).to_be_visible()
     dialog.get_by_role('button',name='Сохранить класс').click();assert not saves
-    dialog.get_by_role('radio',name='Милик',exact=True).check();fail=True;dialog.get_by_role('button',name='Сохранить класс').click();expect(dialog.get_by_role('alert')).to_contain_text('Недостаточно прав');expect(dialog).to_be_visible();assert selected is None
-    assert dialog.locator('input:checked').count()==1;fail=False;page.screenshot(path=str(artifacts/f'class-prompt-{width}.png'));dialog.get_by_role('button',name='Сохранить класс').click();expect(dialog).to_have_count(0);assert selected=='Милик'
+    dialog.get_by_role('radio',name='Хил',exact=True).check();fail=True;dialog.get_by_role('button',name='Сохранить класс').click();expect(dialog.get_by_role('alert')).to_contain_text('Недостаточно прав');expect(dialog).to_be_visible();assert selected is None
+    assert dialog.locator('input:checked').count()==1;fail=False;page.screenshot(path=str(artifacts/f'class-prompt-{width}.png'));dialog.get_by_role('button',name='Сохранить класс').click();expect(dialog).to_have_count(0);assert selected=='Хил'
     page.reload(wait_until='networkidle');expect(page.get_by_role('dialog')).to_have_count(0);page.goto(origin+'/treasury',wait_until='networkidle');expect(page.get_by_role('dialog')).to_have_count(0)
     assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
    # A fresh browser session still sees the server-side selection, not a local flag.

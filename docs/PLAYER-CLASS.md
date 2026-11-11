@@ -1,7 +1,7 @@
 # Required player class
 
-Migration 039 adds `memberships.player_class` and `class_selected_at`. The four
-allowed values are Лучник, Маг, Милик and Танк. Existing memberships are left
+Migration 039 adds `memberships.player_class` and `class_selected_at`. The allowed values are Лучник, Маг, Милик, Танк and Хил. Migration 041
+adds Хил without resetting any saved selections. Existing memberships are left
 NULL intentionally, even if a character already has a class: every existing
 player explicitly selects once. No account, character, attendance or treasury
 record is replaced or deleted.
@@ -15,7 +15,7 @@ wrapper is exposed to authenticated clients. Consent, unique nicknames/logins
 and assignment of only the member role remain in the existing implementation.
 
 An active member without `class_selected_at` sees the native modal dialog in
-GuildShell. Escape cannot dismiss it, and its form requires one of the four
+GuildShell. Escape cannot dismiss it, and its form requires one of the five
 radio choices. Save checks origin, current active membership and the enum again.
 The RPC accepts no member ID: it only changes the caller's membership, checks
 current blocking/revocation, locks the guild, and records an audit entry. An
