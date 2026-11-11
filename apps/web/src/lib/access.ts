@@ -27,15 +27,35 @@ export const getAccess = cache(async () => {
       .eq("user_id", user.id)
       .maybeSingle(),
   ]);
-  if (profileError || memberError) redirect("/setup?problem=database");
+  if (profileError || memberError) {
+    console.error("ACCESS_DATABASE_FAILURE", {
+      profile: profileError?.code,
+      membership: memberError?.code,
+    });
+    throw new Error("ACCESS_DATABASE_UNAVAILABLE");
+  }
   if (!profile || profile.blocked) redirect("/login?notice=access");
-  const permission = async (key: string) => {
+  const permissions = new Map<string, Promise<boolean>>();
+  const loadPermission = async (key: string) => {
     const { data, error } = await client.rpc("has_permission", {
       guild: GUILD_ID,
       permission: key,
     });
-    if (error) redirect("/setup?problem=database");
+    if (error) {
+      console.error("PERMISSION_DATABASE_FAILURE", { code: error.code });
+      throw new Error("ACCESS_DATABASE_UNAVAILABLE");
+    }
     return data === true;
+  };
+  // Share in-flight checks only inside this request. Role changes and revoked
+  // sessions are checked again on the next request, including every mutation.
+  const permission = (key: string) => {
+    let result = permissions.get(key);
+    if (!result) {
+      result = loadPermission(key);
+      permissions.set(key, result);
+    }
+    return result;
   };
   return { client, user, profile, membership, permission };
 });
