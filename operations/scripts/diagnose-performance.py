@@ -48,10 +48,19 @@ for label,sql in probes.items():
  except BaseException as error:
   print('AUTHENTICATED_PLAN_FAILED',label,type(error).__name__,round((time.monotonic()-start)*1000),'ms',flush=True)
 
-for label in ['own_profile','own_membership','directory','attendance_page','dashboard_report']:
- start=time.monotonic()
+
+def nodes(plan):
+ return [{'node':plan.get('Node Type'),'relation':plan.get('Relation Name'),'ms':plan.get('Actual Total Time'),'loops':plan.get('Actual Loops'),'rows':plan.get('Actual Rows')}]+[n for child in plan.get('Plans',[]) for n in nodes(child)]
+for label,sql in {
+ 'viewer': 'select private.viewer_id()',
+ 'session': 'select private.session_user_id()',
+ 'session_lookup': "select u.id from auth.users u join auth.sessions s on s.user_id=u.id where u.id=auth.uid() and s.id::text=auth.jwt()->>'session_id' and (u.email_confirmed_at is not null or exists(select 1 from auth.identities i where i.user_id=u.id and i.provider='custom:telegram')) and not exists(select 1 from public.revoked_sessions r where r.session_id=s.id)",
+ 'own_profile_plan':probes['own_profile'],
+ 'membership_plan':probes['own_membership'],
+}.items():
  try:
-  rows=query(context+"set local jit=off;explain (analyze,format json) "+probes[label]+';rollback;')
+  prefix=context if label!='session_lookup' else context.replace('set local role authenticated;','')
+  rows=query(prefix+'explain (analyze,format json) '+sql+';rollback;')
   plans=[v for row in rows for v in row.values() if isinstance(v,list) and v and isinstance(v[0],dict) and 'Plan' in v[0]]
-  print('NO_JIT_PLAN',label,json.dumps([{'execution_ms':p[0].get('Execution Time')} for p in plans]),round((time.monotonic()-start)*1000),'ms',flush=True)
- except BaseException as error:print('NO_JIT_FAILED',label,type(error).__name__,flush=True)
+  print('PLAN_NODES',label,json.dumps([nodes(p[0]['Plan']) for p in plans]),flush=True)
+ except BaseException as error:print('DETAIL_FAILED',label,type(error).__name__,flush=True)
