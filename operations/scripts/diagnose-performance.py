@@ -1,4 +1,4 @@
-"""Apply the additive activity workspace schema to the verified live project."""
+"""Inspect query plans using read-only transactions; never print account data."""
 import os,json,re,subprocess,urllib.parse,urllib.request,urllib.error,pathlib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 SSH=['ssh','-i',os.path.expanduser('~/.ssh/xd_operations'),'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20','root@200.165.236.194']
@@ -44,6 +44,14 @@ for label,sql in probes.items():
   rows=query(context+'explain (analyze,format json) '+sql+';rollback;')
   # Management API returns the final result; EXPLAIN output carries timings only.
   plans=[v for row in rows for v in row.values() if isinstance(v,list) and v and isinstance(v[0],dict) and 'Plan' in v[0]]
-  print('AUTHENTICATED_PLAN',label,json.dumps([{'planning_ms':p[0].get('Planning Time'),'execution_ms':p[0].get('Execution Time')} for p in plans]),round((time.monotonic()-start)*1000),'ms',flush=True)
+  print('AUTHENTICATED_PLAN',label,json.dumps([{'planning_ms':p[0].get('Planning Time'),'execution_ms':p[0].get('Execution Time'),'jit':p[0].get('JIT')} for p in plans]),round((time.monotonic()-start)*1000),'ms',flush=True)
  except BaseException as error:
   print('AUTHENTICATED_PLAN_FAILED',label,type(error).__name__,round((time.monotonic()-start)*1000),'ms',flush=True)
+
+for label in ['own_profile','own_membership','directory','attendance_page','dashboard_report']:
+ start=time.monotonic()
+ try:
+  rows=query(context+"set local jit=off;explain (analyze,format json) "+probes[label]+';rollback;')
+  plans=[v for row in rows for v in row.values() if isinstance(v,list) and v and isinstance(v[0],dict) and 'Plan' in v[0]]
+  print('NO_JIT_PLAN',label,json.dumps([{'execution_ms':p[0].get('Execution Time')} for p in plans]),round((time.monotonic()-start)*1000),'ms',flush=True)
+ except BaseException as error:print('NO_JIT_FAILED',label,type(error).__name__,flush=True)
