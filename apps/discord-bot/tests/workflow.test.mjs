@@ -26,6 +26,78 @@ function interaction(id, action, values = [], text = "") {
     },
   };
 }
+test("explicitly approved full roster cells teach OCR examples across distinct images without publishing an activity", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "xd-approved-examples-")),
+    store = draftStore(dir);
+  try {
+    let mutations = 0;
+    const member = { id: "member", nickname: "CorrectName" };
+    const flow = new ImportWorkflow({
+      store,
+      site: async () => {
+        mutations++;
+      },
+    });
+    for (let i = 0; i < 2; i++) {
+      const id = randomUUID();
+      store.put({
+        id,
+        request: randomUUID(),
+        owner: "staff",
+        context: { server: "guild" },
+        message: "source-" + i,
+        catalog: { members: [member] },
+        activity: { name: "Рейд", weight: 100 },
+        mode: "raid",
+        source: "prime",
+        step: "review",
+        analyzed: true,
+        roster: {
+          members: [member],
+          guests: [],
+          unresolved: [],
+          readings: [
+            {
+              key: "slot-" + i,
+              imageKey: "image-" + i,
+              verifiedCell: true,
+              pending: false,
+              origin: "registry",
+              name: "CorrectName",
+              memberId: member.id,
+              truncated: false,
+              variants: ["CorrcctName", "CorrectName"],
+            },
+          ],
+        },
+        loot: { items: [], unresolved: [] },
+      });
+      await flow.handle(interaction(id, "remember"));
+    }
+    assert.equal(
+      store.recallNickname("guild", {
+        key: "new",
+        visible: "CorrcctName",
+        variants: ["CorrcctName"],
+        confidence: 90,
+      }).name,
+      "CorrectName",
+    );
+    assert.equal(
+      store.recallNickname("other-guild", {
+        key: "new",
+        visible: "CorrcctName",
+        variants: ["CorrcctName"],
+        confidence: 90,
+      }).name,
+      undefined,
+    );
+    assert.equal(mutations, 0);
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
 test("complete Discord conversation publishes a stable reviewed payload and survives a lost response/restart", async () => {
   const dir = mkdtempSync(join(tmpdir(), "xd-discord-"));
   let store = draftStore(dir);

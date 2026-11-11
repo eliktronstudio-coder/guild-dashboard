@@ -89,6 +89,20 @@ export function suggestion(value, rows) {
     ? matches[0]
     : null;
 }
+export function readingSuggestions(reading, rows) {
+  const ranked = new Map();
+  for (const text of [
+    ...new Set([reading.visible, ...(reading.variants ?? [])].filter(Boolean)),
+  ].slice(0, 8)) {
+    for (const match of nicknameSuggestions(text, rows)) {
+      const old = ranked.get(match.id);
+      if (!old || match.matchCost < old.matchCost) ranked.set(match.id, match);
+    }
+  }
+  return [...ranked.values()]
+    .sort((a, b) => a.matchCost - b.matchCost)
+    .slice(0, 5);
+}
 function nicknameCandidates(raw, members, allowPrefix = false) {
   const cleaned = cleanNickname(raw),
     variants = [cleaned, ...cleaned.split(/\s+/u)].filter(
@@ -147,16 +161,18 @@ function recognizeCells(words, members) {
             passes: new Set(),
             best: 0,
             score: 0,
+            unbiased: false,
           };
           votes.set(candidate.member.id, v);
         }
         v.passes.add(word.pass ?? word.line);
+        v.unbiased ||= word.unbiased !== false;
         v.best = Math.max(v.best, word.confidence);
         v.score = Math.max(v.score, candidate.score);
       }
     }
     const ranked = [...votes.values()]
-        .filter((v) => v.best >= 70 || v.passes.size >= 2)
+        .filter((v) => v.unbiased && (v.best >= 70 || v.passes.size >= 2))
         .sort(
           (a, b) =>
             b.passes.size - a.passes.size ||
@@ -189,6 +205,7 @@ function recognizeCells(words, members) {
       );
       return (
         close.length >= 4 &&
+        close.some((w) => w.unbiased !== false) &&
         new Set(close.map((w) => String(w.pass).split(":")[0])).size >= 2
       );
     });

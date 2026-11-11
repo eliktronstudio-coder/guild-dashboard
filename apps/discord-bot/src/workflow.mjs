@@ -9,7 +9,7 @@ import {
   lootText,
   reviewReady,
   suggestion,
-  nicknameSuggestions,
+  readingSuggestions,
 } from "./matching.mjs";
 import { safeError } from "./site.mjs";
 import {
@@ -38,6 +38,24 @@ function confirmedNames(d) {
         ),
     ),
   ];
+}
+function confirmedExamples(d) {
+  return (d.roster.readings ?? [])
+    .filter(
+      (r) =>
+        r.verifiedCell &&
+        !r.pending &&
+        !r.ignored &&
+        r.name &&
+        ((r.origin === "registry" && !r.truncated) ||
+          ["manual-correction", "confirmed-selection"].includes(r.origin)),
+    )
+    .map((r) => ({
+      name: r.name,
+      key: r.key,
+      imageKey: r.imageKey,
+      variants: r.variants,
+    }));
 }
 function focusedReading(d, index) {
   return d.roster.readings?.find(
@@ -208,7 +226,7 @@ function controls(d) {
     ),
     unknown = d.roster.unresolved[focus],
     hints = unknown
-      ? nicknameSuggestions(unknown, [
+      ? readingSuggestions(focusedReading(d, focus) ?? { visible: unknown }, [
           ...d.catalog.members,
           ...(d.knownNicknameChoices ?? []).filter(
             (n) =>
@@ -769,7 +787,7 @@ export class ImportWorkflow {
           source: d.message,
           actor: d.owner,
           names,
-          corrections: [],
+          corrections: confirmedExamples(d),
         });
         d.nicknameRemembered = true;
         d.step = "review";
@@ -834,7 +852,7 @@ export class ImportWorkflow {
             source: d.message,
             actor: d.owner,
             names: confirmedNames(d),
-            corrections: [],
+            corrections: confirmedExamples(d),
           });
         } catch {
           d.nicknameMemoryFailed = true;
