@@ -17,6 +17,7 @@ jobs:
       - name: Verify deployed GPT Vision and existing services without paid API calls
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -28,6 +29,18 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
+          python3 - <<'PYRENDER'
+          import os,json,urllib.request,urllib.error
+          key=os.environ.get('RENDER_API_KEY','')
+          if not key:raise SystemExit('RENDER_API_KEY_NOT_CONFIGURED')
+          req=urllib.request.Request('https://api.render.com/v1/services/srv-da6shquk1f9s73ehtm8g',headers={'Authorization':'Bearer '+key})
+          try:
+           with urllib.request.urlopen(req,timeout=30) as response:service=json.load(response)
+          except urllib.error.HTTPError as error:raise SystemExit('RENDER_ACCESS_HTTP_'+str(error.code))
+          assert service.get('name')=='guild-vision-proxy' and service.get('type')=='web_service'
+          details=service['serviceDetails']
+          print('RENDER_MANAGEMENT_ACCESS_VERIFIED',json.dumps({'name':service['name'],'region':details.get('region'),'plan':details.get('plan'),'legacyUnchanged':True}))
+          PYRENDER
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
