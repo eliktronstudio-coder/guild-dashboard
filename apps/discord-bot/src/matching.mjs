@@ -1,3 +1,20 @@
+// Exact canonical names take precedence over registered alternate characters.
+export function registeredMatch(value, rows) {
+  const name = String(value).normalize("NFKC").trim();
+  const key = name.toLowerCase();
+  for (const matches of [
+    rows.filter((r) => r.nickname.normalize("NFKC") === name),
+    rows.filter((r) => r.nickname.normalize("NFKC").toLowerCase() === key),
+    rows.filter((r) =>
+      (r.aliases ?? []).some(
+        (a) => String(a).normalize("NFKC").toLowerCase() === key,
+      ),
+    ),
+  ]) {
+    if (matches.length) return matches.length === 1 ? matches[0] : null;
+  }
+  return null;
+}
 export const norm = (value) =>
   String(value)
     .normalize("NFKC")
@@ -62,25 +79,28 @@ export function nicknameSuggestions(value, rows) {
     ranked = [];
   for (const r of rows) {
     let best = Infinity;
-    const target = visual(r.nickname ?? r.name);
-    for (const key of keys) {
-      best = Math.min(best, distance(key, target));
-      for (
-        let length = Math.max(3, key.length - 1);
-        length <= Math.min(target.length, key.length + 1);
-        length++
-      )
-        best = Math.min(
-          best,
-          distance(key, target.slice(0, length)) +
-            0.35 +
-            ((target.length - length) / Math.max(1, target.length)) * 0.2,
-        );
+    for (const target of [r.nickname ?? r.name, ...(r.aliases ?? [])].map(
+      visual,
+    )) {
+      for (const key of keys) {
+        best = Math.min(best, distance(key, target));
+        for (
+          let length = Math.max(3, key.length - 1);
+          length <= Math.min(target.length, key.length + 1);
+          length++
+        )
+          best = Math.min(
+            best,
+            distance(key, target.slice(0, length)) +
+              0.35 +
+              ((target.length - length) / Math.max(1, target.length)) * 0.2,
+          );
+      }
     }
     if (best <= 3.5 && best / Math.max(4, ...keys.map((k) => k.length)) <= 0.55)
       ranked.push({ ...r, matchCost: best });
   }
-  return ranked.sort((a, b) => a.matchCost - b.matchCost).slice(0, 5);
+  return ranked.sort((a, b) => a.matchCost - b.matchCost).slice(0, 3);
 }
 export function suggestion(value, rows) {
   const matches = nicknameSuggestions(value, rows);
@@ -101,7 +121,7 @@ export function readingSuggestions(reading, rows) {
   }
   return [...ranked.values()]
     .sort((a, b) => a.matchCost - b.matchCost)
-    .slice(0, 5);
+    .slice(0, 3);
 }
 function nicknameCandidates(raw, members, allowPrefix = false) {
   const cleaned = cleanNickname(raw),
@@ -233,8 +253,7 @@ function recognizeCells(words, members) {
   };
 }
 export function rosterText(text, members) {
-  const by = index(members),
-    selected = new Map(),
+  const selected = new Map(),
     guests = [],
     unresolved = [];
   for (const line of text
@@ -251,8 +270,8 @@ export function rosterText(text, members) {
       else unresolved.push(line);
       continue;
     }
-    const exact = by.get(norm(line));
-    if (exact?.length === 1) selected.set(exact[0].id, exact[0]);
+    const exact = registeredMatch(line, members);
+    if (exact) selected.set(exact.id, exact);
     else unresolved.push(line);
   }
   return {

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, chmodSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +17,9 @@ export function draftStore(directory) {
     "PRAGMA journal_mode=WAL;CREATE TABLE IF NOT EXISTS drafts(id TEXT PRIMARY KEY,payload TEXT NOT NULL,updated INTEGER NOT NULL)",
   );
   db.exec(`PRAGMA foreign_keys=ON;
+    PRAGMA busy_timeout=5000;
+    CREATE TABLE IF NOT EXISTS vision_usage(id TEXT PRIMARY KEY,scope TEXT NOT NULL,cache_key TEXT NOT NULL,day TEXT NOT NULL,month TEXT NOT NULL,started INTEGER NOT NULL,status TEXT NOT NULL,cost_micros INTEGER NOT NULL,input_tokens INTEGER,output_tokens INTEGER,error TEXT);
+    CREATE TABLE IF NOT EXISTS vision_cache(scope TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,updated INTEGER NOT NULL,PRIMARY KEY(scope,cache_key));
     CREATE TABLE IF NOT EXISTS nickname_names(scope TEXT NOT NULL,name_key TEXT NOT NULL,nickname TEXT NOT NULL,confirmed INTEGER NOT NULL DEFAULT 1,updated INTEGER NOT NULL,PRIMARY KEY(scope,name_key));
     CREATE TABLE IF NOT EXISTS nickname_confirmations(scope TEXT NOT NULL,id TEXT NOT NULL,source TEXT NOT NULL,actor TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(scope,id));
     CREATE TABLE IF NOT EXISTS nickname_examples(scope TEXT NOT NULL,confirmation TEXT NOT NULL,slot_key TEXT NOT NULL,image_key TEXT NOT NULL,alias TEXT NOT NULL,name_key TEXT NOT NULL,PRIMARY KEY(scope,confirmation,slot_key,alias,name_key),FOREIGN KEY(scope,name_key) REFERENCES nickname_names(scope,name_key) ON DELETE CASCADE);
@@ -23,6 +27,114 @@ export function draftStore(directory) {
     CREATE INDEX IF NOT EXISTS nickname_examples_alias ON nickname_examples(scope,alias);
   `);
   return {
+    visionCached(scope, key, now, ttl) {
+      const row = db
+        .prepare(
+          "SELECT payload FROM vision_cache WHERE scope=? AND cache_key=? AND updated>?",
+        )
+        .get(scope, key, now - ttl);
+      return row ? JSON.parse(row.payload) : null;
+    },
+    visionReserve(scope, key, limits, now = Date.now()) {
+      // One SQLite transaction covers all workers/scopes and survives restarts.
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        const cached = db
+          .prepare(
+            "SELECT payload FROM vision_cache WHERE scope=? AND cache_key=? AND updated>?",
+          )
+          .get(scope, key, now - limits.cacheTtl);
+        if (cached) {
+          db.exec("COMMIT");
+          return { cached: JSON.parse(cached.payload) };
+        }
+        const active = db
+          .prepare(
+            "SELECT count(*) n FROM vision_usage WHERE status='running' AND started>?",
+          )
+          .get(now - limits.leaseMs).n;
+        if (active >= limits.concurrent) throw Error("GPT_BUSY");
+        if (
+          db
+            .prepare(
+              "SELECT 1 FROM vision_usage WHERE scope=? AND cache_key=? AND status='running' AND started>?",
+            )
+            .get(scope, key, now - limits.leaseMs)
+        )
+          throw Error("GPT_BUSY");
+        const day = db
+          .prepare("SELECT count(*) n FROM vision_usage WHERE day=?")
+          .get(limits.day).n;
+        if (day >= limits.daily) throw Error("GPT_DAILY_LIMIT");
+        const cost = db
+          .prepare(
+            "SELECT coalesce(sum(cost_micros),0) n FROM vision_usage WHERE month=?",
+          )
+          .get(limits.month).n;
+        if (cost + limits.reserveMicros > limits.monthlyMicros)
+          throw Error("GPT_MONTHLY_LIMIT");
+        const id = randomUUID();
+        db.prepare(
+          "INSERT INTO vision_usage VALUES(?,?,?,?,?,?, 'running',?,NULL,NULL,NULL)",
+        ).run(
+          id,
+          scope,
+          key,
+          limits.day,
+          limits.month,
+          now,
+          limits.reserveMicros,
+        );
+        db.exec("COMMIT");
+        return { id };
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+    },
+    visionFinish(
+      id,
+      {
+        result = null,
+        costMicros,
+        inputTokens = null,
+        outputTokens = null,
+        error = null,
+      },
+      now = Date.now(),
+    ) {
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        const row = db
+          .prepare("SELECT * FROM vision_usage WHERE id=? AND status='running'")
+          .get(id);
+        if (!row) {
+          db.exec("COMMIT");
+          return;
+        }
+        db.prepare(
+          "UPDATE vision_usage SET status=?,cost_micros=?,input_tokens=?,output_tokens=?,error=? WHERE id=?",
+        ).run(
+          result ? "completed" : "failed",
+          costMicros ?? row.cost_micros,
+          inputTokens,
+          outputTokens,
+          error,
+          id,
+        );
+        if (result)
+          db.prepare(
+            "INSERT INTO vision_cache VALUES(?,?,?,?) ON CONFLICT(scope,cache_key) DO UPDATE SET payload=excluded.payload,updated=excluded.updated",
+          ).run(row.scope, row.cache_key, JSON.stringify(result), now);
+        db.prepare(
+          "DELETE FROM vision_cache WHERE rowid NOT IN (SELECT rowid FROM vision_cache ORDER BY updated DESC LIMIT 500)",
+        ).run();
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+    },
     knownNicknames(scope) {
       return db
         .prepare(

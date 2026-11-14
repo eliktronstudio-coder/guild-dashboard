@@ -57,12 +57,30 @@ test("Any unlinked Discord channel participant can import through the configured
     await db.query("select set_config('request.jwt.claims',$1,false)", [
       JSON.stringify({ role: "service_role" }),
     ]);
+    await db.query(
+      "insert into public.characters(guild_id,membership_id,name) values($1,$2,'VisionAlias')",
+      [guild, members[1]],
+    );
+    await db.query(
+      "insert into public.characters(guild_id,membership_id,name,archived_at) values($1,$2,'ArchivedAlias',now())",
+      [guild, members[1]],
+    );
     await db.exec("set role service_role");
     const ctx = await scalar<Record<string, unknown[]>>(
       "select public.discord_import_context($1,$2,null,$3)",
       [server, channel, user],
     );
     assert.equal(ctx.members.length, 4);
+    const catalog = ctx.members as { id: string; aliases: string[] }[];
+    assert.ok(
+      catalog.find((m) => m.id === members[1])?.aliases.includes("VisionAlias"),
+    );
+    assert.ok(!catalog.some((m) => m.aliases.includes("ArchivedAlias")));
+    assert.ok(
+      !catalog
+        .filter((m) => m.id !== members[1])
+        .some((m) => m.aliases.includes("VisionAlias")),
+    );
     assert.equal(ctx.activities.length, 1);
     assert.equal(
       await scalar(

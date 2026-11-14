@@ -7,6 +7,7 @@ import {
   ApplicationCommandOptionType,
   PermissionFlagsBits,
 } from "discord.js";
+import { createVisionRecognizer } from "./vision.mjs";
 import { siteClient } from "./site.mjs";
 import { draftStore } from "./store.mjs";
 import { ImportWorkflow } from "./workflow.mjs";
@@ -21,7 +22,7 @@ const flow = new ImportWorkflow({
   site,
   store,
   download: downloadImage,
-  ocr,
+  ocr: createVisionRecognizer({ store, local: ocr }),
   prepareEvidence,
   fetchMessage: async (context, id) => {
     const channel = await client.channels.fetch(context.channel);

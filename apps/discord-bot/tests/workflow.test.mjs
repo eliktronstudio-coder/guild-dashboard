@@ -665,3 +665,111 @@ test("roster-only analysis ignores caption text and loot-only attachments; unrev
   assert.ok(attempt.errorPayload);
   assert.equal(saved.event, undefined);
 });
+
+test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and loot in the existing draft", async () => {
+  const id = randomUUID(),
+    member = { id: randomUUID(), nickname: "Registered" };
+  const box = { left: 0, top: 0, width: 50, height: 20 };
+  const base = {
+    kind: "raid-cell",
+    pass: "gpt:vision",
+    engine: "gpt",
+    unbiased: true,
+    confidence: 96,
+    imageKey: "pixels",
+    attachmentId: "shot",
+    box,
+  };
+  const words = [
+    {
+      ...base,
+      text: "Registered",
+      slotKey: "good",
+      region: "0",
+      line: "shot:0",
+    },
+    {
+      ...base,
+      text: "Unclear",
+      uncertain: true,
+      slotKey: "bad",
+      region: "1",
+      line: "shot:1",
+    },
+    { ...base, text: "Noise", slotKey: "ignored", region: "2", line: "shot:2" },
+  ];
+  const { recognizeIndependentRoster } = await import("../src/recognition.mjs");
+  const roster = recognizeIndependentRoster(words, [member]);
+  Object.assign(
+    roster.readings.find((r) => r.key === "good"),
+    {
+      origin: "manual-correction",
+      name: "Registered",
+      memberId: member.id,
+      pending: false,
+    },
+  );
+  Object.assign(
+    roster.readings.find((r) => r.key === "ignored"),
+    { ignored: true, pending: false },
+  );
+  let saved = {
+    id,
+    request: randomUUID(),
+    owner: "staff",
+    context: { server: "guild" },
+    message: "source",
+    catalog: { members: [member], drops: [] },
+    activity: { name: "Raid", weight: 100 },
+    mode: "raid",
+    source: "prime",
+    step: "review",
+    attachments: [{ id: "shot", url: "image" }],
+    recognitionWords: words,
+    roster,
+    loot: {
+      items: [{ id: "drop", name: "Loot", quantity: 3 }],
+      unresolved: [],
+    },
+    evidence: [{ id: "proof", kind: "roster", image: "preserved" }],
+    analyzed: true,
+  };
+  const originalLoot = structuredClone(saved.loot),
+    originalEvidence = structuredClone(saved.evidence);
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+    site: async () => ({}),
+    download: async () => Buffer.from("image"),
+    ocr: async (b, options) => {
+      assert.equal(options.loot, false);
+      assert.deepEqual(options.retryCells, [{ slotKey: "bad", box }]);
+      return {
+        words: [
+          { ...base, text: "NewGuest", slotKey: "bad", region: "0", line: "0" },
+        ],
+        text: "",
+        notice: "GPT",
+      };
+    },
+  });
+  const click = interaction(id, "retryVision");
+  await flow.handle(click);
+  assert.equal(click.errorPayload, undefined);
+  assert.deepEqual(saved.roster.members, [member]);
+  assert.deepEqual(saved.roster.guests, ["NewGuest"]);
+  assert.deepEqual(saved.roster.unresolved, []);
+  assert.equal(
+    saved.roster.readings.find((r) => r.key === "good").origin,
+    "manual-correction",
+  );
+  assert.ok(saved.roster.readings.find((r) => r.key === "ignored").ignored);
+  assert.deepEqual(saved.loot, originalLoot);
+  assert.deepEqual(saved.evidence, originalEvidence);
+  const rendered = renderDraft(saved);
+  assert.ok(rendered.components.length <= 5);
+});
