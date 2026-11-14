@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy enlarged nickname reading and manual candidate improvements
+      - name: Verify Timeweb to Render Vision connectivity and existing services without inference
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,25 +27,6 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/wait-whole-image-service.py
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 48fa3a3dabc15c333332ffccf539e5fe72c4eee9
-          git merge --ff-only 48fa3a3dabc15c333332ffccf539e5fe72c4eee9
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 48fa3a3dabc15c333332ffccf539e5fe72c4eee9 ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          fi
-          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 48fa3a3dabc15c333332ffccf539e5fe72c4eee9
-          grep -q vision-whole-v2 /var/www/xd-discord-bot/current/src/vision.mjs
-          echo REPEATED_NICKNAME_RELEASE_VERIFIED
-          REMOTE
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
@@ -69,7 +50,7 @@ jobs:
             const renderUrl=new URL(runningEnv.VISION_SERVICE_URL);
             if(renderUrl.protocol!=='https:'||!renderUrl.hostname.endsWith('.onrender.com'))throw Error('Invalid Render service URL');
             const health=await fetch(new URL('/health',renderUrl),{signal:AbortSignal.timeout(30000)});
-            if(!health.ok||!(await health.json()).capabilities?.includes('whole-image-roster'))throw Error('Whole-image roster capability missing');
+            if(!health.ok||!(await health.json()).capabilities?.includes('whole-image-enlarged'))throw Error('Whole-image roster capability missing');
             const renderReady=await fetch(new URL('/ready',renderUrl),{headers:{Authorization:'Bearer '+runningEnv.VISION_SERVICE_SECRET},redirect:'error',signal:AbortSignal.timeout(150000)});
             if(!renderReady.ok)throw Error('Timeweb to Render model metadata check failed');
             const renderModel=await renderReady.json();
