@@ -395,3 +395,18 @@ test("remote provider regional and quota codes retain actionable fallback catego
     f.close();
   }
 });
+
+test("missing raid panels report screenshot selection rather than GPT outage without charging", async () => {
+  const logs = [];
+  const f = await fixture({ regions: async () => ({ boxes: [] }), log: (line) => logs.push(JSON.parse(line)) });
+  try {
+    const result = await f.recognize(f.buffer, { roster: true });
+    assert.match(result.notice, /не найдены ячейки состава/);
+    assert.match(result.notice, /Запрос в GPT не отправлялся/);
+    assert.doesNotMatch(result.notice, /GPT временно недоступен/);
+    assert.equal(f.calls(), 0);
+    assert.equal(f.localCalls.length, 1);
+    assert.equal(logs[0].code, "GPT_ROSTER_NOT_FOUND");
+
+  } finally { f.close(); }
+});

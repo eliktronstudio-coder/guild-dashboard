@@ -7,6 +7,10 @@ import { remoteVisionClient } from "./vision-remote.mjs";
 import { ocr, raidLabelSheets } from "./ocr.mjs";
 
 const notices = {
+  GPT_ROSTER_NOT_FOUND:
+    "На скриншоте не найдены ячейки состава рейда. Запрос в GPT не отправлялся; используется Tesseract. Выберите изображение состава или загрузите исходный скриншот без уменьшения.",
+  GPT_ROSTER_TOO_LARGE:
+    "На изображении найдено слишком много ячеек. Запрос в GPT не отправлялся; используется Tesseract. Обрежьте изображение до состава одного рейда.",
   GPT_SERVICE_AUTH:
     "Сервис распознавания не принял секрет подключения. Используется Tesseract; администратору: проверьте настройки Render и VPS.",
   GPT_SERVICE_CONFIG:
@@ -133,8 +137,8 @@ export function createVisionRecognizer({
               .update(imageKey + ":" + i)
               .digest("hex"),
           }));
-      if (!cells.length) throw Error("GPT_ERROR"); // Unstructured layouts remain manual/Tesseract.
-      if (cells.length > 150) throw Error("GPT_ERROR");
+      if (!cells.length) throw Error("GPT_ROSTER_NOT_FOUND");
+      if (cells.length > 150) throw Error("GPT_ROSTER_TOO_LARGE");
       const key = createHash("sha256")
           .update(
             JSON.stringify([
