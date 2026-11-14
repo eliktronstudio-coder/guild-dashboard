@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Apply registered-character aliases without changing data or credentials
+      - name: Deploy tested GPT Vision and verify services without paid API calls
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,13 +28,44 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
-          python3 operations/scripts/apply-discord-aliases.py
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 166937449873cb846e3cd5421e218264e170db78
+          git merge --ff-only 166937449873cb846e3cd5421e218264e170db78
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 166937449873cb846e3cd5421e218264e170db78 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 166937449873cb846e3cd5421e218264e170db78
+          echo GPT_VISION_RELEASE_VERIFIED
+          REMOTE
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
           require('@next/env').loadEnvConfig(process.cwd());
           (async()=>{
             if(process.env.APP_ORIGIN!=='https://xd-guild.ru')throw new Error('Unexpected origin');
+            const visionFs=require('node:fs'),cp=require('node:child_process');
+            const bot='/var/www/xd-discord-bot/current';
+            if(!visionFs.existsSync(bot+'/src/vision.mjs')||!visionFs.readFileSync(bot+'/src/index.mjs','utf8').includes('createVisionRecognizer'))throw Error('GPT integration missing');
+            const unit=cp.execFileSync('systemctl',['cat','xd-discord-bot.service'],{encoding:'utf8'});
+            if(!unit.includes('EnvironmentFile=/etc/xd-discord-bot.env'))throw Error('Worker environment-file wiring missing');
+            const pid=cp.execFileSync('systemctl',['show','xd-discord-bot.service','--property=MainPID','--value'],{encoding:'utf8'}).trim();
+            if(!/^[1-9][0-9]*$/.test(pid))throw Error('No worker process');
+            const runningEnv=Object.fromEntries(visionFs.readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return [x.slice(0,i),x.slice(i+1)];}));
+            const {visionConfig}=await import('file://'+bot+'/src/vision.mjs');
+            const config=visionConfig(runningEnv);
+            console.log('GPT_VISION_DEPLOYED_NO_PAID_TEST',JSON.stringify({workerKeyConfigured:Boolean(runningEnv.OPENAI_API_KEY),model:config.model,dailyLimit:config.daily,concurrency:config.concurrent,monthlyUSD:config.monthlyMicros/1e6,environmentFile:true}));
+            const visionDb=new (require('node:sqlite').DatabaseSync)('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
+            if(visionDb.prepare("select name from sqlite_master where name in ('vision_usage','vision_cache')").all().length!==2)throw Error('Persistent GPT budget/cache missing');
+            visionDb.close();
+
             if(!require('node:fs').readFileSync('src/lib/player-class.ts','utf8').includes('"Хил"'))throw Error('Healer class missing');
             const healerRegistration=await fetch('https://xd-guild.ru/login?mode=register');
             const healerHtml=await healerRegistration.text();
@@ -97,6 +128,9 @@ jobs:
               const context=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers:{Authorization:'Bearer '+process.env.DISCORD_IMPORT_SECRET,'Content-Type':'application/json'},body:JSON.stringify({context:{server:v.server,channel:v.channel,parent:null,user:'111111111111111111'}})});
               if(!context.ok)throw Error('Channel import requires unexpected user binding');
               console.log('CHANNEL_IMPORT_AVAILABLE_WITHOUT_USER_BINDING');
+              const catalog=await context.json();
+              if(!Array.isArray(catalog.members)||!catalog.members.every(m=>typeof m.id==='string'&&Array.isArray(m.aliases)))throw Error('Registered character aliases missing');
+              console.log('LIVE_REGISTERED_MEMBERS_WITH_CHARACTER_ALIASES_VERIFIED');
               const me=await fetch('https://discord.com/api/v10/users/@me',{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
               if(me.ok){const identity=await me.json();console.log('DISCORD_ID_CONFIGURATION',JSON.stringify({server_is_bot_id:v.server===identity.id,channel_is_bot_id:v.channel===identity.id}));}
               const guilds=await fetch('https://discord.com/api/v10/users/@me/guilds',{headers:{Authorization:'Bot '+v.token},signal:AbortSignal.timeout(10000)});
