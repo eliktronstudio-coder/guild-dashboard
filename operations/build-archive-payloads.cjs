@@ -1,0 +1,6 @@
+const fs=require('node:fs'),crypto=require('node:crypto');
+const dir='/root/xd-archive-import-20261114',input=fs.readFileSync(dir+'/archive-manifest.enc'),split=input.indexOf(10),header=JSON.parse(input.subarray(0,split)),raw=input.subarray(split+1);
+const key=crypto.privateDecrypt({key:fs.readFileSync(dir+'/private.pem'),padding:crypto.constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},Buffer.from(header.key,'base64'));
+const dec=crypto.createDecipheriv('aes-256-gcm',key,Buffer.from(header.iv,'base64'));dec.setAuthTag(raw.subarray(-16));const manifest=JSON.parse(Buffer.concat([dec.update(raw.subarray(0,-16)),dec.final()]));
+for(const r of manifest.records){r.payload.evidence=r.images.map(im=>({id:crypto.createHash('sha256').update(r.id+':evidence:'+im.hash).digest('hex').slice(0,8)+'-'+crypto.createHash('sha256').update(r.id+':evidence:'+im.hash).digest('hex').slice(8,12)+'-4'+crypto.createHash('sha256').update(r.id+':evidence:'+im.hash).digest('hex').slice(13,16)+'-a'+crypto.createHash('sha256').update(r.id+':evidence:'+im.hash).digest('hex').slice(17,20)+'-'+crypto.createHash('sha256').update(r.id+':evidence:'+im.hash).digest('hex').slice(20,32),kind:im.kind,image:'data:image/png;base64,'+fs.readFileSync(dir+'/images/'+im.hash+'.png').toString('base64')}));}
+process.stdout.write(JSON.stringify(manifest));

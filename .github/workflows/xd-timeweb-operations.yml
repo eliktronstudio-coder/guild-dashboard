@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Verify Timeweb to Render Vision connectivity and existing services without inference
+      - name: Import manually reviewed archive activities through existing application functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,5 +27,10 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          scp -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes operations/archive-images.enc root@200.165.236.194:/root/xd-archive-import-20261114/archive-images.enc
-          cat operations/decrypt-archive-images.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 node
+          scp -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes operations/archive-manifest.enc root@200.165.236.194:/root/xd-archive-import-20261114/archive-manifest.enc
+          python3 operations/scripts/import-archive-reviewed.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-import-result
+          path: archive-import-result.json
+          retention-days: 3
