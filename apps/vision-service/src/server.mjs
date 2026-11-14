@@ -88,7 +88,7 @@ export function createVisionServer({
     send(res, status, { error: { code, status } });
   const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") {
-      send(res, 200, { status: "ok", protocol: 1 });
+      send(res, 200, { status: "ok", protocol: 1, capabilities: ["whole-image-roster"] });
       return;
     }
     if (!equal(req.headers.authorization, "Bearer " + secret)) {

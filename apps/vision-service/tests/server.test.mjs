@@ -91,7 +91,9 @@ async function setup(create = async () => reply) {
 test("health is free; readiness requires authentication and uses model metadata only", async () => {
   const f = await setup();
   try {
-    assert.equal((await fetch(f.url + "/health")).status, 200);
+    const health = await fetch(f.url + "/health");
+    assert.equal(health.status, 200);
+    assert.deepEqual((await health.json()).capabilities, ["whole-image-roster"]);
     assert.equal((await fetch(f.url + "/ready")).status, 401);
     assert.equal(
       (
