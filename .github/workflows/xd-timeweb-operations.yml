@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Verify deployed GPT Vision and existing services without paid API calls
+      - name: Deploy actionable GPT error messages without inference requests
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,19 +28,23 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'cd /var/www/xd-discord-bot/current; node --input-type=module' <<'JS'
-          import fs from 'node:fs';
-          import {execFileSync} from 'node:child_process';
-          import {DatabaseSync} from 'node:sqlite';
-          const pid=execFileSync('systemctl',['show','xd-discord-bot','--property=MainPID','--value'],{encoding:'utf8'}).trim();
-          const env=Object.fromEntries(fs.readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return[x.slice(0,i),x.slice(i+1)];}));
-          const db=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
-          console.log('RECENT_VISION_USAGE',JSON.stringify(db.prepare('select day,status,cost_micros,input_tokens,output_tokens,error from vision_usage order by started desc limit 5').all()));db.close();
-          const journal=execFileSync('journalctl',['-u','xd-discord-bot','--since','20 minutes ago','--no-pager','-o','cat'],{encoding:'utf8'}).split('\n');
-          for(const line of journal){try{const v=JSON.parse(line);if(v.event==='vision_fallback'||v.event==='vision_usage')console.log('VISION_JOURNAL',JSON.stringify(v));}catch{}}
-          // Model metadata only: no inference, image upload, or token charge.
-          if(env.OPENAI_API_KEY){const r=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(env.OPENAI_MODEL??'gpt-5.4-mini'),{headers:{Authorization:'Bearer '+env.OPENAI_API_KEY},signal:AbortSignal.timeout(15000)});const v=await r.json();const safe=x=>typeof x==='string'&&/^[a-zA-Z0-9_.-]{1,100}$/.test(x)?x:null;console.log('OPENAI_MODEL_METADATA_NO_INFERENCE',JSON.stringify({status:r.status,id:safe(v.id),errorCode:safe(v.error?.code),errorType:safe(v.error?.type)}));}
-          JS
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 4edb4a5760bfc928d460c356f613cc2ae604bff1
+          git merge --ff-only 4edb4a5760bfc928d460c356f613cc2ae604bff1
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 4edb4a5760bfc928d460c356f613cc2ae604bff1 ]; then
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 4edb4a5760bfc928d460c356f613cc2ae604bff1
+          echo GPT_ERROR_MESSAGES_RELEASE_VERIFIED
+          REMOTE
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
@@ -50,6 +54,8 @@ jobs:
             const visionFs=require('node:fs'),cp=require('node:child_process');
             const bot='/var/www/xd-discord-bot/current';
             if(!visionFs.existsSync(bot+'/src/vision.mjs')||!visionFs.readFileSync(bot+'/src/index.mjs','utf8').includes('createVisionRecognizer'))throw Error('GPT integration missing');
+            if(!visionFs.readFileSync(bot+'/src/vision.mjs','utf8').includes('GPT_REGION_FORBIDDEN'))throw Error('Regional rejection explanation missing');
+            console.log('ACTIONABLE_OPENAI_REGION_AND_API_ERRORS_DEPLOYED');
             const unit=cp.execFileSync('systemctl',['cat','xd-discord-bot.service'],{encoding:'utf8'});
             if(!unit.includes('EnvironmentFile=/etc/xd-discord-bot.env'))throw Error('Worker environment-file wiring missing');
             const pid=cp.execFileSync('systemctl',['show','xd-discord-bot.service','--property=MainPID','--value'],{encoding:'utf8'}).trim();
