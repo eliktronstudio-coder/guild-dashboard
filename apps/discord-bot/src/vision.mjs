@@ -143,7 +143,7 @@ export function createVisionRecognizer({
       const key = createHash("sha256")
           .update(
             JSON.stringify([
-              wholeImage ? "vision-whole-v1" : "vision-v1",
+              wholeImage ? "vision-whole-v2" : "vision-v2",
               config.model,
               imageKey,
               cells,
@@ -156,6 +156,13 @@ export function createVisionRecognizer({
       if (!players) {
         const images = [];
         if (!options.retryCells) images.push(source);
+        if (wholeImage) {
+          const meta = await sharp(source).metadata();
+          if (Math.max(meta.width, meta.height) < 800) {
+            const scale = Math.min(4, 1600 / Math.max(meta.width, meta.height));
+            images.push(await sharp(source).resize({ width: Math.round(meta.width * scale), height: Math.round(meta.height * scale), fit: "inside", kernel: "lanczos3" }).png().toBuffer());
+          }
+        }
         // Original-color enlarged crops preserve mixed alphabets and colored-panel strokes.
         for (let start = 0; start < cells.length; start += 25) {
           const batch = cells.slice(start, start + 25),

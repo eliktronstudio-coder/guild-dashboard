@@ -41,7 +41,7 @@ function validInput(data) {
     data.slots >= 1 &&
     data.slots <= 150 &&
     typeof data.retry === "boolean" &&
-    (data.wholeImage === undefined || (data.wholeImage === true && data.retry === false && data.slots === 150 && data.images?.length === 1)) &&
+    (data.wholeImage === undefined || (data.wholeImage === true && data.retry === false && data.slots === 150 && [1, 2].includes(data.images?.length))) &&
     Array.isArray(data.images) &&
     data.images.length >= 1 &&
     data.images.length <= 7 &&
@@ -88,7 +88,7 @@ export function createVisionServer({
     send(res, status, { error: { code, status } });
   const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") {
-      send(res, 200, { status: "ok", protocol: 1, capabilities: ["whole-image-roster"] });
+      send(res, 200, { status: "ok", protocol: 1, capabilities: ["whole-image-roster", "whole-image-enlarged"] });
       return;
     }
     if (!equal(req.headers.authorization, "Bearer " + secret)) {

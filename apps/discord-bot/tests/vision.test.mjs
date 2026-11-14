@@ -430,3 +430,22 @@ test("whole-image request keeps budget protection and free fallback on provider 
     assert.equal(f.localCalls.length, 1);
   } finally { f.close(); }
 });
+
+test("tiny unsegmented roster supplies original plus enlarged view without a second paid call", async () => {
+  let calls=0;
+  const f=await fixture({regions:async()=>({boxes:[]}), client:{responses:{create:async(body)=>{
+    calls++;
+    assert.match(body.instructions,/preserving repeated syllables/);
+    const images=body.input[0].content.filter(v=>v.type==='input_image');
+    assert.equal(images.length,2);
+    const metadata=await Promise.all(images.map(v=>sharp(Buffer.from(v.image_url.split(',')[1],'base64')).metadata()));
+    assert.equal(metadata[0].width,100);
+    assert.equal(metadata[1].width,400);
+    return structuredClone(response);
+  }}}});
+  try{
+    await f.recognize(f.buffer,{roster:true});
+    await f.recognize(f.buffer,{roster:true});
+    assert.equal(calls,1);
+  }finally{f.close();}
+});
