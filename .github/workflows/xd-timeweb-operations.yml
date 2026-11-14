@@ -33,6 +33,15 @@ jobs:
           for(const l of lines){try{const v=JSON.parse(l);if(['vision_fallback','vision_usage'].includes(v.event))console.log(JSON.stringify({event:v.event,code:v.code,status:v.status,input:v.inputTokens,output:v.outputTokens}));}catch{}}
           const {DatabaseSync}=require('node:sqlite'),db=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
           console.log('RECENT_VISION_USAGE',JSON.stringify(db.prepare('select day,status,error,input_tokens,output_tokens,cost_micros from vision_usage order by started desc limit 12').all()));db.close();
+          (async()=>{
+          const db2=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
+          const rows=db2.prepare('select payload from drafts order by updated desc limit 3').all();db2.close();
+          const {raidLabelSheets}=await import('file:///var/www/xd-discord-bot/current/src/ocr.mjs');
+          const sharp=require('sharp');
+          for(const row of rows){const d=JSON.parse(row.payload);console.log('DRAFT_IMAGE_SHAPE',JSON.stringify({step:d.step,attachments:d.attachments?.length,roster:d.rosterImages?.length}));
+          for(const a of (d.attachments??[]).filter(a=>d.rosterImages?.includes(a.id))){try{const r=await fetch(a.url,{signal:AbortSignal.timeout(15000)});if(!r.ok){console.log('SOURCE_IMAGE_STATUS',r.status);continue;}const b=Buffer.from(await r.arrayBuffer()),meta=await sharp(b).metadata(),layout=await raidLabelSheets(b);console.log('ROSTER_LAYOUT',JSON.stringify({width:meta.width,height:meta.height,boxes:layout.boxes.length}));}catch(e){console.log('ROSTER_DIAGNOSTIC_ERROR',e.name);}}
+          }
+          })().catch(()=>{console.log('IMAGE_DIAGNOSIS_FAILED');process.exitCode=1;});
           console.log('BOT_STATE',cp.execFileSync('systemctl',['is-active','xd-discord-bot.service'],{encoding:'utf8'}).trim());
           JS
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
