@@ -14,11 +14,9 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy checked worker and Free Render Vision service without inference tests
+      - name: Verify Timeweb to Render Vision connectivity and existing services without inference
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          XD_EXPECTED_VISION_REVISION: 301d44f2df477ac28c98b0906aaf10897f3f3830
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -30,24 +28,6 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = 301d44f2df477ac28c98b0906aaf10897f3f3830
-          git merge --ff-only 301d44f2df477ac28c98b0906aaf10897f3f3830
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != 301d44f2df477ac28c98b0906aaf10897f3f3830 ]; then
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          fi
-          test "$(cat /var/lib/xd-guild-deploy/deployed)" = 301d44f2df477ac28c98b0906aaf10897f3f3830
-          echo VISION_REMOTE_WORKER_RELEASE_VERIFIED
-          REMOTE
-          python3 operations/scripts/configure-render-vision.py
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
@@ -66,6 +46,19 @@ jobs:
             const runningEnv=Object.fromEntries(visionFs.readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return [x.slice(0,i),x.slice(i+1)];}));
             const {visionConfig}=await import('file://'+bot+'/src/vision.mjs');
             const config=visionConfig(runningEnv);
+            if(runningEnv.OPENAI_API_KEY||!runningEnv.VISION_SERVICE_URL||!runningEnv.VISION_SERVICE_SECRET||config.timeout!==120000)throw Error('Remote-only worker configuration missing');
+            const renderUrl=new URL(runningEnv.VISION_SERVICE_URL);
+            if(renderUrl.protocol!=='https:'||!renderUrl.hostname.endsWith('.onrender.com'))throw Error('Invalid Render service URL');
+            const renderReady=await fetch(new URL('/ready',renderUrl),{headers:{Authorization:'Bearer '+runningEnv.VISION_SERVICE_SECRET},redirect:'error',signal:AbortSignal.timeout(150000)});
+            if(!renderReady.ok)throw Error('Timeweb to Render model metadata check failed');
+            const renderModel=await renderReady.json();
+            if(renderModel.ready!==true||renderModel.protocol!==1||renderModel.model!==config.model)throw Error('Render model protocol mismatch');
+            const signedClient=await import('file://'+bot+'/src/vision-remote.mjs');
+            // Invalid empty roster: exercises real HTTPS + HMAC but is rejected before inference.
+            try{await signedClient.remoteVisionClient(runningEnv)({requestId:require('node:crypto').randomUUID(),model:config.model,maxOutput:8192,slots:0,retry:true,images:[]},30000);throw Error('Invalid roster unexpectedly accepted');}
+            catch(error){if(error.status!==400)throw Error('Render signed transport check failed');}
+            console.log('TIMEWEB_TO_RENDER_AUTHENTICATED_AND_SIGNED_PROTOCOL_VERIFIED_NO_INFERENCE',JSON.stringify({model:config.model,workerOpenAIKey:false,plan:'free',url:renderUrl.origin}));
+
             console.log('GPT_VISION_DEPLOYED_NO_PAID_TEST',JSON.stringify({workerKeyConfigured:Boolean(runningEnv.OPENAI_API_KEY),model:config.model,dailyLimit:config.daily,concurrency:config.concurrent,monthlyUSD:config.monthlyMicros/1e6,environmentFile:true}));
             const visionDb=new (require('node:sqlite').DatabaseSync)('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
             if(visionDb.prepare("select name from sqlite_master where name in ('vision_usage','vision_cache')").all().length!==2)throw Error('Persistent GPT budget/cache missing');
