@@ -13,7 +13,7 @@ def query(sql):
  try:
   with urllib.request.urlopen(req,timeout=90) as response:return json.load(response)
  except urllib.error.HTTPError as e:
-  print('SUPABASE_SQL_HTTP_ERROR',e.code,flush=True);raise SystemExit(1)
+  print('SUPABASE_SQL_HTTP_ERROR',e.code,e.read().decode()[:1500],flush=True);raise SystemExit(1)
 
 exists=query("select to_regprocedure('private.attendance_event_counts(uuid,timestamp with time zone,timestamp with time zone)') is not null as installed")[0]['installed']
 if not exists:
