@@ -129,10 +129,10 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
         "select public.claim_telegram_delivery()",
       );
     await t.test(
-      "empty denominator stays null, zero gold and opt-out permits requested replies",
+      "empty reference attendance is zero, zero gold and opt-out permits requested replies",
       async () => {
         const s = await stats();
-        assert.equal(s.percentage, null);
+        assert.equal(s.percentage, 0);
         assert.equal(s.present, 0);
         assert.equal(s.applicable, 0);
         assert.equal(s.earned_units, "0");
@@ -248,9 +248,9 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
         await event("present", { time: "2000-01-01T00:00:00Z" });
         await event("absent", { member: 3 });
         const s = await stats();
-        assert.equal(s.present, 2);
-        assert.equal(s.applicable, 3);
-        assert.equal(s.percentage, 66.7);
+        assert.equal(s.present, 3);
+        assert.equal(s.applicable, 7);
+        assert.equal(s.percentage, 43);
         assert.equal((await stats(3)).percentage, 0);
         await as(2);
         const d = await scalar<{ own_present: number; own_attendance: number }>(
@@ -392,6 +392,10 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
           [countedEvent],
         );
         await db.query(
+          "update public.attendance set mark='absent' where event_id=$1 and membership_id=$2",
+          [countedEvent, m[2]],
+        );
+        await db.query(
           "update public.treasury_payouts set voided_at=now(),voided_by=$2,void_reason='Исправлено' where id=$1",
           [payout, id(1)],
         );
@@ -401,8 +405,8 @@ test("Telegram personal statistics: SQL migration, isolated members and correcti
         );
         await db.exec("set role service_role");
         const job = (await claim())!;
-        assert.equal(job.body.present, 1);
-        assert.equal(job.body.percentage, 50);
+        assert.equal(job.body.present, 2);
+        assert.equal(job.body.percentage, 29);
         assert.equal(job.body.earned_units, "0");
         assert.equal(job.body.paid_units, "300000003");
         assert.equal(job.body.pending_units, "199999995");

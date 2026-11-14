@@ -1,12 +1,46 @@
 import { formatGold } from "@/lib/treasury";
-import { attendancePercent, payrollDue, type PayrollRow } from "@/lib/payroll";
-export function AttendanceLines({ row }: { row?: PayrollRow }) {
+import {
+  attendanceLabel,
+  payrollDue,
+  type PayrollRow,
+  type AttendanceSummary,
+} from "@/lib/payroll";
+export function AttendanceLines({ row }: { row?: AttendanceSummary }) {
   return (
     <div>
-      <div>Прайм: {row ? attendancePercent(row.prime_percentage) : "—"}</div>
-      <div>Мини РБ: {row ? attendancePercent(row.mini_percentage) : "—"}</div>
-      <div>PvP: {row ? attendancePercent(row.pvp_percentage) : "—"}</div>
-      <small>Общая: {row ? attendancePercent(row.percentage) : "—"}</small>
+      <div>
+        Прайм:{" "}
+        {row
+          ? attendanceLabel(
+              row.prime_percentage,
+              row.prime_present,
+              row.prime_total,
+            )
+          : "—"}
+      </div>
+      {row?.prime_total != null && (
+        <small>С коэффициентами · PvP: {row.pvp_present ?? 0} участий</small>
+      )}
+      <div>
+        Мини РБ:{" "}
+        {row
+          ? attendanceLabel(
+              row.mini_percentage,
+              row.mini_present,
+              row.mini_total,
+            )
+          : "—"}
+      </div>
+      <small>
+        Общая:{" "}
+        {row
+          ? attendanceLabel(
+              row.percentage,
+              row.attendance_present,
+              row.attendance_total,
+            )
+          : "—"}
+      </small>
     </div>
   );
 }

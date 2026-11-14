@@ -214,7 +214,7 @@ test("Mini App database: service boundary, binding, own data and bounded reads",
         assert.equal(result.events[0].signed_up, true);
         assert.equal(result.events[0].id, e);
         assert.equal((await report(301)).events[0].signed_up, false);
-        assert.equal(result.stats.percentage, null);
+        assert.equal(result.stats.percentage, 0);
         assert.equal(result.stats.pending_units, "0");
         assert.equal("user_id" in result, false);
         assert.equal("membership_id" in result, false);

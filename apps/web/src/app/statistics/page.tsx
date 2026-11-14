@@ -54,7 +54,8 @@ export default async function Page({
         <p className="eyebrow">XD · АНАЛИТИЧЕСКИЙ ЦЕНТР</p>
         <h1>Статистика гильдии</h1>
         <p className="muted">
-          Подтверждённое участие, взвешенный Прайм и реальные денежные операции.
+          Общий процент — по количеству активностей. Прайм — с коэффициентами и
+          включает PvP, Мини РБ считается отдельно.
         </p>
         <a
           className="button secondary inline"
@@ -75,7 +76,7 @@ export default async function Page({
             <StatCard
               title="Состоявшихся событий"
               value={summary.events}
-              note="С подтверждёнными применимыми отметками"
+              note="Все проведённые учитываемые активности"
             />
             <StatCard
               title="Уникальных участников"
@@ -159,7 +160,7 @@ export default async function Page({
                         "Общая",
                         "Прайм",
                         "Мини-РБ",
-                        "PvP",
+                        "PvP · участий в Прайме",
                       ].map((label) => (
                         <th scope="col" key={label}>
                           {label}
@@ -180,8 +181,14 @@ export default async function Page({
                           {row.present} / {row.available}
                         </td>
                         <td>{pct(row.percentage)}</td>
-                        <td>{pct(row.prime)}</td>
-                        <td>{pct(row.mini)}</td>
+                        <td>
+                          {pct(row.prime)} · {row.primePresent}/
+                          {row.primeAvailable}
+                        </td>
+                        <td>
+                          {pct(row.mini)} · {row.miniPresent}/
+                          {row.miniAvailable}
+                        </td>
                         <td>{row.pvp}</td>
                       </tr>
                     ))}
@@ -190,7 +197,7 @@ export default async function Page({
               </div>
             ) : (
               <p className="muted">
-                Нет подтверждённых данных по выбранным фильтрам.
+                Нет проведённых активностей по выбранным фильтрам.
               </p>
             )}
             <nav className="pagination" aria-label="Страницы рейтинга">

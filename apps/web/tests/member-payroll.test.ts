@@ -91,7 +91,7 @@ test("period payroll: 20% threshold, exact redistribution, coefficients, both fu
     let owner = r.rows.find((x) => x.id === m[1])!,
       member = r.rows.find((x) => x.id === m[2])!;
     assert.equal(member.eligible, false);
-    assert.equal(member.percentage, 16.7);
+    assert.equal(member.percentage, 17);
     assert.equal(member.prime_projection, "0");
     assert.equal(owner.prime_projection, "7000");
     assert.equal(owner.mini_projection, "10001");
@@ -101,7 +101,7 @@ test("period payroll: 20% threshold, exact redistribution, coefficients, both fu
     member = r.rows.find((x) => x.id === m[2])!;
     owner = r.rows.find((x) => x.id === m[1])!;
     assert.equal(member.eligible, true);
-    assert.equal(member.percentage, 28.6);
+    assert.equal(member.percentage, 29);
     assert.ok(BigInt(member.prime_projection) > 0n);
     assert.ok(BigInt(owner.prime_projection) < 7000n);
     assert.equal(

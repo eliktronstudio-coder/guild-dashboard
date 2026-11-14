@@ -1,9 +1,5 @@
 import { formatGold } from "@/lib/treasury";
-import {
-  attendancePercent,
-  payrollDue,
-  type PayrollReport,
-} from "@/lib/payroll";
+import { attendanceLabel, payrollDue, type PayrollReport } from "@/lib/payroll";
 export function PeriodRoster({ report }: { report: PayrollReport }) {
   return (
     <div className="table-wrap">
@@ -13,7 +9,6 @@ export function PeriodRoster({ report }: { report: PayrollReport }) {
             <th>Участник</th>
             <th>Прайм %</th>
             <th>Мини РБ %</th>
-            <th>PvP %</th>
             <th>Общая %</th>
             <th>Коэффициент</th>
             <th>Прайм · начислено</th>
@@ -36,10 +31,32 @@ export function PeriodRoster({ report }: { report: PayrollReport }) {
                     <p className="caption">Новые начисления: нет допуска 20%</p>
                   )}
                 </td>
-                <td>{attendancePercent(r.prime_percentage)}</td>
-                <td>{attendancePercent(r.mini_percentage)}</td>
-                <td>{attendancePercent(r.pvp_percentage)}</td>
-                <td>{attendancePercent(r.percentage)}</td>
+                <td>
+                  {attendanceLabel(
+                    r.prime_percentage,
+                    r.prime_present,
+                    r.prime_total,
+                  )}
+                  {r.prime_total != null && (
+                    <small className="block">
+                      С коэффициентами · PvP: {r.pvp_present ?? 0} участий
+                    </small>
+                  )}
+                </td>
+                <td>
+                  {attendanceLabel(
+                    r.mini_percentage,
+                    r.mini_present,
+                    r.mini_total,
+                  )}
+                </td>
+                <td>
+                  {attendanceLabel(
+                    r.percentage,
+                    r.attendance_present,
+                    r.attendance_total,
+                  )}
+                </td>
                 <td>{r.payout_weight / 100}</td>
                 <td>{formatGold(String(prime))}</td>
                 <td>{formatGold(String(mini))}</td>
