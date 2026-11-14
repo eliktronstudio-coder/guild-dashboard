@@ -25,7 +25,7 @@ const fact = (id: string, mark: string, e = event): AttendanceFact => ({
   mark,
   event: e,
 });
-test("confirmed analytics excludes scheduled, cancelled, future, duplicate and excused marks", () => {
+test("saved analytics counts every completed event once, including missing marks, without a manual confirmation gate", () => {
   const summary = summarizeAttendance(
     [
       fact("a", "present"),
@@ -42,13 +42,13 @@ test("confirmed analytics excludes scheduled, cancelled, future, duplicate and e
     ],
     members,
   );
-  assert.equal(summary.events, 1);
+  assert.equal(summary.events, 3);
   assert.equal(summary.unique, 1);
-  assert.equal(summary.participations, 1);
-  assert.equal(summary.rows[0].percentage, 100);
+  assert.equal(summary.participations, 2);
+  assert.equal(summary.rows[0].percentage, 67);
   assert.equal(summary.rows[1].percentage, 0);
 });
-test("weighted Prime and Mini attendance use the complete original category rules independently of finances", () => {
+test("Prime uses saved coefficients; Mini uses event counts; PvP is included in Prime", () => {
   const summary = summarizeAttendance(
     [
       fact("a", "present"),
@@ -58,7 +58,7 @@ test("weighted Prime and Mini attendance use the complete original category rule
     ],
     members,
   );
-  assert.equal(summary.rows[0].prime, 83.3);
+  assert.equal(summary.rows[0].prime, 83);
   assert.equal(summary.rows[0].mini, 100);
   assert.equal(summary.rows[0].pvp, 1);
   assert.equal(summary.daily[0].prime, 2);
@@ -85,4 +85,56 @@ test("accounting ranges span the 15th, year boundaries, prior periods and recent
   assert.equal(dashboardPeriod({ period: "previous" }, now).from, "2025-11-15");
   assert.equal(dashboardPeriod({ period: "7" }, now).from, "2026-01-02");
   assert.equal(dashboardPeriod({ period: "30" }, now).from, "2025-12-10");
+});
+
+test("event catalog supplies the full denominator even when players have no absence records", () => {
+  const events = Array.from({ length: 10 }, (_, i) => ({
+    ...event,
+    id: "event" + i,
+    title: i < 6 ? "Кракен" : "АГЛ",
+    treasury_source: i < 6 ? "prime" : "mini_rb",
+    activity_weight: i < 5 ? 50 : 150,
+  }));
+  const summary = summarizeAttendance(
+    events.slice(0, 5).map((e) => fact("a", "present", e)),
+    members,
+    "",
+    new Date(),
+    events,
+  );
+  assert.equal(summary.rows[0].percentage, 50);
+  assert.equal(summary.rows[0].available, 10);
+  assert.equal(summary.rows[1].percentage, 0);
+  assert.equal(summary.rows[0].prime, 63);
+  assert.equal(summary.rows[0].mini, 0);
+});
+
+test("matches the Claude Code reference: weights 1.5 and 0.5 produce Prime 75/25 and overall 50/50", () => {
+  const heavy = {
+    ...event,
+    id: "heavy",
+    title: "Разъярённый Левиафан Т1",
+    activity_weight: 150,
+    treasury_source: "mini_rb",
+  };
+  const light = {
+    ...event,
+    id: "light",
+    title: "Жук",
+    activity_weight: 50,
+    treasury_source: "mini_rb",
+  };
+  const summary = summarizeAttendance(
+    [fact("a", "present", heavy), fact("b", "present", light)],
+    members,
+    "",
+    new Date(),
+    [heavy, light],
+  );
+  assert.equal(summary.rows[0].prime, 75);
+  assert.equal(summary.rows[1].prime, 25);
+  assert.equal(summary.rows[0].percentage, 50);
+  assert.equal(summary.rows[1].percentage, 50);
+  assert.equal(summary.rows[0].mini, 0);
+  assert.equal(summary.rows[1].mini, 0);
 });

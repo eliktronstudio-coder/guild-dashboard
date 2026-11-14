@@ -1,3 +1,5 @@
+import { AttendanceLines } from "@/components/members/payroll-cells";
+import type { AttendanceSummary } from "@/lib/payroll";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/access";
@@ -19,7 +21,7 @@ export default async function Page({
   const [{ data, error, count }, manage] = await Promise.all([
     a.client
       .rpc(
-        "attendance_report",
+        "attendance_category_report",
         { p_from: range.from, p_until: range.until },
         { count: "exact" },
       )
@@ -29,7 +31,7 @@ export default async function Page({
   if (error) redirect("/setup?problem=database");
   const pages = Math.max(1, Math.ceil((count ?? 0) / 25));
   if (page > pages) redirect(`/attendance?month=${range.month}&page=${pages}`);
-  const rows = (data ?? []) as {
+  const rows = (data ?? []) as (AttendanceSummary & {
     membership_id: string;
     nickname: string;
     present: number;
@@ -37,7 +39,8 @@ export default async function Page({
     excused: number;
     excluded: number;
     percentage: number | null;
-  }[];
+    total: number;
+  })[];
   return (
     <GuildShell current="/events">
       <Link href="/events" className="text-button">
@@ -68,9 +71,11 @@ export default async function Page({
       </form>
       <section className="panel section-panel">
         <p className="notice">
-          Посещаемость = присутствовал / (присутствовал + отсутствовал) × 100%.
-          Уважительные причины и «Не учитывается» исключены. Непроверенные
-          отчёты не входят в расчёт.
+          Посещаемость = число посещённых / все проведённые учитываемые
+          активности периода × 100%. Прайм включает PvP; Мини РБ считается
+          отдельно. Общая и Мини РБ считаются по количеству, Прайм — с
+          коэффициентами активностей. Категория определяется по названию: АГЛ,
+          АГЛ Т2 и Кошка — Мини РБ; PvP всегда входит в Прайм.
         </p>
         <div className="attendance-grid">
           {rows.map((r) => (
@@ -79,6 +84,13 @@ export default async function Page({
               <p className="attendance-percent">
                 {r.percentage === null ? "Нет данных" : `${r.percentage}%`}
               </p>
+              <AttendanceLines
+                row={{
+                  ...r,
+                  attendance_present: r.present,
+                  attendance_total: r.total,
+                }}
+              />
               <dl className="character-details">
                 <dt>Присутствовал</dt>
                 <dd>{r.present}</dd>

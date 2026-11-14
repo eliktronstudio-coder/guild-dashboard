@@ -28,10 +28,13 @@ export async function loadCommandReport(
       report: null,
       error: range.error,
     };
-  const response = await access.client.rpc("dashboard_report", {
-    p_from: range.from + "T00:00:00.000Z",
-    p_until: range.until,
-  });
+  const [response, canManageAttendance] = await Promise.all([
+    access.client.rpc("dashboard_report", {
+      p_from: range.from + "T00:00:00.000Z",
+      p_until: range.until,
+    }),
+    access.permission("attendance.manage"),
+  ]);
   if (response.error)
     return {
       access,
@@ -43,29 +46,56 @@ export async function loadCommandReport(
     };
   const report = response.data as DashboardReport;
   const facts: AttendanceFact[] = [];
-  let weightedSchema = 2;
+  const selection =
+    "id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at,treasury_source,activity_weight,activity_banner_name,deleted_at,inventory_receipt";
+  const catalog: AttendanceFact["event"][] = [];
+  for (let offset = 0; offset < 10000; offset += 500) {
+    const { data, error } = await access.client
+      .from("events")
+      .select(selection)
+      .eq("guild_id", GUILD_ID)
+      .eq("status", "completed")
+      .eq("counts_for_attendance", true)
+      .eq("inventory_receipt", false)
+      .is("deleted_at", null)
+      .gte("starts_at", range.from + "T00:00:00.000Z")
+      .lt("starts_at", range.until)
+      .lte("starts_at", new Date().toISOString())
+      .order("id")
+      .range(offset, offset + 499);
+    if (error || (offset === 9500 && (data?.length ?? 0) >= 500))
+      return {
+        access,
+        range,
+        category,
+        summary: null,
+        report,
+        error:
+          "Не удалось загрузить полный список активностей. Уточните период или повторите попытку.",
+      };
+    catalog.push(
+      ...((data ?? []).map((e) => ({
+        ...e,
+        boss_name: null,
+        boss_weight: null,
+      })) as AttendanceFact["event"][]),
+    );
+    if ((data?.length ?? 0) < 500) break;
+  }
   type RawFact = {
     membership_id: string;
     mark: string | null;
     events: AttendanceFact["event"] | AttendanceFact["event"][];
   };
-  const loadPage = async (offset: number, weights: number) => {
-    const base =
-      "membership_id,mark,events!inner(id,title,kind,starts_at,status,counts_for_attendance,attendance_finalized_at";
-    const selection =
-      base +
-      (weights === 2
-        ? ",boss_name,boss_weight,activity_weight,activity_banner_name)"
-        : weights === 1
-          ? ",activity_weight,activity_banner_name)"
-          : ")");
-    return (await access.client
+  const loadPage = async (offset: number) =>
+    (await access.client
       .from("attendance")
-      .select(selection)
+      .select("membership_id,mark,events!inner(" + selection + ")")
       .eq("guild_id", GUILD_ID)
       .eq("events.status", "completed")
       .eq("events.counts_for_attendance", true)
-      .not("events.attendance_finalized_at", "is", null)
+      .eq("events.inventory_receipt", false)
+      .is("events.deleted_at", null)
       .gte("events.starts_at", range.from + "T00:00:00.000Z")
       .lt("events.starts_at", range.until)
       .order("event_id")
@@ -74,13 +104,8 @@ export async function loadCommandReport(
       data: RawFact[] | null;
       error: { code: string } | null;
     };
-  };
   for (let offset = 0; offset < 100000; offset += 500) {
-    let result = await loadPage(offset, weightedSchema);
-    while (result.error?.code === "42703" && weightedSchema > 0) {
-      weightedSchema--;
-      result = await loadPage(offset, weightedSchema);
-    }
+    const result = await loadPage(offset);
     if (result.error)
       return {
         access,
@@ -122,32 +147,34 @@ export async function loadCommandReport(
       character_class: null as string | null,
     },
   ];
-  if (await access.permission("members.read")) {
+  if (canManageAttendance) {
     members = [];
-    const ids = [...new Set(facts.map((f) => f.membership_id))];
-    for (let i = 0; i < ids.length; i += 200) {
+    for (let offset = 0; offset < 10000; offset += 500) {
       const { data, error } = await access.client
         .from("member_directory")
         .select("id,nickname,character_class")
         .eq("guild_id", GUILD_ID)
-        .in("id", ids.slice(i, i + 200));
-      if (error)
+        .eq("status", "active")
+        .order("id")
+        .range(offset, offset + 499);
+      if (error || (offset === 9500 && (data?.length ?? 0) >= 500))
         return {
           access,
           range,
           category,
           summary: null,
           report,
-          error: "Не удалось загрузить имена участников.",
+          error: "Не удалось загрузить полный состав гильдии.",
         };
       members.push(...(data ?? []));
+      if ((data?.length ?? 0) < 500) break;
     }
   }
   return {
     access,
     range,
     category,
-    summary: summarizeAttendance(facts, members, category),
+    summary: summarizeAttendance(facts, members, category, new Date(), catalog),
     report,
     error: null,
   };

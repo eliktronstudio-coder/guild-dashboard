@@ -69,7 +69,7 @@ test("experience input preserves large integers and rejects fractions, zero, sig
   ])
     assert.equal(parseRbExperience(value), null);
 });
-test("candidate RPC uses Mini RB only, exact 20% eligibility, confirmed current-period attendance and active readable members", async () => {
+test("candidate RPC uses Mini RB only, exact 20% eligibility, saved current-period event counts and active readable members", async () => {
   const c = await memberDatabase();
   const { db, members: m } = c;
   try {
@@ -92,7 +92,10 @@ test("candidate RPC uses Mini RB only, exact 20% eligibility, confirmed current-
       await db.query("select public.record_activity($1,$2::jsonb)", [
         id,
         JSON.stringify({
-          title: "Тест покупки РБ",
+          title:
+            source === "mini_rb"
+              ? "АГЛ · Тест покупки РБ"
+              : "Кракен · Тест покупки РБ",
           status: "completed",
           starts_at: new Date(
             Math.max(Date.parse(period.from + "T00:00:00Z"), Date.now() - 1000),
@@ -152,7 +155,7 @@ test("candidate RPC uses Mini RB only, exact 20% eligibility, confirmed current-
       [unconfirmed],
     );
     await c.as(1);
-    assert.equal((await read()).participants.length, 3);
+    assert.equal((await read()).participants.length, 2);
     await db.exec("reset role");
     await db.query("update public.events set activity_weight=101 where id=$1", [
       events[4],
@@ -161,7 +164,7 @@ test("candidate RPC uses Mini RB only, exact 20% eligibility, confirmed current-
     assert.equal(
       (await read()).participants.some((p) => p.id === m[3]),
       false,
-      "19.96% must not pass through rounded 20%",
+      "one of six saved Mini RB events is below 20%, regardless of coefficients",
     );
     await db.exec("reset role");
     await db.query("update public.memberships set status='left' where id=$1", [

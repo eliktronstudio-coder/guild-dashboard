@@ -59,12 +59,19 @@ export default async function Page({
                 <strong>{row.nickname}</strong>
                 <small>{row.characterClass}</small>
               </Link>
-              <span className="command-percent">{row[field]}%</span>
+              <span className="command-percent">
+                {row[field]}%
+                <small>
+                  {field === "prime"
+                    ? `${row.primePresent}/${row.primeAvailable}`
+                    : `${row.miniPresent}/${row.miniAvailable}`}
+                </small>
+              </span>
             </li>
           ))}
         </ol>
       ) : (
-        <p className="muted">Нет подтверждённых данных за период.</p>
+        <p className="muted">Нет проведённых активностей за период.</p>
       )}
     </section>
   );
@@ -141,7 +148,7 @@ export default async function Page({
               value={
                 data.attendance === null ? "Нет данных" : data.attendance + "%"
               }
-              note={`${data.completed_events} подтверждённых событий за период`}
+              note={`${data.completed_events} проведённых учитываемых активностей`}
               href="/statistics"
               art="/command/art/kpi-attendance.webp"
             />
@@ -301,11 +308,7 @@ export default async function Page({
                             <time dateTime={event.starts_at}>
                               {dashboardDate(event.starts_at)}
                             </time>
-                            <span className="badge gold">
-                              {event.attendance_finalized_at
-                                ? "Отчёт подтверждён"
-                                : "Ожидается отчёт"}
-                            </span>
+                            <span className="badge gold">Состав сохранён</span>
                           </li>
                         ))}
                       </ul>

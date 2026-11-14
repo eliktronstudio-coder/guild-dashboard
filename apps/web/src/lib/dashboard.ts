@@ -93,6 +93,9 @@ export type DashboardReport = {
   attendance: number | null;
   own_attendance: number | null;
   own_present: number;
+  own_total?: number;
+  own_prime_percentage?: number | null;
+  own_mini_percentage?: number | null;
   own_finance: {
     allocated_units: string;
     paid_units: string;

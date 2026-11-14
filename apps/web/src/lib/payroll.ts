@@ -1,4 +1,25 @@
-export type PayrollRow = {
+export type AttendanceSummary = {
+  percentage: number | null;
+  prime_percentage: number | null;
+  mini_percentage: number | null;
+  pvp_percentage: number | null;
+  attendance_total?: number | null;
+  attendance_present?: number | null;
+  prime_total?: number | null;
+  prime_present?: number | null;
+  mini_total?: number | null;
+  mini_present?: number | null;
+  pvp_total?: number | null;
+  pvp_present?: number | null;
+};
+export const attendanceLabel = (
+  value: number | null,
+  present?: number | null,
+  total?: number | null,
+) =>
+  attendancePercent(value) +
+  (present != null && total != null ? ` · ${present}/${total}` : "");
+export type PayrollRow = AttendanceSummary & {
   id: string;
   nickname: string;
   payout_weight: number;
