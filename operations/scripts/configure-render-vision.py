@@ -93,15 +93,22 @@ service=api('/services/'+service_id);details=service['serviceDetails']
 if details['plan']!='free' or details['region']!='oregon':raise SystemExit('RENDER_COMPUTE_PLAN_CHANGED')
 url=details['url'].rstrip('/');parsed=urllib.parse.urlsplit(url)
 if parsed.scheme!='https' or not parsed.hostname.endswith('.onrender.com') or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path:raise SystemExit('INVALID_RENDER_SERVICE_URL')
-try:
- req=urllib.request.Request(url+'/ready',headers={'Authorization':'Bearer '+secret})
- with HTTP.open(req,timeout=150) as r:ready=json.load(r)
-except urllib.error.HTTPError as e:
- # The authenticated service returns sanitized codes only, never API keys or SDK messages.
- try:code=json.load(e).get('error',{}).get('code','unknown')
- except:code='unknown'
- if code not in ['unsupported_country_region_territory','insufficient_quota','billing_hard_limit_reached']:code='unknown'
- print('RENDER_MODEL_METADATA_CHECK_FAILED',e.code,code,flush=True);raise SystemExit(1)
+for attempt in range(12):
+ try:
+  req=urllib.request.Request(url+'/ready',headers={'Authorization':'Bearer '+secret})
+  with HTTP.open(req,timeout=150) as r:ready=json.load(r)
+  break
+ except urllib.error.HTTPError as e:
+  # A just-created Render hostname can return an edge 404 before routing settles.
+  try:problem=json.load(e).get('error',{})
+  except:problem={}
+  code=problem.get('code','unknown');provider=problem.get('status')
+  if code not in ['unsupported_country_region_territory','insufficient_quota','billing_hard_limit_reached']:code='unknown'
+  transient=e.code in [404,502,503] and code=='unknown' and provider not in [400,401,403,404,422]
+  if transient and attempt<11:
+   if attempt==0:print('WAITING_FOR_RENDER_HTTP_ROUTING',e.code,flush=True)
+   time.sleep(5);continue
+  print('RENDER_MODEL_METADATA_CHECK_FAILED',e.code,code,provider if isinstance(provider,int) else None,flush=True);raise SystemExit(1)
 if ready.get('ready') is not True or ready.get('model')!='gpt-5.4-mini' or ready.get('protocol')!=1:raise SystemExit('VISION_SERVICE_NOT_READY')
 print('RENDER_OPENAI_MODEL_METADATA_READY_NO_INFERENCE',flush=True)
 # Change only our dedicated variables, after free readiness and with a concurrent-edit guard.
