@@ -1,5 +1,14 @@
 name: XD Discord bot
 on:
+  push:
+    branches: [codex/xd-foundation-20261031]
+    paths:
+      [
+        "apps/discord-bot/**",
+        "apps/vision-service/**",
+        "render-vision.yaml",
+        ".github/workflows/xd-discord.yml",
+      ]
   pull_request:
     paths:
       [
