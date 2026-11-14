@@ -28,6 +28,19 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           cat operations/check-gpt-readiness.cjs | ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'cd /var/www/xd-discord-bot/current; node --input-type=module' <<'JS'
+          import fs from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          import {DatabaseSync} from 'node:sqlite';
+          const pid=execFileSync('systemctl',['show','xd-discord-bot','--property=MainPID','--value'],{encoding:'utf8'}).trim();
+          const env=Object.fromEntries(fs.readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return[x.slice(0,i),x.slice(i+1)];}));
+          const db=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
+          console.log('RECENT_VISION_USAGE',JSON.stringify(db.prepare('select day,status,cost_micros,input_tokens,output_tokens,error from vision_usage order by started desc limit 5').all()));db.close();
+          const journal=execFileSync('journalctl',['-u','xd-discord-bot','--since','20 minutes ago','--no-pager','-o','cat'],{encoding:'utf8'}).split('\n');
+          for(const line of journal){try{const v=JSON.parse(line);if(v.event==='vision_fallback'||v.event==='vision_usage')console.log('VISION_JOURNAL',JSON.stringify(v));}catch{}}
+          // Model metadata only: no inference, image upload, or token charge.
+          if(env.OPENAI_API_KEY){const r=await fetch('https://api.openai.com/v1/models/'+encodeURIComponent(env.OPENAI_MODEL??'gpt-5.4-mini'),{headers:{Authorization:'Bearer '+env.OPENAI_API_KEY},signal:AbortSignal.timeout(15000)});const v=await r.json();const safe=x=>typeof x==='string'&&/^[a-zA-Z0-9_.-]{1,100}$/.test(x)?x:null;console.log('OPENAI_MODEL_METADATA_NO_INFERENCE',JSON.stringify({status:r.status,id:safe(v.id),errorCode:safe(v.error?.code),errorType:safe(v.error?.type)}));}
+          JS
           python3 operations/scripts/diagnose-performance.py
           python3 operations/scripts/verify-payroll-balances.py
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'JS'
