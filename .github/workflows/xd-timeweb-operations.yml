@@ -34,5 +34,7 @@ jobs:
           const runtime=await fetch('https://xd-guild.ru/api/discord/runtime',{headers});if(!runtime.ok)throw Error();const r=await runtime.json();
           const response=await fetch('https://xd-guild.ru/api/discord/context',{method:'POST',headers,body:JSON.stringify({context:{server:r.server,channel:r.channel,parent:null,user:'111111111111111111'}})});if(!response.ok)throw Error();const c=await response.json();
           console.log('TARGETED_REGISTERED_NICKNAMES',JSON.stringify(c.members.filter(m=>/паки|стаки|слаки|стяги/iu.test(m.nickname)||m.aliases?.some(a=>/паки|стаки|слаки|стяги/iu.test(a))).map(m=>({nickname:m.nickname,aliases:m.aliases??[]}))));
+          const {DatabaseSync}=require('node:sqlite'),db=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
+          for(const row of db.prepare('select payload from drafts order by updated desc limit 5').all()){const d=JSON.parse(row.payload);console.log('TARGETED_RAW_READINGS',JSON.stringify((d.roster?.readings??[]).filter(v=>/па|таки|лаки|тяги/iu.test(v.visible)).map(v=>({visible:v.visible,name:v.name,engine:v.engine,status:v.status,pending:v.pending,suggestions:v.suggestions?.map(m=>m.nickname)}))));}db.close();
           })().catch(()=>{console.log('CATALOG_DIAGNOSIS_FAILED');process.exitCode=1;});
           JS
