@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import {
-  recognizeRoster,
+  registeredMatch,
   rosterText,
   nicknameSuggestions,
 } from "./matching.mjs";
@@ -36,7 +36,7 @@ export function independentReadings(words) {
       v.confidences.push(Math.max(0, word.confidence));
       v.passes.add(word.pass ?? word.line);
       v.treatments.add(String(word.pass ?? "generic").split(":")[0]);
-      v.unbiased ||= word.unbiased === true;
+      v.unbiased ||= word.unbiased !== false;
     }
     const ranked = [...votes.values()]
       .map((v) => ({
@@ -74,6 +74,10 @@ export function independentReadings(words) {
       unbiased: best?.unbiased ?? false,
       truncated:
         observations.some((w) => w.clipped === true) || /[.…_-]$/.test(visible),
+      engine: first.engine,
+      uncertain: observations.some((w) => w.uncertain === true),
+      box: first.box,
+      group: first.group,
       verifiedCell: first.kind === "raid-cell",
       variants: [...votes.values()].map((v) => v.text),
       observations,
@@ -84,10 +88,7 @@ export function independentReadings(words) {
   });
 }
 function exactMember(name, members) {
-  const matches = members.filter(
-    (m) => nicknameKey(m.nickname) === nicknameKey(name),
-  );
-  return matches.length === 1 ? matches[0] : null;
+  return registeredMatch(name, members);
 }
 export function recognizeIndependentRoster(
   words,
@@ -103,34 +104,51 @@ export function recognizeIndependentRoster(
     const memory = recall(reading) ?? {};
     let name = null,
       member = null;
-    if (memory.name) {
+    if (memory.name && !reading.truncated && !reading.uncertain) {
       name = memory.name;
       member = exactMember(name, members);
       reading.origin = "memory";
     } else if (!memory.conflict) {
-      const registered = recognizeRoster(reading.observations, members);
-      if (registered.members.length === 1) {
-        member = registered.members[0];
+      const registered = registeredMatch(reading.visible, members);
+      if (
+        registered &&
+        !reading.truncated &&
+        !reading.uncertain &&
+        reading.confidence >= 70 &&
+        reading.unbiased
+      ) {
+        member = registered;
         name = member.nickname;
         reading.origin = "registry";
       } else if (
         reading.verifiedCell &&
         !reading.truncated &&
         reading.confidence >= 85 &&
-        reading.passes >= 2 &&
+        (reading.passes >= 2 || reading.engine === "gpt") &&
+        !reading.uncertain &&
         reading.unbiased &&
         nicknameKey(reading.visible).replace(/[^\p{L}\p{N}]/gu, "").length >=
           4 &&
         // A one-letter OCR error must not turn a registered player into a
         // confidently "new" guest. Offer the close player for review instead.
-        !nicknameSuggestions(reading.visible, members).some(
-          (m) => m.matchCost <= 1.05,
-        )
+        nicknameSuggestions(reading.visible, members).length === 0
       ) {
         name = gameNickname(reading.visible);
         reading.origin = "read-from-image";
       }
     }
+    reading.suggestions = nicknameSuggestions(reading.visible, members).slice(
+      0,
+      3,
+    );
+    reading.status =
+      reading.truncated || reading.uncertain
+        ? "ручная проверка"
+        : member
+          ? "точно"
+          : reading.suggestions.length
+            ? "похожие"
+            : "не найден";
     if (name && (member || guests.length < 50)) {
       reading.name = name;
       reading.memberId = member?.id ?? null;
@@ -139,7 +157,9 @@ export function recognizeIndependentRoster(
       else if (!guests.includes(name)) guests.push(name);
     } else {
       reading.pending = true;
-      reading.memoryCandidates = memory.names ?? [];
+      reading.memoryCandidates = [
+        ...new Set([memory.name, ...(memory.names ?? [])].filter(Boolean)),
+      ];
       unresolved.push(
         reading.visible ||
           `Ячейка ${readings.indexOf(reading) + 1}: ник не прочитан`,
@@ -200,6 +220,7 @@ export function resolveReading(draft, index, name, origin = "manual") {
       memberId: member?.id ?? null,
       pending: false,
       origin,
+      status: "подтверждён вручную",
     });
   }
   draft.roster.unresolved.splice(index, 1);
@@ -236,6 +257,7 @@ export function correctAnyReading(draft, key, name) {
     pending: false,
     ignored: false,
     origin: "manual-correction",
+    status: "подтверждён вручную",
   });
   if (
     previous.memberId &&

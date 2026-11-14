@@ -38,7 +38,7 @@ test("reading names does not depend on website membership and never fabricates a
   assert.deepEqual(manual.guests, ["NewPlayer", "Visitor"]);
   assert.deepEqual(manual.unresolved, ["CheckThis"]);
 });
-test("confirmed names persist across restarts; an exact corrected image is remembered without needing a website account", () => {
+test("confirmed names persist across restarts; clipped names retain memory suggestions but require review", () => {
   const dir = mkdtempSync(join(tmpdir(), "xd-names-"));
   let store = draftStore(dir);
   try {
@@ -68,8 +68,9 @@ test("confirmed names persist across restarts; an exact corrected image is remem
     const r = recognizeIndependentRoster(words(), [], {
       recall: (reading) => store.recallNickname("guild-a", reading),
     });
-    assert.deepEqual(r.guests, ["ClippedNameFull"]);
-    assert.equal(r.readings[0].origin, "memory");
+    assert.deepEqual(r.guests, []);
+    assert.equal(r.readings[0].pending, true);
+    assert.ok(r.readings[0].memoryCandidates.includes("ClippedNameFull"));
     assert.deepEqual(store.knownNicknames("guild-a"), ["ClippedNameFull"]);
     assert.deepEqual(store.knownNicknames("other-guild"), []);
     assert.equal(store.recallNickname("other-guild", reading).name, undefined);

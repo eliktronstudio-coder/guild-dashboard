@@ -169,6 +169,7 @@ function controls(d) {
         button(id("analyzeRoster"), "Только состав — без дропа", 2),
         button(id("extra"), "Дроп из сообщения"),
         button(id("backchoose"), "Назад"),
+        button(id("analyzeTesseract"), "Tesseract бесплатно"),
       ),
     ];
   }
@@ -289,6 +290,15 @@ function controls(d) {
     ),
     row(
       button(
+        id("retryVision"),
+        "Перечитать спорные GPT",
+        2,
+        !d.roster.readings?.some(
+          (r) => r.pending && r.engine === "gpt" && r.box,
+        ),
+      ),
+      button(id("analyzeTesseract"), "Tesseract бесплатно"),
+      button(
         id("confirmRosterOnly"),
         "Сохранить состав без дропа",
         3,
@@ -302,10 +312,11 @@ export function reviewText(d) {
     `Активность: ${d.activity.name}; ${d.mode === "pvp" ? "PvP" : "PvE"}; ${d.source === "prime" ? "Прайм" : "Мини-РБ"}; коэффициент ${(d.activity.weight / 100).toFixed(2)}`,
     `Дата сообщения: ${d.startsAt} UTC`,
     "",
+    ...(d.recognitionNotices ?? []),
     "Ники со скриншота (чтение независимо от сайта):",
     ...(d.roster.readings ?? []).map(
       (r) =>
-        `${r.visible || "[не прочитан]"}${r.name ? " → " + r.name : ""}${r.origin === "memory" ? " [память исправлений]" : ""}${r.truncated ? " [обрезан на скрине]" : ""}`,
+        `${r.visible || "[не прочитан]"}${r.name ? " → " + r.name : ""}${r.origin === "memory" ? " [память исправлений]" : ""}${r.truncated ? " [обрезан на скрине]" : ""} [${r.status ?? "проверка"}]${r.group ? " группа " + r.group : ""}${r.pending && r.suggestions?.length ? " → варианты: " + r.suggestions.map((m) => m.nickname).join(", ") : ""}`,
     ),
     "",
     "Состав:",
@@ -348,7 +359,24 @@ export function renderDraft(d) {
     content = `${d.nicknameRemembered ? "Подтверждённые ники сохранены в памяти. Активность ещё не создана.\n" : ""}${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини-РБ"}\n${d.roster.detectedSlots ? "Ячеек рейда: " + d.roster.detectedSlots + ". " : ""}Сопоставлено с сайтом: ${d.roster.members.length}; гостей: ${d.roster.guests.length}. Дроп: ${d.loot.items.length} позиций.\nНе разобрано: ${d.roster.unresolved.length} ников, ${d.loot.unresolved.length} строк дропа.\n${tips.length ? "Проверьте: " + tips.join("; ") : ""}\nПолный список — в файле. Спорные ники выберите из подсказок ниже. Ники читаются независимо от сайта; игроки вне состава сохраняются гостями. «Исправить и запомнить ник» сохраняет ваше подтверждённое исправление для следующих скринов. Длинные ники на скрине могут быть обрезаны. Проверьте, что ни один участник не пропущен.`;
   }
   return {
-    content: truncate(content, 1950),
+    content: truncate(
+      (d.recognitionNotices ?? []).join("\n") +
+        "\n" +
+        (d.step === "review"
+          ? ["точно", "похожие", "не найден", "ручная проверка"]
+              .map(
+                (status) =>
+                  status +
+                  ": " +
+                  (d.roster.readings ?? []).filter((r) => r.status === status)
+                    .length,
+              )
+              .join(" · ") + "\n"
+          : "") +
+        content,
+      1950,
+    ),
+    allowedMentions: { parse: [] },
     components: controls(d),
     attachments: [],
     ...(["review", "names"].includes(d.step)
@@ -592,15 +620,24 @@ export class ImportWorkflow {
         }
         d.analyzed = false;
         d.step = "images";
-      } else if (action === "analyze" || action === "analyzeRoster") {
-        d.rosterOnly = action === "analyzeRoster";
+      } else if (
+        action === "analyze" ||
+        action === "analyzeRoster" ||
+        action === "analyzeTesseract"
+      ) {
+        d.rosterOnly =
+          action === "analyzeTesseract"
+            ? d.rosterOnly === true
+            : action === "analyzeRoster";
         await interaction.editReply({
           content:
             "Читаю подписи ячеек рейда и сверяю с составом сайта… Это может занять до минуты.",
           components: [],
           attachments: [],
         });
-        await this.site("context", { context: d.context });
+        const fresh = await this.site("context", { context: d.context });
+        if (Array.isArray(fresh?.members)) d.catalog.members = fresh.members;
+        d.recognitionNotices = [];
         const knownNames = this.store.knownNicknames?.(d.context.server) ?? [];
         d.knownNicknameChoices = memoryChoices(knownNames);
         const words = [],
@@ -614,6 +651,8 @@ export class ImportWorkflow {
             continue;
           const buffer = await this.download(attachment.url),
             result = await this.ocr(buffer, {
+              scope: d.context.server,
+              forceTesseract: action === "analyzeTesseract",
               roster: d.rosterImages.includes(attachment.id),
               loot: !d.rosterOnly && d.lootImages.includes(attachment.id),
               members: d.catalog.members,
@@ -621,10 +660,13 @@ export class ImportWorkflow {
               knownNames,
             }),
             image = await this.prepareEvidence(buffer);
+          if (result.notice && !d.recognitionNotices.includes(result.notice))
+            d.recognitionNotices.push(result.notice);
           if (d.rosterImages.includes(attachment.id)) {
             words.push(
               ...result.words.map((w) => ({
                 ...w,
+                attachmentId: attachment.id,
                 line: attachment.id + ":" + w.line,
                 ...(w.region !== undefined
                   ? { region: attachment.id + ":" + w.region }
@@ -638,6 +680,7 @@ export class ImportWorkflow {
             d.evidence.push({ id: randomUUID(), kind: "loot", image });
           }
         }
+        d.recognitionWords = words;
         d.roster = recognizeIndependentRoster(words, d.catalog.members, {
           recall: (reading) =>
             this.store.recallNickname?.(d.context.server, reading) ?? {},
@@ -645,6 +688,74 @@ export class ImportWorkflow {
         d.rosterFocus = 0;
         d.loot = lootText(lootLines.join("\n"), d.catalog.drops);
         d.analyzed = true;
+        d.step = "review";
+      } else if (action === "retryVision") {
+        const pending = d.roster.readings.filter(
+          (r) => r.pending && r.engine === "gpt" && r.box,
+        );
+        if (!pending.length) throw Error("DRAFT_CHANGED");
+        await this.site("context", { context: d.context });
+        d.recognitionNotices = [];
+        let words = d.recognitionWords ?? [];
+        for (const attachment of d.attachments) {
+          const cells = pending.filter((r) =>
+            r.observations.some((w) => w.attachmentId === attachment.id),
+          );
+          if (!cells.length) continue;
+          const result = await this.ocr(await this.download(attachment.url), {
+            roster: true,
+            loot: false,
+            scope: d.context.server,
+            retryCells: cells.map((r) => ({ slotKey: r.key, box: r.box })),
+          });
+          if (result.notice) d.recognitionNotices.push(result.notice);
+          const replacements = new Set(result.words.map((w) => w.slotKey));
+          words = words
+            .filter((w) => !replacements.has(w.slotKey))
+            .concat(
+              result.words.map((w) => ({
+                ...w,
+                attachmentId: attachment.id,
+                line: attachment.id + ":" + w.line,
+              })),
+            );
+        }
+        // Only unresolved cells change. Confirmed corrections and ignored noise survive.
+        const updated = recognizeIndependentRoster(words, d.catalog.members);
+        const pendingKeys = new Set(pending.map((r) => r.key));
+        for (const reading of d.roster.readings.filter(
+          (r) => !pendingKeys.has(r.key),
+        )) {
+          const i = updated.readings.findIndex((r) => r.key === reading.key);
+          if (i >= 0) updated.readings[i] = reading;
+        }
+        updated.members = [
+          ...new Map(
+            updated.readings
+              .filter((r) => !r.pending && !r.ignored && r.memberId)
+              .map((r) => [
+                r.memberId,
+                d.catalog.members.find((m) => m.id === r.memberId),
+              ])
+              .filter(([, m]) => m),
+          ).values(),
+        ];
+        updated.guests = [
+          ...new Set(
+            updated.readings
+              .filter((r) => !r.pending && !r.ignored && r.name && !r.memberId)
+              .map((r) => r.name),
+          ),
+        ];
+        updated.unresolved = updated.readings
+          .filter((r) => r.pending && !r.ignored)
+          .map((r) => r.visible || "Ник не прочитан");
+        updated.unresolvedKeys = updated.readings
+          .filter((r) => r.pending && !r.ignored)
+          .map((r) => r.key);
+        d.recognitionWords = words;
+        d.roster = updated;
+        d.rosterFocus = 0;
         d.step = "review";
       } else if (action === "reviewNames") {
         d.step = "names";
