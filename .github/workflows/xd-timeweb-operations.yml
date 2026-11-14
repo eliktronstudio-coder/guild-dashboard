@@ -28,4 +28,9 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           scp -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes operations/archive-manifest.enc root@200.165.236.194:/root/xd-archive-import-20261114/archive-manifest.enc
-          python3 operations/scripts/correct-archive-nickname-mapping.py
+          python3 operations/scripts/import-archive-reviewed.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-import-result
+          path: archive-import-result.json
+          retention-days: 3
