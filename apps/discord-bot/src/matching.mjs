@@ -76,7 +76,11 @@ export function nicknameSuggestions(value, rows) {
     keys = [visual(raw), ...raw.split(/\s+/u).map(visual)].filter(
       (k) => k.length >= 3,
     ),
-    ranked = [];
+    ranked = [],
+    longest = Math.max(0, ...keys.map((k) => k.length));
+  // Four edits in a long name may still be useful as a manual suggestion.
+  // registeredMatch remains exact-only; this never selects a player.
+  const maxCost = longest >= 8 ? 4 : 3.5;
   for (const r of rows) {
     let best = Infinity;
     for (const target of [r.nickname ?? r.name, ...(r.aliases ?? [])].map(
@@ -97,7 +101,7 @@ export function nicknameSuggestions(value, rows) {
           );
       }
     }
-    if (best <= 3.5 && best / Math.max(4, ...keys.map((k) => k.length)) <= 0.55)
+    if (best <= maxCost && best / Math.max(4, longest) <= 0.55)
       ranked.push({ ...r, matchCost: best });
   }
   return ranked.sort((a, b) => a.matchCost - b.matchCost).slice(0, 3);

@@ -133,3 +133,19 @@ test("fuzzy-only and blank raid cells remain pending; low-confidence exact readi
   assert.equal(result.unresolved.length, 2);
   assert.equal(result.detectedSlots, 3);
 });
+
+test("similar repeated Cyrillic nicknames stay distinct and ambiguous OCR only proposes candidates", async () => {
+  const { registeredMatch, nicknameSuggestions } = await import('../src/matching.mjs');
+  const names = ['Плакипаки', 'Пакиплаки', 'Стакистаки', 'Слакислаки'];
+  const rows = names.map((nickname, i)=>({id:String(i),nickname}));
+  for (const [i,name] of names.entries()) assert.equal(registeredMatch(name,rows).id,String(i));
+  const candidates=nicknameSuggestions('Папикалки',rows);
+  assert.deepEqual(new Set(candidates.map(m=>m.nickname)),new Set(['Плакипаки','Пакиплаки']));
+  assert.equal(registeredMatch('Папикалки',rows),null);
+  assert.equal(registeredMatch('Стягистяги',rows),null);
+  const { recognizeIndependentRoster } = await import('../src/recognition.mjs');
+  const roster=recognizeIndependentRoster([{text:'Папикалки',confidence:96,kind:'raid-cell',slotKey:'cell',engine:'gpt',unbiased:true}],rows);
+  assert.equal(roster.members.length,0);
+  assert.equal(roster.guests.length,0);
+  assert.equal(roster.readings[0].pending,true);
+});
