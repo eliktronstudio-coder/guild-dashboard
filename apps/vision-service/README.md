@@ -20,3 +20,5 @@ Render Web Service, Node 24, Oregon, тариф **Free**:
 `GET /health` — проверка процесса. `GET /ready` требует сервисного секрета и проверяет только доступность метаданных модели. Это не платное распознавание и не проверка баланса API. `npm test` работает с имитациями, без реальных запросов к OpenAI.
 
 Основной постоянный бюджет и кэш находятся в SQLite бота на Timeweb. Дополнительные предохранители Render (20 попыток/день, $5/месяц, 2 одновременно) и кэш повторов на 10 минут — в памяти, не заменяют постоянный учёт Timeweb. Free-инстанс может засыпать, поэтому первый разбор может ждать около минуты или дольше. Лимит бесплатных часов Render общий для аккаунта; платный тариф автоматически не подключается.
+
+The optional `wholeImage: true` mode accepts one original image, `slots: 150` as a maximum and `retry: false`. GPT locates roster labels itself; the returned array has variable length without padded slots. The worker requires manual confirmation for all such names and reuses its persistent request limits and image cache. Requests without this field retain the numbered-crop protocol.
