@@ -8,6 +8,7 @@ import { draftStore } from "../src/store.mjs";
 import {
   createVisionRecognizer,
   visionConfig,
+  visionFailure,
   parseVision,
 } from "../src/vision.mjs";
 import { recognizeIndependentRoster } from "../src/recognition.mjs";
@@ -279,4 +280,56 @@ test("only exact canonical/registered aliases link IDs; confusables, cropped and
     registeredMatch("FooBar", [{ id: "3", nickname: "Foo-Bar" }]),
     null,
   );
+});
+
+test("provider failures have actionable safe categories without exposing SDK messages", () => {
+  const failures = [
+    [
+      { status: 403, code: "unsupported_country_region_territory" },
+      "GPT_REGION_FORBIDDEN",
+    ],
+    [{ status: 401 }, "GPT_AUTH"],
+    [{ status: 403 }, "GPT_AUTH"],
+    [{ status: 429, code: "insufficient_quota" }, "GPT_QUOTA"],
+    [{ status: 429 }, "GPT_RATE_LIMIT"],
+    [{ name: "APIConnectionTimeoutError" }, "GPT_TIMEOUT"],
+    [{ status: 400 }, "GPT_INVALID_REQUEST"],
+    [{ status: 404 }, "GPT_MODEL_UNAVAILABLE"],
+    [{ status: 500 }, "GPT_ERROR"],
+  ];
+  for (const [error, code] of failures)
+    assert.equal(
+      visionFailure({ ...error, message: "private SDK details" }),
+      code,
+    );
+});
+test("region rejection explains VPS restriction, uses Tesseract, and makes no automatic inference retry", async () => {
+  let calls = 0;
+  const logs = [];
+  const f = await fixture({
+    client: {
+      responses: {
+        create: async () => {
+          calls++;
+          throw {
+            status: 403,
+            code: "unsupported_country_region_territory",
+            message: "private SDK details",
+          };
+        },
+      },
+    },
+    log: (text) => logs.push(text),
+  });
+  try {
+    const result = await f.recognize(f.buffer, { roster: true });
+    assert.equal(result.engine, "tesseract");
+    assert.match(result.notice, /региону сервера/);
+    assert.match(result.notice, /403/);
+    assert.equal(calls, 1);
+    assert.ok(logs.some((line) => line.includes("GPT_REGION_FORBIDDEN")));
+    assert.ok(logs.every((line) => !line.includes("private")));
+  } finally {
+    f.close();
+  }
 });

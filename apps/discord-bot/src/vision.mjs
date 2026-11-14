@@ -33,8 +33,47 @@ const notices = {
   GPT_MONTHLY_LIMIT:
     "Месячный бюджет GPT исчерпан. Используется бесплатный Tesseract.",
   GPT_BUSY: "GPT занят: используется Tesseract.",
+  GPT_REGION_FORBIDDEN:
+    "OpenAI отклонил запрос по региону сервера (403). GPT недоступен на этом VPS; используется Tesseract.",
+  GPT_AUTH:
+    "OpenAI отклонил API-ключ. Администратору: проверьте ключ на VPS. Используется Tesseract.",
+  GPT_QUOTA:
+    "У OpenAI исчерпана квота или не подключена оплата. Используется Tesseract.",
+  GPT_RATE_LIMIT:
+    "Достигнут лимит частоты OpenAI. Используется Tesseract; повторите разбор позже.",
+  GPT_TIMEOUT: "OpenAI не ответил вовремя. Используется Tesseract.",
+  GPT_INVALID_REQUEST:
+    "OpenAI отклонил формат запроса. Используется Tesseract; администратору: проверьте журнал бота.",
+  GPT_MODEL_UNAVAILABLE:
+    "Модель GPT недоступна этому API-проекту. Используется Tesseract.",
   GPT_ERROR: "GPT временно недоступен: используется Tesseract.",
 };
+// Classify provider errors using fixed identifiers only: never log the SDK message/body.
+export function visionFailure(error) {
+  if (Object.hasOwn(notices, error?.message)) return error.message;
+  if (
+    error?.status === 403 &&
+    error?.code === "unsupported_country_region_territory"
+  )
+    return "GPT_REGION_FORBIDDEN";
+  if (error?.status === 401 || error?.status === 403) return "GPT_AUTH";
+  if (
+    error?.code === "insufficient_quota" ||
+    error?.code === "billing_hard_limit_reached"
+  )
+    return "GPT_QUOTA";
+  if (error?.status === 429) return "GPT_RATE_LIMIT";
+  if (
+    error?.name === "APIConnectionTimeoutError" ||
+    error?.status === 408 ||
+    error?.status === 504
+  )
+    return "GPT_TIMEOUT";
+  if (error?.status === 400 || error?.status === 422)
+    return "GPT_INVALID_REQUEST";
+  if (error?.status === 404) return "GPT_MODEL_UNAVAILABLE";
+  return "GPT_ERROR";
+}
 function number(env, key, fallback, min, max) {
   const n = Number(env[key] ?? fallback);
   if (!Number.isFinite(n) || n < min || n > max) throw Error("Invalid " + key);
@@ -297,6 +336,7 @@ export function createVisionRecognizer({
           "Состав прочитан GPT; похожие и обрезанные ники требуют проверки.",
       };
     } catch (error) {
+      const code = visionFailure(error);
       if (reservation?.id) {
         const input = response?.usage?.input_tokens,
           output = response?.usage?.output_tokens;
@@ -312,15 +352,18 @@ export function createVisionRecognizer({
             costMicros: cost,
             inputTokens: input ?? null,
             outputTokens: output ?? null,
-            error: "GPT_ERROR",
+            error: code,
           },
           clock(),
         );
       }
-      const code = Object.hasOwn(notices, error.message)
-        ? error.message
-        : "GPT_ERROR";
-      log(JSON.stringify({ event: "vision_fallback", code }));
+      log(
+        JSON.stringify({
+          event: "vision_fallback",
+          code,
+          status: Number.isInteger(error?.status) ? error.status : null,
+        }),
+      );
       // On a disputed-only retry do not rerun OCR for the entire image.
       if (options.retryCells)
         return {
