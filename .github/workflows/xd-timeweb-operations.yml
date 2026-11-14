@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of existing services after manual archive import
+      - name: Inspect persistent GPT daily budget without paid calls or setting changes
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,5 +27,17 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/verify-payroll-balances.py
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo ARCHIVE_IMPORT_SERVICES_VERIFIED_NO_RECOGNITION'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'cd /var/www/xd-discord-bot/current; node --input-type=commonjs' <<'JS'
+          (async()=>{
+          const fs=require('node:fs'),cp=require('node:child_process');
+          const pid=cp.execFileSync('systemctl',['show','xd-discord-bot.service','--property=MainPID','--value'],{encoding:'utf8'}).trim();
+          const env=Object.fromEntries(fs.readFileSync('/proc/'+pid+'/environ','utf8').split('\0').filter(x=>x.includes('=')).map(x=>{const i=x.indexOf('=');return[x.slice(0,i),x.slice(i+1)];}));
+          const {visionConfig}=await import('file:///var/www/xd-discord-bot/current/src/vision.mjs');const config=visionConfig(env);
+          const {DatabaseSync}=require('node:sqlite'),db=new DatabaseSync('/var/lib/xd-discord-bot/drafts.sqlite',{readOnly:true});
+          const usage=db.prepare('select status,error,count(*) attempts,sum(cost_micros) micros,sum(input_tokens) input,sum(output_tokens) output from vision_usage where day=? group by status,error').all(config.day);
+          const monthly=db.prepare('select sum(cost_micros) micros,count(*) attempts from vision_usage where month=?').get(config.month);db.close();
+          console.log('DAILY_GPT_BUDGET',JSON.stringify({now:new Date().toISOString(),timezone:env.OPENAI_BUDGET_TIMEZONE??'Asia/Yekaterinburg',day:config.day,dailyLimit:config.daily,monthlyLimitUSD:config.monthlyMicros/1e6,usage,monthly}));
+          const logs=cp.execFileSync('journalctl',['-u','xd-discord-bot.service','--since','2 hours ago','-o','cat','--no-pager'],{encoding:'utf8',maxBuffer:10000000}).split('\n');
+          for(const line of logs){try{const v=JSON.parse(line);if(v.event==='vision_fallback')console.log('GPT_FALLBACK_CATEGORY',JSON.stringify({code:v.code,status:v.status}));}catch{}}
+          })().catch(()=>{console.error('BUDGET_DIAGNOSTIC_FAILED');process.exitCode=1;});
+          JS
