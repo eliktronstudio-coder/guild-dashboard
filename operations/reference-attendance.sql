@@ -3,6 +3,7 @@ begin isolation level repeatable read;
 create temp table attendance_release_guard(name text primary key,digest text) on commit drop;
 do $$declare t text;h text;begin
  foreach t in array array['period_archives','payroll_batches','payroll_requests','treasury_allocations','treasury_awards','treasury_payouts','treasury_loot','treasury_sales','treasury_pools','treasury_expenses'] loop
+ if to_regclass('public.'||t) is null then continue;end if;
  execute format('select md5(coalesce(string_agg(md5(row_to_json(r)::text), %L order by md5(row_to_json(r)::text)),%L)) from public.%I r','','',t) into h;
  insert into attendance_release_guard values(t,h);
  end loop;end $$;
