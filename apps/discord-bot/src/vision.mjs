@@ -137,12 +137,13 @@ export function createVisionRecognizer({
               .update(imageKey + ":" + i)
               .digest("hex"),
           }));
-      if (!cells.length) throw Error("GPT_ROSTER_NOT_FOUND");
+      const wholeImage = !cells.length && !options.retryCells;
+      if (!cells.length && !wholeImage) throw Error("GPT_ROSTER_NOT_FOUND");
       if (cells.length > 150) throw Error("GPT_ROSTER_TOO_LARGE");
       const key = createHash("sha256")
           .update(
             JSON.stringify([
-              "vision-v1",
+              wholeImage ? "vision-whole-v1" : "vision-v1",
               config.model,
               imageKey,
               cells,
@@ -198,7 +199,8 @@ export function createVisionRecognizer({
           const payload = {
             model: config.model,
             maxOutput: config.maxOutput,
-            slots: cells.length,
+            slots: wholeImage ? 150 : cells.length,
+            ...(wholeImage ? { wholeImage: true } : {}),
             retry: Boolean(options.retryCells),
             images: images.map(
               (b) => "data:image/png;base64," + b.toString("base64"),
@@ -222,7 +224,7 @@ export function createVisionRecognizer({
               maxRetries: 0,
             });
           }
-          players = parseVision(response, cells.length);
+          players = parseVision(response, wholeImage ? 150 : cells.length, wholeImage);
           const usage = response.usage,
             input = usage?.input_tokens,
             output = usage?.output_tokens;
@@ -256,18 +258,18 @@ export function createVisionRecognizer({
       }
       const words = players.map((p) => ({
         text: p.visible,
-        confidence: p.uncertain ? 30 : 96,
+        confidence: p.uncertain || wholeImage ? 30 : 96,
         line: String(p.slot),
         region: String(p.slot),
         kind: "raid-cell",
         pass: "gpt:vision",
         unbiased: true,
         engine: "gpt",
-        uncertain: p.uncertain,
-        clipped: p.truncated || cells[p.slot].box.clipped === true,
+        uncertain: p.uncertain || wholeImage,
+        clipped: p.truncated || cells[p.slot]?.box.clipped === true,
         imageKey,
-        slotKey: cells[p.slot].slotKey,
-        box: cells[p.slot].box,
+        slotKey: cells[p.slot]?.slotKey ?? createHash("sha256").update(imageKey + ":whole:" + p.slot).digest("hex"),
+        box: cells[p.slot]?.box,
         group: p.group,
       }));
       const loot = options.loot
@@ -279,7 +281,9 @@ export function createVisionRecognizer({
         regionCount: words.length,
         engine: "gpt",
         notice:
-          "Состав прочитан GPT; похожие и обрезанные ники требуют проверки.",
+          wholeImage
+            ? (words.length ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения." : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную.")
+            : "Состав прочитан GPT; похожие и обрезанные ники требуют проверки.",
       };
     } catch (error) {
       const code = visionFailure(error);

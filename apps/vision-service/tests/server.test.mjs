@@ -91,7 +91,9 @@ async function setup(create = async () => reply) {
 test("health is free; readiness requires authentication and uses model metadata only", async () => {
   const f = await setup();
   try {
-    assert.equal((await fetch(f.url + "/health")).status, 200);
+    const health = await fetch(f.url + "/health");
+    assert.equal(health.status, 200);
+    assert.deepEqual((await health.json()).capabilities, ["whole-image-roster"]);
     assert.equal((await fetch(f.url + "/ready")).status, 401);
     assert.equal(
       (
@@ -270,4 +272,20 @@ test("unknown upstream failures keep conservative reserves and stop at monthly c
   } finally {
     await f.close();
   }
+});
+
+test("signed whole-image mode finds variable roster length without numbered crops", async () => {
+  const f = await setup(async (body) => {
+    assert.match(body.input[0].content[0].text, /no numbered crops/);
+    assert.match(body.instructions, /Do not transcribe chat/);
+    return reply;
+  });
+  try {
+    const r = await f.post({ ...input, slots: 150, wholeImage: true });
+    assert.equal(r.status, 200);
+    assert.equal(f.calls(), 1);
+    assert.equal((await r.json()).output_text, reply.output_text);
+    assert.equal((await f.post({ ...input, slots: 150, wholeImage: true, retry: true })).status, 400);
+    assert.equal(f.calls(), 1);
+  } finally { await f.close(); }
 });

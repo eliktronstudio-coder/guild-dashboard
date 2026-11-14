@@ -41,6 +41,7 @@ function validInput(data) {
     data.slots >= 1 &&
     data.slots <= 150 &&
     typeof data.retry === "boolean" &&
+    (data.wholeImage === undefined || (data.wholeImage === true && data.retry === false && data.slots === 150 && data.images?.length === 1)) &&
     Array.isArray(data.images) &&
     data.images.length >= 1 &&
     data.images.length <= 7 &&
@@ -51,7 +52,7 @@ function validInput(data) {
         /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(x),
     ) &&
     Object.keys(data).every((k) =>
-      ["version", "model", "maxOutput", "slots", "retry", "images"].includes(k),
+      ["version", "model", "maxOutput", "slots", "retry", "images", "wholeImage"].includes(k),
     )
   );
 }
@@ -87,7 +88,7 @@ export function createVisionServer({
     send(res, status, { error: { code, status } });
   const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") {
-      send(res, 200, { status: "ok", protocol: 1 });
+      send(res, 200, { status: "ok", protocol: 1, capabilities: ["whole-image-roster"] });
       return;
     }
     if (!equal(req.headers.authorization, "Bearer " + secret)) {
@@ -213,7 +214,7 @@ export function createVisionServer({
             maxRetries: 0,
             timeout: 65000,
           });
-          parseVision(response, input.slots);
+          parseVision(response, input.slots, input.wholeImage === true);
           return {
             status: 200,
             value: {

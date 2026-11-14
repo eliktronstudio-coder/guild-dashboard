@@ -396,17 +396,37 @@ test("remote provider regional and quota codes retain actionable fallback catego
   }
 });
 
-test("missing raid panels report screenshot selection rather than GPT outage without charging", async () => {
-  const logs = [];
-  const f = await fixture({ regions: async () => ({ boxes: [] }), log: (line) => logs.push(JSON.parse(line)) });
+
+test("missing local panels send original image to GPT once, cache it, and require manual review", async () => {
+  const f = await fixture({ regions: async () => ({ boxes: [] }) });
+  try {
+    const result = await f.recognize(f.buffer, { roster: true, scope: "whole" });
+    assert.equal(result.engine, "gpt");
+    assert.match(result.notice, /по исходному изображению/);
+    assert.equal(result.words.length, 1);
+    assert.equal(result.words[0].text, "СмешанныйX");
+    assert.equal(result.words[0].uncertain, true);
+    assert.equal(result.words[0].box, undefined);
+    assert.ok(result.words[0].slotKey);
+    assert.equal(f.calls(), 1);
+    assert.equal(f.localCalls.length, 0);
+    const cached = await f.recognize(f.buffer, { roster: true, scope: "whole" });
+    assert.equal(f.calls(), 1);
+    assert.deepEqual(cached.words, result.words);
+    const roster = recognizeIndependentRoster(result.words, [{ id: "member", nickname: "СмешанныйX" }]);
+    assert.equal(roster.readings[0].pending, true);
+  } finally { f.close(); }
+});
+test("whole-image response has no synthetic blank slots and rejects duplicate slot ids", () => {
+  assert.equal(parseVision(response, 150, true).length, 1);
+  assert.equal(parseVision({ ...response, output_text: '{"players":[]}' }, 150, true).length, 0);
+  assert.throws(() => parseVision({ ...response, output_text: JSON.stringify({ players: [players[0], players[0]] }) }, 150, true));
+});
+test("whole-image request keeps budget protection and free fallback on provider failure", async () => {
+  const f = await fixture({ regions: async () => ({ boxes: [] }), client: { responses: { create: async () => { throw { status: 429 }; } } } });
   try {
     const result = await f.recognize(f.buffer, { roster: true });
-    assert.match(result.notice, /не найдены ячейки состава/);
-    assert.match(result.notice, /Запрос в GPT не отправлялся/);
-    assert.doesNotMatch(result.notice, /GPT временно недоступен/);
-    assert.equal(f.calls(), 0);
+    assert.match(result.notice, /лимит частоты/);
     assert.equal(f.localCalls.length, 1);
-    assert.equal(logs[0].code, "GPT_ROSTER_NOT_FOUND");
-
   } finally { f.close(); }
 });
