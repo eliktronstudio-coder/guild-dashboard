@@ -1,0 +1,21 @@
+# Optional Blueprint for a separate service. Do not import over existing services.
+services:
+  - type: web
+    name: xd-gpt-vision
+    branch: codex/xd-foundation-20261031
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci --prefix apps/vision-service
+    startCommand: node apps/vision-service/src/index.mjs
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: VISION_SERVICE_SECRET
+        sync: false

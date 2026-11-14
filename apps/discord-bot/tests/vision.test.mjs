@@ -333,3 +333,65 @@ test("region rejection explains VPS restriction, uses Tesseract, and makes no au
     f.close();
   }
 });
+
+test("remote mode works without worker OpenAI key and keeps durable caching and token costs", async () => {
+  let calls = 0;
+  const remoteEnv = {
+    VISION_SERVICE_URL: "https://test.onrender.com",
+    VISION_SERVICE_SECRET: "test-secret-".repeat(4),
+  };
+  const f = await fixture({
+    env: remoteEnv,
+    remoteClient: () => async (payload, timeout) => {
+      calls++;
+      assert.equal(timeout, 120000);
+      assert.equal(payload.slots, 1);
+      assert.ok(payload.requestId);
+      assert.ok(
+        payload.images.every((i) => i.startsWith("data:image/png;base64,")),
+      );
+      assert.ok(!JSON.stringify(payload).includes("mock-not-a-real-key"));
+      return response;
+    },
+  });
+  try {
+    const r = await f.recognize(f.buffer, { roster: true });
+    assert.equal(r.engine, "gpt");
+    await f.recognize(f.buffer, { roster: true });
+    assert.equal(calls, 1);
+    assert.equal(f.calls(), 0);
+  } finally {
+    f.close();
+  }
+});
+test("misconfigured remote does not fall through to direct OpenAI or reserve a paid attempt", async () => {
+  const f = await fixture({
+    env: { ...env, VISION_SERVICE_URL: "https://private.invalid" },
+  });
+  try {
+    const r = await f.recognize(f.buffer, { roster: true });
+    assert.equal(r.engine, "tesseract");
+    assert.match(r.notice, /ещё не настроен/);
+    assert.equal(f.calls(), 0);
+  } finally {
+    f.close();
+  }
+});
+test("remote provider regional and quota codes retain actionable fallback categories", async () => {
+  const f = await fixture({
+    env: { VISION_SERVICE_URL: "https://test.onrender.com" },
+    remoteClient: () => async () => {
+      throw {
+        message: "REMOTE_ERROR",
+        status: 403,
+        code: "unsupported_country_region_territory",
+      };
+    },
+  });
+  try {
+    const r = await f.recognize(f.buffer, { roster: true });
+    assert.match(r.notice, /региону сервера/);
+  } finally {
+    f.close();
+  }
+});

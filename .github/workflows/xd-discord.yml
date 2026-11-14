@@ -1,7 +1,22 @@
 name: XD Discord bot
 on:
+  push:
+    branches: [codex/xd-foundation-20261031]
+    paths:
+      [
+        "apps/discord-bot/**",
+        "apps/vision-service/**",
+        "render-vision.yaml",
+        ".github/workflows/xd-discord.yml",
+      ]
   pull_request:
-    paths: ['apps/discord-bot/**', '.github/workflows/xd-discord.yml']
+    paths:
+      [
+        "apps/discord-bot/**",
+        "apps/vision-service/**",
+        "render-vision.yaml",
+        ".github/workflows/xd-discord.yml",
+      ]
 permissions:
   contents: read
 jobs:
@@ -14,9 +29,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
           cache-dependency-path: apps/discord-bot/package-lock.json
       - run: npm ci
       - run: npm test
       - run: node --check src/index.mjs
+
+      - run: npm ci
+        working-directory: apps/vision-service
+      - run: npm test
+        working-directory: apps/vision-service
+      - run: node --check src/index.mjs
+        working-directory: apps/vision-service
