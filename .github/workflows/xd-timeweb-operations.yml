@@ -45,7 +45,7 @@ jobs:
           test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$expected"
           app=$(systemctl show xd-guild --property=WorkingDirectory --value)
           test -f "$app/src/lib/inventory-position.ts"
-          rg -q 'groupInventory' "$app/src/lib/inventory-position.ts"
+          grep -q 'groupInventory' "$app/src/lib/inventory-position.ts"
           systemctl is-active xd-guild
           systemctl is-active xd-discord-bot
           curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/login
