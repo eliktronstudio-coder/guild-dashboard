@@ -109,6 +109,7 @@ export function RegistryInventory({
         </button>
         <select
           className="registry-picker-validation"
+          aria-hidden="true"
           name="catalogId"
           value={catalog}
           required
