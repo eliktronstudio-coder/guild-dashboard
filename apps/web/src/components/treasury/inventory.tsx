@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { ActionForm } from "@/components/action-form";
-import { SaleAmount } from "./amount";
 import { AuctionPrice } from "./auction-price";
 import { InventoryItem } from "./inventory-item";
 import { dropDescription } from "@/lib/drop-descriptions";
@@ -177,9 +176,13 @@ export function InventoryList({
                     label="Записать продажу"
                   >
                     <StockFields item={item} />
-                    <Quantity max={available} />
+                    <AuctionPrice
+                      key={item.version}
+                      available={available}
+                      price={item.estimated_unit_units}
+                      source={item.source}
+                    />
                     <Buyer id={`buyer-${item.id}`} buyers={buyers} />
-                    <SaleAmount key={item.version} source={item.source} />
                     <label className="check">
                       <input type="checkbox" name="confirm" required />
                       <span>
@@ -244,16 +247,17 @@ export function InventoryList({
                               name="version"
                               value={item.version}
                             />
-                            <Quantity max={lot.quantity_remaining} />
+                            <AuctionPrice
+                              key={`${item.version}-${lot.version}`}
+                              available={lot.quantity_remaining}
+                              price={lot.unit_price_units}
+                              source={item.source}
+                              priceLabel="Цена за единицу после комиссии, золото"
+                            />
                             <Buyer
                               id={`auction-buyer-${lot.id}`}
                               buyers={buyers}
                               auction
-                            />
-                            <SaleAmount
-                              key={`${item.version}-${lot.version}`}
-                              source={item.source}
-                              label="Получено всего, золото (после комиссии)"
                             />
                             <label className="check">
                               <input type="checkbox" name="confirm" required />
