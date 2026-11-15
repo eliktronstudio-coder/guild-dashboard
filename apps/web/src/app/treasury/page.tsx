@@ -1,4 +1,5 @@
 import { groupInventory } from "@/lib/inventory-position";
+import { XdServiceSales } from "@/components/treasury/xd-service-sales";
 import { PeriodPayroll } from "@/components/settlements/period-payroll";
 import { RegistryInventory } from "@/components/treasury/registry-inventory";
 import Link from "next/link";
@@ -321,6 +322,7 @@ export default async function Page({
                   ? "Полученный дроп · удаление и перенос в ХД"
                   : "Дроп для продажи · игрокам и на аукционе"}
               </p>
+              {manage && pane.warehouse === "xd" && <XdServiceSales />}
               <InventoryList
                 items={pane.rows as Loot[]}
                 warehouse={pane.warehouse}
