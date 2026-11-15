@@ -1,3 +1,4 @@
+import { groupInventory } from "@/lib/inventory-position";
 import { PeriodPayroll } from "@/components/settlements/period-payroll";
 import { RegistryInventory } from "@/components/treasury/registry-inventory";
 import Link from "next/link";
@@ -55,20 +56,34 @@ export default async function Page({
     for (const [k, v] of Object.entries(changes)) params.set(k, String(v));
     return `/treasury?${params}`;
   };
-  const inventoryQuery = (
+  const inventoryQuery = async (
     position: "general_quantity" | "xd_quantity",
     page: number,
-  ) =>
-    a.client
-      .from("treasury_inventory")
-      .select("*", { count: "exact" })
-      .eq("guild_id", GUILD_ID)
-      .gt(position, 0)
-      .order(position === "xd_quantity" ? "xd_received_at" : "created_at", {
-        ascending: false,
-      })
-      .order("id")
-      .range((page - 1) * 20, page * 20 - 1);
+  ) => {
+    const rows: Loot[] = [];
+    // Group before pagination: identical receipts can be on different SQL pages.
+    for (let offset = 0; ; offset += 500) {
+      const result = await a.client
+        .from("treasury_inventory")
+        .select("*")
+        .eq("guild_id", GUILD_ID)
+        .gt(position, 0)
+        .order("id")
+        .range(offset, offset + 499);
+      if (result.error) return { data: [], count: 0, error: result.error };
+      rows.push(...((result.data ?? []) as Loot[]));
+      if ((result.data?.length ?? 0) < 500) break;
+    }
+    const groups = groupInventory(
+      rows,
+      position === "general_quantity" ? "general" : "xd",
+    );
+    return {
+      data: groups.slice((page - 1) * 20, page * 20).flatMap((g) => g.batches),
+      count: groups.length,
+      error: null,
+    };
+  };
   let salesQuery = a.client
     .from("treasury_sales_log")
     .select("*", { count: "exact" })
