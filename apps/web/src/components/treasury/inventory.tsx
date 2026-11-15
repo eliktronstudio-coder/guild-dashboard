@@ -6,6 +6,7 @@ import { InventoryItem } from "./inventory-item";
 import { dropDescription } from "@/lib/drop-descriptions";
 import {
   inventoryPosition,
+  groupInventory,
   type InventoryWarehouse,
 } from "@/lib/inventory-position";
 import {
@@ -82,7 +83,9 @@ export function InventoryList({
   manage,
   auctions = [],
   buyers = [],
+  embedded = false,
 }: {
+  embedded?: boolean;
   items: Loot[];
   warehouse: InventoryWarehouse;
   manage: boolean;
@@ -102,8 +105,38 @@ export function InventoryList({
         </p>
       </div>
     );
+  if (!embedded)
+    return (
+      <div className="inventory-bag">
+        {groupInventory(items, warehouse).map(({ item, batches }) => (
+          <InventoryItem
+            key={item.id}
+            item={item}
+            description={dropDescription(item)}
+            manage={manage}
+            transfer={null}
+            sale={null}
+            auction={null}
+            discard={null}
+          >
+            <p className="caption">
+              Общий остаток: {item.quantity_remaining} шт. Выберите партию для
+              действия; категория и история получения сохраняются.
+            </p>
+            <InventoryList
+              items={batches}
+              warehouse={warehouse}
+              manage={manage}
+              auctions={auctions}
+              buyers={buyers}
+              embedded
+            />
+          </InventoryItem>
+        ))}
+      </div>
+    );
   return (
-    <div className="inventory-bag">
+    <div>
       {items.map((raw) => {
         const item = inventoryPosition(raw, warehouse);
         const available = item.available_quantity ?? item.quantity_remaining,
@@ -112,6 +145,7 @@ export function InventoryList({
           );
         return (
           <InventoryItem
+            embedded
             key={item.id}
             item={item}
             description={dropDescription(item)}

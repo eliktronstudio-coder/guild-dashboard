@@ -11,7 +11,11 @@ export function InventoryItem({
   auction,
   discard,
   transfer,
+  children,
+  embedded = false,
 }: {
+  children?: ReactNode;
+  embedded?: boolean;
   item: Loot;
   description: DropDescription | null;
   manage: boolean;
@@ -21,9 +25,81 @@ export function InventoryItem({
   transfer: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null),
-    [mode, setMode] = useState("sale");
+    [mode, setMode] = useState(
+      item.warehouse === "general"
+        ? "transfer"
+        : (item.available_quantity ?? item.quantity_remaining) > 0
+          ? "sale"
+          : "auction",
+    );
   const common = item.warehouse === "general",
     titleId = `inventory-title-${item.warehouse}-${item.id}`;
+  const actions = (
+    <>
+      {manage ? (
+        <>
+          <nav
+            className="inventory-action-tabs"
+            aria-label="Действия с предметом"
+            style={
+              common
+                ? { gridTemplateColumns: "repeat(2,minmax(0,1fr))" }
+                : undefined
+            }
+          >
+            {(common
+              ? [
+                  ["transfer", "В инвентарь ХД"],
+                  ["discard", "Удалить"],
+                ]
+              : [
+                  ["sale", "Продать"],
+                  ["auction", "Аукцион"],
+                  ["discard", "Удалить"],
+                ]
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`button ${mode === key ? "primary" : "secondary"}`}
+                aria-pressed={mode === key}
+                onClick={() => setMode(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          {common ? (
+            <div hidden={mode !== "transfer"}>{transfer}</div>
+          ) : (
+            <>
+              <div hidden={mode !== "sale"}>{sale}</div>
+              <div hidden={mode !== "auction"}>{auction}</div>
+            </>
+          )}
+          <div hidden={mode !== "discard"}>{discard}</div>
+        </>
+      ) : (
+        <p className="caption">
+          Действия с предметами доступны управляющим казной.
+        </p>
+      )}
+    </>
+  );
+  if (embedded)
+    return (
+      <section className="panel section-panel">
+        <h3>
+          {item.event_title || "Из Сундука"} · {item.quantity_remaining} шт.
+        </h3>
+        <p className="caption">
+          {item.archived_period
+            ? `Архив ${item.archived_period}`
+            : "Текущий период"}
+        </p>
+        {actions}
+      </section>
+    );
   return (
     <div className="inventory-slot">
       <LootIcon
@@ -91,54 +167,7 @@ export function InventoryItem({
             </a>
           </details>
         )}
-        {manage ? (
-          <>
-            <nav
-              className="inventory-action-tabs"
-              aria-label="Действия с предметом"
-              style={
-                common
-                  ? { gridTemplateColumns: "repeat(2,minmax(0,1fr))" }
-                  : undefined
-              }
-            >
-              {(common
-                ? [
-                    ["transfer", "В инвентарь ХД"],
-                    ["discard", "Удалить"],
-                  ]
-                : [
-                    ["sale", "Продать"],
-                    ["auction", "Аукцион"],
-                    ["discard", "Удалить"],
-                  ]
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`button ${mode === key ? "primary" : "secondary"}`}
-                  aria-pressed={mode === key}
-                  onClick={() => setMode(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
-            {common ? (
-              <div hidden={mode !== "transfer"}>{transfer}</div>
-            ) : (
-              <>
-                <div hidden={mode !== "sale"}>{sale}</div>
-                <div hidden={mode !== "auction"}>{auction}</div>
-              </>
-            )}
-            <div hidden={mode !== "discard"}>{discard}</div>
-          </>
-        ) : (
-          <p className="caption">
-            Действия с предметами доступны управляющим казной.
-          </p>
-        )}
+        {children ?? actions}
       </dialog>
     </div>
   );
