@@ -272,3 +272,40 @@ export async function discardInventoryStock(
     "Количество списано со склада. Причина и история сохранены; золото не начислено.",
   );
 }
+
+export async function recordXdServiceSale(
+  _: FormState,
+  f: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.manage");
+  const request = field(f, "requestId"),
+    kind = field(f, "kind"),
+    amount = parseGold(field(f, "amount")),
+    buyer = field(f, "buyer").trim(),
+    note = field(f, "note").trim();
+  if (
+    !isUuid(request) ||
+    !["rb_experience", "trash"].includes(kind) ||
+    !amount ||
+    BigInt(amount) <= 0n ||
+    buyer.length < 2 ||
+    buyer.length > 80 ||
+    note.length > 400 ||
+    f.get("confirm") !== "on"
+  )
+    return {
+      error:
+        "Укажите полученную сумму, кому продано, и подтвердите получение золота.",
+    };
+  const { error } = await a.client.rpc("record_xd_service_sale", {
+    p_request: request,
+    p_kind: kind,
+    p_gross: amount,
+    p_buyer: buyer,
+    p_note: note,
+  });
+  if (error) return { error: treasuryError(error.message) };
+  revalidatePath("/", "layout");
+  redirect("/treasury#sales");
+}
