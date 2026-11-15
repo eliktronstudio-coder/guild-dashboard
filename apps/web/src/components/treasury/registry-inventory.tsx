@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { addRegistryInventory } from "@/app/treasury/actions";
 import { goldInput, formatGold } from "@/lib/treasury";
@@ -16,6 +16,27 @@ export function RegistryInventory({
 }) {
   const [catalog, setCatalog] = useState("");
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const picker = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const searchInput = useRef<HTMLInputElement>(null);
+  const pickerId = useId();
+  useEffect(() => {
+    if (!open) return;
+    searchInput.current?.focus();
+    const dismiss = (e: PointerEvent) => {
+      if (!picker.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [open]);
+  useEffect(() => {
+    if (open)
+      document
+        .getElementById(`${pickerId}-option-${active}`)
+        ?.scrollIntoView({ block: "nearest" });
+  }, [active, open, pickerId]);
   const matchingItems = items.filter((item) =>
     item.name
       .toLocaleLowerCase("ru")
@@ -49,34 +70,57 @@ export function RegistryInventory({
           ))}
         </select>
       </label>
-      <label>
-        Быстрый поиск предмета
-        <input
-          type="search"
-          value={search}
-          placeholder="Начните вводить название…"
-          autoComplete="off"
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.preventDefault();
+      <div
+        className="registry-picker"
+        ref={picker}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+            setOpen(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setOpen(false);
+            trigger.current?.focus();
+          }
+        }}
+      >
+        <label id={`${pickerId}-label`}>Предмет из реестра дропа</label>
+        <button
+          type="button"
+          ref={trigger}
+          className="registry-picker-trigger"
+          aria-labelledby={`${pickerId}-label ${pickerId}-value`}
+          aria-expanded={open}
+          aria-controls={`${pickerId}-popup`}
+          aria-haspopup="dialog"
+          onClick={() => {
+            setSearch("");
+            setActive(0);
+            setOpen(!open);
           }}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setCatalog("");
-            setPrice("");
-          }}
-        />
-      </label>
-      <p className="caption" role="status">
-        {matchingItems.length
-          ? `Найдено предметов: ${matchingItems.length}`
-          : "Ничего не найдено. Измените название."}
-      </p>
-      <label>
-        Предмет из реестра дропа
+        >
+          <span id={`${pickerId}-value`}>
+            {item
+              ? `${item.name} · ${formatGold(item.price_units)} зол.`
+              : "Выберите предмет"}
+          </span>
+          <span aria-hidden="true">⌄</span>
+        </button>
         <select
+          className="registry-picker-validation"
           name="catalogId"
           value={catalog}
           required
+          tabIndex={-1}
+          aria-label="Предмет из реестра дропа"
+          onInvalid={(e) => {
+            e.preventDefault();
+            setSearch("");
+            setActive(0);
+            setOpen(true);
+            searchInput.current?.focus();
+          }}
           onChange={(e) => {
             setCatalog(e.target.value);
             setPrice(
@@ -86,16 +130,101 @@ export function RegistryInventory({
             );
           }}
         >
-          <option value="" disabled>
-            Выберите предмет
-          </option>
-          {matchingItems.map((i) => (
+          <option value="">Выберите предмет</option>
+          {items.map((i) => (
             <option key={i.id} value={i.id}>
-              {i.name} · {formatGold(i.price_units)} зол.
+              {i.name}
             </option>
           ))}
         </select>
-      </label>
+        {open && (
+          <div
+            className="registry-picker-popup"
+            id={`${pickerId}-popup`}
+            role="dialog"
+            aria-label="Выбор предмета"
+          >
+            <label>
+              Быстрый поиск
+              <input
+                ref={searchInput}
+                type="search"
+                role="combobox"
+                value={search}
+                aria-expanded="true"
+                aria-controls={`${pickerId}-options`}
+                aria-autocomplete="list"
+                aria-activedescendant={
+                  matchingItems[active]
+                    ? `${pickerId}-option-${active}`
+                    : undefined
+                }
+                placeholder="Начните вводить название…"
+                autoComplete="off"
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setActive(0);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setActive((n) =>
+                      Math.max(
+                        0,
+                        Math.min(
+                          matchingItems.length - 1,
+                          n + (e.key === "ArrowDown" ? 1 : -1),
+                        ),
+                      ),
+                    );
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const chosen = matchingItems[active];
+                    if (chosen) {
+                      setCatalog(chosen.id);
+                      setPrice(goldInput(chosen.price_units));
+                      setOpen(false);
+                      trigger.current?.focus();
+                    }
+                  }
+                }}
+              />
+            </label>
+            <div
+              className="registry-picker-options"
+              id={`${pickerId}-options`}
+              role="listbox"
+              aria-label="Предметы из реестра дропа"
+            >
+              {matchingItems.map((i, index) => (
+                <button
+                  type="button"
+                  role="option"
+                  tabIndex={-1}
+                  id={`${pickerId}-option-${index}`}
+                  key={i.id}
+                  aria-selected={catalog === i.id}
+                  className={index === active ? "is-active" : ""}
+                  onClick={() => {
+                    setCatalog(i.id);
+                    setPrice(goldInput(i.price_units));
+                    setOpen(false);
+                    trigger.current?.focus();
+                  }}
+                >
+                  {i.name} · {formatGold(i.price_units)} зол.
+                </button>
+              ))}
+            </div>
+            <p className="caption" role="status">
+              {matchingItems.length
+                ? `Найдено предметов: ${matchingItems.length}`
+                : "Ничего не найдено. Измените название."}
+            </p>
+          </div>
+        )}
+      </div>
       <label>
         Категория
         <select
