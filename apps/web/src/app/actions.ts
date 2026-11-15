@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getConfig } from "@/lib/config";
+import { telegramLoginUrl } from "@/lib/telegram-login";
 import {
   loginError,
   normalizeLogin,
@@ -153,19 +154,8 @@ export async function savePlayerClass(
 }
 export async function telegramLogin(): Promise<void> {
   await checkOrigin();
-  const c = getConfig();
-  if (!c.telegram || !/^custom:[a-z0-9-]+$/.test(c.telegramProvider))
-    redirect("/login?notice=provider");
-  const client = await createClient();
-  const { data, error } = await client.auth.signInWithOAuth({
-    provider: c.telegramProvider as `custom:${string}`,
-    options: {
-      redirectTo: `${c.origin}/auth/callback`,
-      scopes: "openid profile",
-    },
-  });
-  if (error || !data.url) redirect("/login?notice=provider");
-  redirect(data.url);
+  const url = await telegramLoginUrl();
+  redirect(url ?? "/login?notice=provider");
 }
 export async function submitApplication(
   _: FormState,
