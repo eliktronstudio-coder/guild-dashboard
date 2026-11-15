@@ -1,4 +1,5 @@
-import { GUILD_ID } from "@/lib/config";
+import { GUILD_ID, getConfig } from "@/lib/config";
+import { canAttachEmailLogin } from "@/lib/email-login";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
 import { MemberAvatar } from "@/components/members/avatar";
@@ -158,6 +159,15 @@ export async function GuildShell({
           </Link>
         </header>
         <main id="main" className="page-content">
+          {current !== "/account" &&
+            getConfig().email &&
+            canAttachEmailLogin(a.user) && (
+              <p className="notice">
+                Сохраните доступ без Telegram:{" "}
+                <Link href="/account/email">подключите email и пароль</Link> к
+                текущему аккаунту. Данные сохранятся.
+              </p>
+            )}
           {children}
         </main>
         <footer className="page-footer">

@@ -16,8 +16,9 @@ export function registrationAdmin() {
   });
 }
 export async function allowAuthAttempt(
-  kind: "signup" | "login",
+  kind: "signup" | "login" | "email_link",
   email?: string,
+  userId?: string,
 ) {
   const h = await headers();
   // nginx overwrites X-Real-IP. Use the last forwarded hop only as a fallback.
@@ -29,10 +30,11 @@ export async function allowAuthAttempt(
   const keys: [string, number, number][] = [
     [
       `${kind}:ip:${ip}`,
-      kind === "signup" ? 5 : 30,
-      kind === "signup" ? 3600 : 600,
+      kind === "login" ? 30 : 5,
+      kind === "login" ? 600 : 3600,
     ],
   ];
+  if (userId) keys.push([`${kind}:user:${userId}`, 5, 3600]);
   if (email) keys.push([`${kind}:email:${email}`, 3, 3600]);
   for (const [key, limit, seconds] of keys) {
     const { data, error } = await admin.rpc("claim_auth_attempt", {
