@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of existing services after manual archive import
+      - name: Read-only diagnosis of immediate Telegram login errors
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -27,5 +27,12 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/verify-payroll-balances.py
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo ARCHIVE_IMPORT_SERVICES_VERIFIED_NO_RECOGNITION'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'node' <<'JS'
+          const cp=require('node:child_process');
+          const logs=cp.execFileSync('journalctl',['-u','xd-guild.service','--since','3 hours ago','-o','cat','--no-pager'],{encoding:'utf8',maxBuffer:15000000});
+          const patterns={stale_action:/Failed to find Server Action|Server Action.*not found/gi,untrusted_origin:/UNTRUSTED_ORIGIN/g,origin_mismatch:/Invalid Server Actions request|does not match.*origin/gi,fetch_failed:/fetch failed/gi,database_unavailable:/ACCESS_DATABASE_FAILURE|ACCESS_DATABASE_UNAVAILABLE/g,oauth_error:/OAuth.*error|provider.*not.*enabled/gi};
+          console.log('LOGIN_ERROR_COUNTS',JSON.stringify(Object.fromEntries(Object.entries(patterns).map(([k,re])=>[k,[...logs.matchAll(re)].length]))));
+          const dir=cp.execFileSync('systemctl',['show','xd-guild','--property=WorkingDirectory','--value'],{encoding:'utf8'}).trim();
+          process.chdir(dir);require(dir+'/node_modules/@next/env').loadEnvConfig(dir);
+          console.log('LOGIN_CONFIG',JSON.stringify({origin:process.env.APP_ORIGIN,telegramEnabled:process.env.AUTH_TELEGRAM_ENABLED==='true',provider:process.env.AUTH_TELEGRAM_PROVIDER??'custom:telegram'}));
+          JS
