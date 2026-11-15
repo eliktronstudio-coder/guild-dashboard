@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAccess } from "@/lib/access";
+import { canAttachEmailLogin } from "@/lib/email-login";
 import { getConfig } from "@/lib/config";
 import { GuildShell } from "@/components/shell";
 import { signOut } from "@/app/actions";
@@ -18,6 +19,24 @@ export default async function Page({
         <h1>Мой аккаунт</h1>
         <p className="muted">Данные, по которым гильдия узнаёт вас.</p>
       </div>
+      {notice === "email_linked" && (
+        <p className="notice" role="status">
+          Вход по email подключён к вашему аккаунту. Все данные сохранены.
+          Теперь можно входить по указанному email и паролю без Telegram.
+        </p>
+      )}
+      {getConfig().email && canAttachEmailLogin(a.user) && (
+        <section className="panel section-panel narrow">
+          <h2>Альтернативный вход без Telegram</h2>
+          <p>
+            Добавьте email и пароль к этому аккаунту, чтобы входить без
+            Telegram. Ник, посещаемость и начисления сохраняются.
+          </p>
+          <Link className="button primary inline" href="/account/email">
+            Подключить email и пароль →
+          </Link>
+        </section>
+      )}
       <section className="panel section-panel narrow">
         <h2>{a.membership?.nickname ?? "Игровой ник ещё не выбран"}</h2>
         <dl className="account-details">
