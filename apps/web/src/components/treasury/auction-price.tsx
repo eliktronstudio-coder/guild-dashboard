@@ -3,31 +3,26 @@ import { useState } from "react";
 import {
   formatGold,
   goldInput,
-  parseGold,
+  inventorySaleTotal,
   splitSale,
-  MAX_AMOUNT_UNITS,
   type TreasurySource,
 } from "@/lib/treasury";
 export function AuctionPrice({
   available,
   price,
   source,
+  priceLabel = "Цена за единицу, золото",
 }: {
+  priceLabel?: string;
   available: number;
   price: string | null;
   source: TreasurySource;
 }) {
   const [quantity, setQuantity] = useState("1"),
     [unit, setUnit] = useState(goldInput(price));
-  const units = parseGold(unit),
-    count = /^\d{1,7}$/.test(quantity) ? BigInt(quantity) : 0n;
-  const total = units === null ? 0n : BigInt(units) * count,
-    valid =
-      count > 0n &&
-      count <= BigInt(available) &&
-      total > 0n &&
-      total <= MAX_AMOUNT_UNITS,
-    split = valid ? splitSale(String(total), source) : null;
+  const total = inventorySaleTotal(quantity, unit),
+    valid = total !== null && Number(quantity) <= available,
+    split = valid ? splitSale(total, source) : null;
   return (
     <>
       <label>
@@ -44,7 +39,7 @@ export function AuctionPrice({
         />
       </label>
       <label>
-        Цена за единицу, золото
+        {priceLabel}
         <input
           name="unitPrice"
           inputMode="decimal"
@@ -56,9 +51,9 @@ export function AuctionPrice({
         />
       </label>
       <p className="notice" aria-live="polite">
-        {split ? (
+        {split && total !== null ? (
           <>
-            Сумма продажи: {formatGold(String(total))} зол.
+            Сумма продажи: {formatGold(total)} зол.
             <br />
             {source === "prime"
               ? `В прайм: ${formatGold(split.fund)} · гильдии: ${formatGold(split.guild)} зол.`

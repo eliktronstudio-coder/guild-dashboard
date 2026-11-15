@@ -36,6 +36,20 @@ export function splitSale(units: string, source: TreasurySource) {
     guild = source === "prime" ? (gross * 3n) / 10n : 0n;
   return { guild: guild.toString(), fund: (gross - guild).toString() };
 }
+/** Quantity × unit price in fixed-point gold; shared by previews and server actions. */
+export function inventorySaleTotal(
+  quantity: string | number,
+  unitPrice: string,
+): string | null {
+  const text = String(quantity);
+  if (!/^\d{1,7}$/.test(text)) return null;
+  const count = BigInt(text),
+    price = parseGold(unitPrice);
+  if (count < 1n || count > 1000000n || price === null || BigInt(price) <= 0n)
+    return null;
+  const total = count * BigInt(price);
+  return total <= MAX_AMOUNT_UNITS ? String(total) : null;
+}
 export function treasuryError(message: string) {
   const messages: Record<string, string> = {
     USE_XD_INVENTORY:

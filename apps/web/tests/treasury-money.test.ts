@@ -5,6 +5,7 @@ import {
   formatGold,
   goldInput,
   splitSale,
+  inventorySaleTotal,
 } from "../src/lib/treasury";
 test("gold parsing is exact, accepts comma, rejects precision loss and invalid values", () => {
   assert.equal(parseGold("100000"), "1000000000");
@@ -39,4 +40,31 @@ test("large totals format without floating point; prime split is exactly conserv
     const s = splitSale(n.toString(), "prime");
     assert.equal(BigInt(s.guild) + BigInt(s.fund), n);
   }
+});
+
+test("inventory quantity times price is exact for decimals, maximums and both treasury splits", () => {
+  assert.equal(inventorySaleTotal(5, "150"), "7500000");
+  assert.equal(inventorySaleTotal("3", "0,1"), "3000");
+  assert.equal(inventorySaleTotal(3, "0.0001"), "3");
+  assert.equal(inventorySaleTotal(1000000, "10000"), "100000000000000");
+  assert.deepEqual(splitSale(inventorySaleTotal(5, "150")!, "prime"), {
+    guild: "2250000",
+    fund: "5250000",
+  });
+  assert.deepEqual(splitSale(inventorySaleTotal(5, "150")!, "mini_rb"), {
+    guild: "0",
+    fund: "7500000",
+  });
+  for (const q of ["", "NaN", "1.5", "1e3", "-1", "0", "1000001"])
+    assert.equal(inventorySaleTotal(q, "150"), null);
+  for (const price of [
+    "",
+    "0",
+    "-1",
+    "1.00001",
+    "Infinity",
+    "10000000000.0001",
+  ])
+    assert.equal(inventorySaleTotal(1, price), null);
+  assert.equal(inventorySaleTotal(2, "10000000000"), null);
 });

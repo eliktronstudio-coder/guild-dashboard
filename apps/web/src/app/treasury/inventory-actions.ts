@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
 import { checkOrigin, field } from "@/lib/mutations";
 import { isUuid } from "@/lib/members";
-import { parseGold, treasuryError } from "@/lib/treasury";
+import { parseGold, treasuryError, inventorySaleTotal } from "@/lib/treasury";
 import type { FormState } from "@/lib/identity";
 const integer = (f: FormData, key: string) =>
   /^\d{1,10}$/.test(field(f, key)) ? Number(field(f, key)) : NaN;
@@ -93,7 +93,7 @@ export async function recordInventorySale(
     loot = field(f, "lootId"),
     version = integer(f, "version"),
     quantity = integer(f, "quantity"),
-    amount = parseGold(field(f, "amount")),
+    amount = inventorySaleTotal(quantity, field(f, "unitPrice")),
     buyer = field(f, "buyer").trim();
   if (
     !isUuid(request) ||
@@ -111,7 +111,7 @@ export async function recordInventorySale(
   )
     return {
       error:
-        "Укажите количество, покупателя, полученную сумму и подтвердите продажу.",
+        "Укажите количество, цену за единицу, покупателя и подтвердите продажу.",
     };
   return mutate(
     "record_inventory_sale",
@@ -175,7 +175,7 @@ export async function completeInventoryAuction(
     version = integer(f, "auctionVersion"),
     lootVersion = integer(f, "version"),
     quantity = integer(f, "quantity"),
-    amount = parseGold(field(f, "amount")),
+    amount = inventorySaleTotal(quantity, field(f, "unitPrice")),
     buyer = field(f, "buyer").trim();
   if (
     !isUuid(request) ||
@@ -194,7 +194,8 @@ export async function completeInventoryAuction(
     f.get("confirm") !== "on"
   )
     return {
-      error: "Проверьте количество, покупателя и фактически полученное золото.",
+      error:
+        "Проверьте количество, цену за единицу после комиссии и покупателя.",
     };
   return mutate(
     "complete_inventory_auction",
