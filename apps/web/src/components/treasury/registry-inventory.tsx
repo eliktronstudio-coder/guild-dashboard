@@ -15,6 +15,13 @@ export function RegistryInventory({
   requestId: string;
 }) {
   const [catalog, setCatalog] = useState("");
+  const [search, setSearch] = useState("");
+  const matchingItems = items.filter((item) =>
+    item.name
+      .toLocaleLowerCase("ru")
+      .replace(/ё/g, "е")
+      .includes(search.trim().toLocaleLowerCase("ru").replace(/ё/g, "е")),
+  );
   const [price, setPrice] = useState("");
   const [event, setEvent] = useState("");
   const [source, setSource] = useState("prime");
@@ -43,6 +50,28 @@ export function RegistryInventory({
         </select>
       </label>
       <label>
+        Быстрый поиск предмета
+        <input
+          type="search"
+          value={search}
+          placeholder="Начните вводить название…"
+          autoComplete="off"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setCatalog("");
+            setPrice("");
+          }}
+        />
+      </label>
+      <p className="caption" role="status">
+        {matchingItems.length
+          ? `Найдено предметов: ${matchingItems.length}`
+          : "Ничего не найдено. Измените название."}
+      </p>
+      <label>
         Предмет из реестра дропа
         <select
           name="catalogId"
@@ -60,7 +89,7 @@ export function RegistryInventory({
           <option value="" disabled>
             Выберите предмет
           </option>
-          {items.map((i) => (
+          {matchingItems.map((i) => (
             <option key={i.id} value={i.id}>
               {i.name} · {formatGold(i.price_units)} зол.
             </option>
