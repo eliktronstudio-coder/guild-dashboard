@@ -1,3 +1,4 @@
+import { NavIcon } from "@/components/navigation/nav-icon";
 import { AttendanceLines, SalaryLines } from "./payroll-cells";
 import type { PayrollRow } from "@/lib/payroll";
 import type { FormState } from "@/lib/identity";
@@ -78,7 +79,7 @@ export function MemberDirectory({
                       title="Изменить коэффициент в профиле"
                     >
                       {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")}{" "}
-                      ✎
+                      <NavIcon name="edit" />
                     </Link>
                   </td>
                 )}
@@ -98,7 +99,7 @@ export function MemberDirectory({
                   {m.role_names.join(", ") || "Без роли"}
                 </p>
               </div>
-              <span aria-hidden="true">↗</span>
+              <NavIcon name="arrow" />
             </Link>
             <dl>
               <dt>Персонаж</dt>
@@ -117,7 +118,8 @@ export function MemberDirectory({
                 href={`/members/${m.id}`}
                 title="Изменить коэффициент в профиле"
               >
-                {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")} ✎
+                {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")}{" "}
+                <NavIcon name="edit" />
               </Link>
             )}
           </article>

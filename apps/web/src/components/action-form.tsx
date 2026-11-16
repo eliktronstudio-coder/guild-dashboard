@@ -1,4 +1,5 @@
 "use client";
+import { NavIcon } from "@/components/navigation/nav-icon";
 import { useActionState, type ReactNode } from "react";
 import type { FormState } from "@/lib/identity";
 export function ActionForm({
@@ -32,7 +33,7 @@ export function ActionForm({
       )}
       <button className="button primary" disabled={pending} type="submit">
         {pending ? "Сохраняем…" : label}
-        <span aria-hidden="true">↗</span>
+        <NavIcon name="arrow" />
       </button>
     </form>
   );

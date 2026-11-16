@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-16T11:54:31.544073+00:00",
+  "title": "Design System: XD Guild Command Center",
+  "extensions": {
+    "sourceDocument": "docs/DESIGN.md",
+    "sourceStyles": [
+      "apps/web/src/app/globals.css",
+      "apps/web/src/app/command-fonts.css",
+      "apps/web/src/app/reference-ui.css"
+    ],
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "none",
+        "purpose": "Flat working panels separated by borders."
+      },
+      {
+        "name": "primary-inherited",
+        "value": "0 4px 20px #9a333d15",
+        "purpose": "Existing base primary-button shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-colors",
+        "value": "color 0.18s, background-color 0.18s, border-color 0.18s, box-shadow 0.18s",
+        "purpose": "Existing shared control transitions; disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "intermediate-max",
+        "value": "1023px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "767px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary Button from the implemented reference system.",
+      "html": "<button class=\"ds-primary\">Сохранить</button>",
+      "css": ".ds-primary{background:#ff9e2c;color:#0a080c;border:1px solid #ff9e2c;border-radius:8px;min-height:44px;padding:12px 20px;font:500 13px Geist,Arial,sans-serif;transition:background-color .18s,color .18s}.ds-primary:hover{background:#b23f4b;color:white}.ds-primary:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary Button from the implemented reference system.",
+      "html": "<button class=\"ds-secondary\">Отмена</button>",
+      "css": ".ds-secondary{background:var(--panel,#150f16);color:var(--text,#fff);border:1px solid var(--line,#2d1d28);border-radius:8px;min-height:44px;padding:12px 20px;font:500 13px Geist,Arial,sans-serif}.ds-secondary:hover{color:var(--gold,#ff9e2c)}.ds-secondary:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Input from the implemented reference system.",
+      "html": "<label class=\"ds-label\">Ник<input class=\"ds-input\" placeholder=\"Игровое имя\"></label>",
+      "css": ".ds-label{display:grid;gap:6px;color:var(--text,#fff);font:14px Geist,Arial,sans-serif}.ds-input{min-height:44px;border:1px solid var(--line,#2d1d28);border-radius:8px;padding:12px 14px;background:var(--field,#0e0b10);color:var(--text,#fff);font:14px Geist,Arial,sans-serif}.ds-input:hover{border-color:var(--gold,#ff9e2c)}.ds-input:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+    },
+    {
+      "name": "Active Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Active Navigation from the implemented reference system.",
+      "html": "<nav><a class=\"ds-nav\" href=\"#\" aria-current=\"page\">Обзор гильдии</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;min-height:46px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--gold,#ff9e2c) 25%,transparent);border-radius:12px;background:var(--gold-soft,rgba(255,158,44,.1));color:var(--gold,#ff9e2c);font:14px Geist,Arial,sans-serif;text-decoration:none}.ds-nav:hover{color:var(--text,#fff)}.ds-nav:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+    },
+    {
+      "name": "Role Badge",
+      "kind": "chip",
+      "description": "Role Badge from the implemented reference system.",
+      "html": "<span class=\"ds-badge\">Участник</span>",
+      "css": ".ds-badge{display:inline-block;padding:3px 7px;border:1px solid var(--line,#2d1d28);border-radius:6px;color:var(--text,#fff);font:11px Geist,Arial,sans-serif;white-space:nowrap}"
+    },
+    {
+      "name": "Working Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Working Panel from the implemented reference system.",
+      "html": "<section class=\"ds-panel\"><h2>Личная посещаемость</h2><p>Подтверждённые данные за выбранный период</p></section>",
+      "css": ".ds-panel{padding:20px;border:1px solid var(--line,#2d1d28);border-radius:16px;background:var(--panel,#150f16);color:var(--text,#fff);box-shadow:none}.ds-panel h2{margin:0;font:700 17px/1.4 Unbounded,Geist,sans-serif;letter-spacing:-.02em}.ds-panel p{font:14px/1.5 Geist,Arial,sans-serif;color:var(--muted,#ada0ab)}"
+    }
+  ],
+  "narrative": {
+    "overview": "The current system transfers the owner-approved visual reference at http://xd.200.165.236.194.sslip.io across the existing application. The pinned reference is the visual authority; source CSS defines implemented values. This is a compact working interface with warm dark surfaces, orange accents, grouped navigation and quiet borders, with a corresponding light theme.",
+    "keyCharacteristics": [
+      "Dense, labeled working panels and tables.",
+      "Geometric headings with neutral interface text and monospaced financial values.",
+      "Limited existing imagery, subordinate to readable data."
+    ],
+    "rules": [
+      {
+        "name": "The Reference Rule",
+        "body": "Keep the approved reference authoritative for visual decisions; do not revive archived concept tokens as current values.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do use the approved reference and current theme tokens for shared chrome and working surfaces.",
+      "Do preserve current Auth, ACL, real data, payroll formulas and saved layout behavior.",
+      "Do reuse existing imagery and keep content readable in both themes and at mobile widths.",
+      "Do label the static countdown as the Moscow-time game schedule."
+    ],
+    "donts": [
+      "Don't treat historical concept palettes or typography as the current system.",
+      "Don't introduce fake translations, balances, levels, roles or unavailable features.",
+      "Don't present the static rotation as database events or automatic attendance."
+    ]
+  }
+}

@@ -759,3 +759,16 @@ td {
   min-width: 44px;
   min-height: 44px;
 }
+
+.story-copy > p:not(.eyebrow) {
+  color: var(--muted);
+}
+:root[data-theme="light"] .public-story {
+  --card-scrim: rgba(255, 250, 244, 0.98);
+}
+.directory-mobile a[title],
+.directory-desktop a[title] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
