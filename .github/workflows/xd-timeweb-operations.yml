@@ -27,5 +27,4 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python3 operations/scripts/diagnose-current-performance.py
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'uptime; free -m; df -h /; systemctl show xd-guild --property=MemoryCurrent --property=NRestarts; curl -s -o /dev/null -w "LOCAL_LOGIN_SECONDS %{time_total}\n" http://127.0.0.1:3001/login'
+          python3 operations/scripts/apply-command-attendance.py
