@@ -34,7 +34,7 @@ with tempfile.TemporaryFile() as log:
    for i in range(100):
     try:page.goto(origin+'/dashboard');break
     except Exception:time.sleep(.2)
-   expect(page.get_by_role('link',name='Главная',exact=True)).to_be_visible();expect(page.get_by_role('timer')).to_contain_text('Осталось:')
+   expect(page.get_by_role('link',name='Главная',exact=True)).to_be_visible();expect(page.get_by_role('timer')).to_have_count(0)
    for width in [390,1440]:
     page.set_viewport_size({'width':width,'height':1000})
     for path in ['/members','/treasury','/admin/participation',f'/events/{EVENT}']:

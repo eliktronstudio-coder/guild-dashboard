@@ -1,3 +1,5 @@
+import { historyAttendance } from "@/lib/history-report";
+import { PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { AttendanceLines } from "@/components/members/payroll-cells";
 import type { AttendanceSummary } from "@/lib/payroll";
 import Link from "next/link";
@@ -19,13 +21,32 @@ export default async function Page({
     Math.min(10000, parseInt(queryValue(p.page) ?? "1", 10) || 1),
   );
   const [{ data, error, count }, manage] = await Promise.all([
-    a.client
-      .rpc(
-        "attendance_category_report",
-        { p_from: range.from, p_until: range.until },
-        { count: "exact" },
-      )
-      .range((page - 1) * 25, page * 25 - 1),
+    PERIOD_CLOSING_ENABLED
+      ? a.client
+          .rpc(
+            "attendance_category_report",
+            { p_from: range.from, p_until: range.until },
+            { count: "exact" },
+          )
+          .range((page - 1) * 25, page * 25 - 1)
+      : historyAttendance()
+          .then(async (allRows) => {
+            const full = await a.permission("attendance.manage");
+            const visible = allRows.filter(
+              (r) => full || r.id === a.membership!.id,
+            );
+            return {
+              error: null,
+              count: visible.length,
+              data: visible.slice((page - 1) * 25, page * 25).map((r) => ({
+                ...r,
+                membership_id: r.id,
+                present: r.attendance_present ?? 0,
+                total: r.attendance_total ?? 0,
+              })),
+            };
+          })
+          .catch(() => ({ data: null, error: true, count: 0 })),
     a.permission("attendance.manage"),
   ]);
   if (error) redirect("/setup?problem=database");
@@ -52,23 +73,26 @@ export default async function Page({
         </Link>
         <h1>{manage ? "Посещаемость гильдии" : "Моя посещаемость"}</h1>
         <p className="muted">
-          Сохранённый состав завершённых учитываемых событий. Период —
-          календарный месяц UTC.
+          {PERIOD_CLOSING_ENABLED
+            ? "Сохранённый состав завершённых учитываемых событий. Календарный месяц UTC."
+            : "Посещаемость по всем сохранённым активностям, без ограничения по датам."}
         </p>
       </div>
-      <form className="panel section-panel search-form">
-        <label>
-          Месяц
-          <input
-            type="month"
-            name="month"
-            defaultValue={range.month}
-            min="2000-01"
-            max="2100-12"
-          />
-        </label>
-        <button className="button secondary">Показать</button>
-      </form>
+      {PERIOD_CLOSING_ENABLED && (
+        <form className="panel section-panel search-form">
+          <label>
+            Месяц
+            <input
+              type="month"
+              name="month"
+              defaultValue={range.month}
+              min="2000-01"
+              max="2100-12"
+            />
+          </label>
+          <button className="button secondary">Показать</button>
+        </form>
+      )}
       <section className="panel section-panel">
         <p className="notice">
           Посещаемость = число посещённых / все проведённые учитываемые
@@ -94,12 +118,21 @@ export default async function Page({
               <dl className="character-details">
                 <dt>Присутствовал</dt>
                 <dd>{r.present}</dd>
-                <dt>Отсутствовал</dt>
-                <dd>{r.absent}</dd>
-                <dt>Уважительная причина</dt>
-                <dd>{r.excused}</dd>
-                <dt>Не учитывается</dt>
-                <dd>{r.excluded}</dd>
+                {!PERIOD_CLOSING_ENABLED ? (
+                  <>
+                    <dt>Всего активностей</dt>
+                    <dd>{r.total}</dd>
+                  </>
+                ) : (
+                  <>
+                    <dt>Отсутствовал</dt>
+                    <dd>{r.absent}</dd>
+                    <dt>Уважительная причина</dt>
+                    <dd>{r.excused}</dd>
+                    <dt>Не учитывается</dt>
+                    <dd>{r.excluded}</dd>
+                  </>
+                )}
               </dl>
             </article>
           ))}
