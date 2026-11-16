@@ -134,7 +134,7 @@ export default async function Page({
         <Link href={"/statistics?q=" + encodeURIComponent(member.nickname)}>
           Посещаемость и статистика →
         </Link>
-        <Link href="/treasury#settlements">Начисления и выплаты →</Link>
+        <Link href="/payments">Начисления и выплаты →</Link>
       </nav>
       <Link href="/members" className="text-button">
         ← Состав гильдии

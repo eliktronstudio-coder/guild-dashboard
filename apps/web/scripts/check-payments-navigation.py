@@ -33,14 +33,20 @@ with tempfile.TemporaryFile() as log:
     for width in [390,1440]:
      context.clear_cookies();context.add_cookies([{'name':'sb-127-auth-token','value':cookie,'url':origin}]);page.set_viewport_size({'width':width,'height':1000})
      page.goto(origin+('/treasury' if staff else '/dashboard'),wait_until='networkidle')
-     if width==390:page.get_by_role('button',name='Открыть меню',exact=True).click()
-     page.get_by_role('link',name='Выплаты',exact=True).click()
+     if staff:page.get_by_role('link',name='Начисления и выплаты →',exact=True).click()
+     else:
+      if width==390:page.get_by_role('button',name='Открыть меню',exact=True).click()
+      page.get_by_role('link',name='Выплаты',exact=True).click()
      page.wait_for_url(origin+'/payments',wait_until='networkidle')
      expect(page.get_by_role('heading',name='Мои начисления',exact=True)).to_be_visible()
      expect(page.get_by_role('link',name='Выплаты',exact=True,include_hidden=True)).to_have_attribute('aria-current','page')
      assert page.locator('summary').filter(has_text='Записать выплату').count()>0 if staff else page.locator('summary').filter(has_text='Записать выплату').count()==0
      page.get_by_role('link',name='Далее →',exact=True).click();page.wait_for_url('**/payments?apage=2#settlements',wait_until='networkidle')
      page.goto(origin+'/payments?apage=999',wait_until='networkidle');page.wait_for_url('**/payments?apage=2#settlements',wait_until='networkidle')
+     if staff:
+      page.goto(origin+'/treasury',wait_until='networkidle')
+      if width==390:page.get_by_role('button',name='Открыть меню',exact=True).click()
+      page.get_by_role('link',name='Выплаты',exact=True).click();page.wait_for_url(origin+'/payments',wait_until='networkidle')
      assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
    assert not errors,errors
    browser.close();print('PASS: Payments sidebar click opens standalone page for member without treasury.read and staff; active navigation, payment permissions, pagination and oversized page stay on /payments; 390/1440px; isolated fixtures')

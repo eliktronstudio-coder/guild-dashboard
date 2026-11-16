@@ -217,7 +217,7 @@ export default async function Page({
       </div>
       <nav className="form-links">
         <Link href="/rb-purchase">Расчёт покупки РБ →</Link>
-        <Link href="/treasury#settlements">Начисления и выплаты →</Link>
+        <Link href="/payments">Начисления и выплаты →</Link>
         {PERIOD_CLOSING_ENABLED && (
           <Link href="/archive">История периодов →</Link>
         )}
