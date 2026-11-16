@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { requireMember } from "@/lib/access";
 import { dashboardPeriod } from "@/lib/dashboard";
-import { GUILD_ID } from "@/lib/config";
+import { GUILD_ID, PERIOD_CLOSING_ENABLED } from "@/lib/config";
 export async function ClosingNotice() {
+  if (!PERIOD_CLOSING_ENABLED) return null;
   const a = await requireMember();
   if (!(await a.permission("periods.close"))) return null;
   const today = new Date(),

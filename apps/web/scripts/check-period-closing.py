@@ -30,8 +30,18 @@ with tempfile.TemporaryFile() as log:
     try:page.goto(origin+'/login');break
     except Exception:time.sleep(.2)
    for width in [390,1440]:
-    closed=False;page.set_viewport_size({'width':width,'height':1000});page.goto(origin+'/archive?from='+selected,wait_until='networkidle');expect(page.get_by_role('heading',name='Закрытие периода',exact=True)).to_be_visible();expect(page.get_by_role('columnheader',name='Прайм · начислено')).to_be_visible();expect(page.get_by_role('columnheader',name='Всего',exact=True)).to_be_visible();page.screenshot(path=str(artifacts/f'closing-{width}.png'),full_page=True)
-    page.get_by_label('Проверил состав и начисления.',exact=False).check();page.get_by_role('button',name='Архивировать период',exact=True).click();expect(page.get_by_role('heading',name='Закрытый период',exact=True)).to_be_visible();expect(page.get_by_text('Непроданная эссенция',exact=False)).to_be_visible();expect(page.get_by_role('link',name='Скачать исходный архив JSON →')).to_be_visible();assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1');page.screenshot(path=str(artifacts/f'archive-{width}.png'),full_page=True)
+    page.set_viewport_size({'width':width,'height':1000})
+    page.goto(origin+'/dashboard',wait_until='networkidle')
+    expect(page.get_by_label('Расчётный период',exact=True)).to_have_count(0)
+    expect(page.get_by_text('Конец расчётного диапазона',exact=True)).to_have_count(0)
+    expect(page.get_by_text('Предыдущий период ожидает архивации',exact=True)).to_have_count(0)
+    expect(page.get_by_role('link',name='Архив и закрытие',exact=True)).to_have_count(0)
+    expect(page.get_by_role('heading',name='До активностей',exact=True)).to_be_visible()
+    page.goto(origin+'/archive?from='+selected,wait_until='networkidle')
+    expect(page.get_by_text('Расчётные периоды временно отключены.',exact=False)).to_be_visible()
+    expect(page.get_by_role('button',name='Архивировать период',exact=True)).to_have_count(0)
+    assert not closed
+    assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1')
    assert not errors,errors
-   browser.close();print('PASS: real server action close, immutable archive presentation, per-player accruals, received stock, export link; 390/1440px; fixtures only')
+   browser.close();print('PASS: period controls, countdown and closing reminders hidden; direct archive route paused; game countdown retained; no closing RPC; 390/1440px; fixtures only')
  finally:server.terminate();server.wait(timeout=15);fixture.shutdown()
