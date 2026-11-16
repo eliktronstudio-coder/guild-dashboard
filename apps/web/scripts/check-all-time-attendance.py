@@ -2,6 +2,7 @@
 from pathlib import Path
 exec(compile(Path(__file__).with_name('check-command-center.py').read_text().split('fixture=ThreadingHTTPServer')[0],__file__,'exec'))
 queries=[]
+data_queries=[]
 selected='2026-09-15'
 raid=[{**event,'id':f'10000000-0000-4000-8000-{i:012d}','title':'АГЛ','activity_banner_name':'АГЛ','treasury_source':'mini_rb','activity_weight':100,'starts_at':f'2026-10-{20+i:02d}T12:00:00Z','status':'completed','counts_for_attendance':True,'inventory_receipt':False,'deleted_at':None} for i in range(10)]
 class ArchiveFixture(Fixture):
@@ -9,10 +10,11 @@ class ArchiveFixture(Fixture):
   self.payload=json.loads(self.rfile.read(int(self.headers.get("Content-Length","0"))) or "{}")
   self.reply()
  def reply(self):
-  path=urllib.parse.urlsplit(self.path).path;p=getattr(self,'payload',{})
+  path=urllib.parse.urlsplit(self.path).path;p=getattr(self,'payload',{});data_queries.append(path)
   data=None
   if path.endswith('/events'):data=raid
   elif path.endswith('/attendance'):data=[{'membership_id':MEMBER,'mark':'present','events':e} for e in raid[:5]]
+  elif path.endswith('/rpc/command_attendance_data'):data={'events':raid,'members':[member],'marks':[{'event_id':e['id'],'membership_id':MEMBER,'mark':'present'} for e in raid[:5]]}
   elif path.endswith('/rpc/dashboard_report'):
    queries.append(p);data=report
   elif path.endswith('/rpc/all_time_attendance_report'):
@@ -46,6 +48,8 @@ with tempfile.TemporaryFile() as log:
      assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),route
     page.goto(origin+'/rb-purchase',wait_until='networkidle')
     expect(page.get_by_text(member['nickname'],exact=False)).not_to_have_count(0)
+   assert sum(path.endswith('/rpc/command_attendance_data') for path in data_queries)==4,data_queries
+   assert not any(path.endswith('/attendance') for path in data_queries),data_queries
    assert queries and all(q['p_from']=='2026-10-20T00:00:00.000Z' for q in queries),queries
    assert not errors,errors
    browser.close();print('PASS: pre-15th 5/10=50% across dashboard, roster, statistics, attendance and Mini RB candidates despite empty current period; 390/1440px; isolated fixtures')
