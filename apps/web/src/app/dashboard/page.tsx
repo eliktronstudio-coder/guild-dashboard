@@ -1,10 +1,7 @@
 import { ActivitySchedule } from "@/components/dashboard/activity-schedule";
-import { PeriodCountdown } from "@/components/dashboard/period-countdown";
-import { ClosingNotice } from "@/components/settlements/closing-notice";
 import Link from "next/link";
 import { GuildShell } from "@/components/shell";
 import { SeriesChart } from "@/components/dashboard/series-chart";
-import { PeriodFilter } from "@/components/dashboard/period-filter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import CustomizableGrid from "@/components/dashboard/customizable-grid";
 import { loadCommandReport } from "@/lib/command-report";
@@ -18,7 +15,7 @@ export default async function Page({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const result = await loadCommandReport(await searchParams),
-    { access, range, report: data, summary } = result;
+    { access, report: data, summary } = result;
   const recent = await access.client
     .from("events")
     .select("id,title,starts_at,attendance_finalized_at")
@@ -80,11 +77,9 @@ export default async function Page({
   );
   return (
     <GuildShell current="/dashboard">
-      <ClosingNotice />
       <div className="dashboard-title sr-only">
         <h1>Главная</h1>
       </div>
-      <PeriodFilter range={range} />
       {result.error && (
         <p className="notice" role="alert">
           {result.error}
@@ -414,11 +409,6 @@ export default async function Page({
               value={money(data.own_finance.pending_units)}
               note={`Всего выплачено: ${money(data.own_finance.paid_units)}`}
               href="/payments"
-            />
-            <StatCard
-              title="Конец расчётного диапазона"
-              value={dashboardDate(range.until)}
-              note={<PeriodCountdown until={range.until} />}
             />
           </div>
           <p className="caption">

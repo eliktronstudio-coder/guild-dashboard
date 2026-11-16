@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/navigation/sidebar";
 import { NavIcon } from "@/components/navigation/nav-icon";
-import { GUILD_ID, getConfig } from "@/lib/config";
+import { GUILD_ID, getConfig, PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { canAttachEmailLogin } from "@/lib/email-login";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Link from "next/link";
@@ -95,7 +95,7 @@ export async function GuildShell({
       links: [
         ...(canReadTreasury ? [["/treasury", "Казна", "treasury"]] : []),
         ["/payments", "Выплаты", "payments"],
-        ...(canAllocate || canClose
+        ...(PERIOD_CLOSING_ENABLED && (canAllocate || canClose)
           ? [["/archive", "Архив и закрытие", "archive"]]
           : []),
       ],

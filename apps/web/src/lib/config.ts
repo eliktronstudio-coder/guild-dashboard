@@ -17,3 +17,6 @@ export function getConfig() {
   };
 }
 export const GUILD_ID = "00000000-0000-4000-8000-000000000001";
+
+// Temporarily paused until the period workflow is redesigned. Historical data is retained.
+export const PERIOD_CLOSING_ENABLED = false;

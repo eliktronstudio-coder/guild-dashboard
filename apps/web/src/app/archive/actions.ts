@@ -1,4 +1,5 @@
 "use server";
+import { PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/access";
 import { checkOrigin, field } from "@/lib/mutations";
@@ -8,6 +9,8 @@ export async function closePeriod(
   form: FormData,
 ): Promise<FormState> {
   await checkOrigin();
+  if (!PERIOD_CLOSING_ENABLED)
+    return { error: "Закрытие периода временно отключено." };
   const a = await requirePermission("periods.close"),
     from = field(form, "from"),
     signature = field(form, "signature");

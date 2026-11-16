@@ -2,7 +2,7 @@ import Link from "next/link";
 import { GuildShell } from "@/components/shell";
 import { requireMember } from "@/lib/access";
 import { dashboardPeriod } from "@/lib/dashboard";
-import { GUILD_ID } from "@/lib/config";
+import { GUILD_ID, PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { formatGold } from "@/lib/treasury";
 import { payrollDue, type PayrollReport } from "@/lib/payroll";
 import { PeriodRoster } from "@/components/settlements/period-roster";
@@ -32,6 +32,18 @@ export default async function Page({
 }: {
   searchParams: Promise<{ from?: string }>;
 }) {
+  if (!PERIOD_CLOSING_ENABLED) {
+    await requireMember();
+    return (
+      <GuildShell current="/archive">
+        <h1>Архив и закрытие</h1>
+        <p className="notice">
+          Расчётные периоды временно отключены. История сохранена; механизм
+          будет переработан позже.
+        </p>
+      </GuildShell>
+    );
+  }
   const a = await requireMember(),
     p = await searchParams,
     range = dashboardPeriod({ period: "current" });
