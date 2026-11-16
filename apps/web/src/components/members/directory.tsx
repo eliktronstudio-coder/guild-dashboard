@@ -1,3 +1,4 @@
+import { NavIcon } from "@/components/navigation/nav-icon";
 import { AttendanceLines, SalaryLines } from "./payroll-cells";
 import type { PayrollRow } from "@/lib/payroll";
 import type { FormState } from "@/lib/identity";
@@ -48,12 +49,18 @@ export function MemberDirectory({
                     <strong>{m.nickname}</strong>
                   </Link>
                 </td>
-                <td>{m.role_names.join(", ") || "Без роли"}</td>
+                <td>
+                  <span className="role-badge">
+                    {m.role_names.join(", ") || "Без роли"}
+                  </span>
+                </td>
                 <td>
                   {m.main_character ?? <span className="muted">Не указан</span>}
                 </td>
                 <td>
-                  <span>{m.character_class || "Не указан"}</span>
+                  <span className="class-badge" data-class={m.character_class}>
+                    {m.character_class || "Не указан"}
+                  </span>
                   <p className="caption">
                     {m.game_server || "Сервер не указан"}
                   </p>
@@ -72,7 +79,7 @@ export function MemberDirectory({
                       title="Изменить коэффициент в профиле"
                     >
                       {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")}{" "}
-                      ✎
+                      <NavIcon name="edit" />
                     </Link>
                   </td>
                 )}
@@ -92,7 +99,7 @@ export function MemberDirectory({
                   {m.role_names.join(", ") || "Без роли"}
                 </p>
               </div>
-              <span aria-hidden="true">↗</span>
+              <NavIcon name="arrow" />
             </Link>
             <dl>
               <dt>Персонаж</dt>
@@ -111,7 +118,8 @@ export function MemberDirectory({
                 href={`/members/${m.id}`}
                 title="Изменить коэффициент в профиле"
               >
-                {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")} ✎
+                {((m.payout_weight ?? 100) / 100).toLocaleString("ru-RU")}{" "}
+                <NavIcon name="edit" />
               </Link>
             )}
           </article>

@@ -1,3 +1,4 @@
+import { NavIcon } from "@/components/navigation/nav-icon";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
 import { PublicFrame } from "@/components/shell";
@@ -49,7 +50,7 @@ export default async function LoginPage({
       )}
       <form action="/auth/telegram" method="post">
         <button className="button telegram" disabled={!c.telegram}>
-          Войти через Telegram <span aria-hidden="true">↗</span>
+          Войти через Telegram <NavIcon name="arrow" />
         </button>
       </form>
       {!c.telegram && <p className="caption">Telegram ещё не подключён</p>}

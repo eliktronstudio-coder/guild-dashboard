@@ -1,3 +1,4 @@
+import { ActivitySchedule } from "@/components/dashboard/activity-schedule";
 import { PeriodCountdown } from "@/components/dashboard/period-countdown";
 import { ClosingNotice } from "@/components/settlements/closing-notice";
 import Link from "next/link";
@@ -28,6 +29,8 @@ export default async function Page({
     .order("starts_at", { ascending: false })
     .order("id")
     .limit(5);
+  const personal = "personalSummary" in result ? result.personalSummary : null;
+  const own = personal?.rows[0];
   const money = (units: string) => formatGold(units) + " зол.";
   const ranking = (field: "prime" | "mini") =>
     (summary?.rows ?? [])
@@ -78,21 +81,9 @@ export default async function Page({
   return (
     <GuildShell current="/dashboard">
       <ClosingNotice />
-      <section className="command-hero">
-        <p className="eyebrow">XD / ХД · GUILD COMMAND CENTER</p>
-        <h1>
-          Одна гильдия.
-          <br />
-          <em>Общий путь.</em>
-        </h1>
-        <p>С возвращением, {access.membership!.nickname}.</p>
-        <div className="command-hero-foot">
-          <span>Состав · Активности · Экономика</span>
-          <Link className="button secondary" href="/statistics">
-            Открыть аналитику →
-          </Link>
-        </div>
-      </section>
+      <div className="dashboard-title sr-only">
+        <h1>Главная</h1>
+      </div>
       <PeriodFilter range={range} />
       {result.error && (
         <p className="notice" role="alert">
@@ -101,83 +92,97 @@ export default async function Page({
       )}
       {data && (
         <>
-          <div className="stats-grid command-stats">
-            {data.finance && (
-              <>
-                <StatCard
-                  title="Казна Прайма"
-                  value={money(data.finance.current.prime_units)}
-                  note="70% — фонд зарплат · текущий остаток"
-                  href="/treasury"
-                  art="/command/art/kpi-prime.webp"
-                />
-                <StatCard
-                  title="Казна Мини-РБ"
-                  value={money(data.finance.current.mini_units)}
-                  note="100% — фонд Мини-РБ · текущий остаток"
-                  href="/treasury?inventory=mini_rb"
-                  art="/command/art/kpi-minirb.webp"
-                />
-                <StatCard
-                  title="Казна гильдии"
-                  value={money(data.finance.current.guild_units)}
-                  note="30% Прайма · резерв после расходов"
-                  href="/treasury"
-                  art="/command/art/kpi-guild.webp"
-                />
-                <StatCard
-                  title="Непроданный дроп"
-                  value={
-                    data.finance.current.unpriced_count &&
-                    data.finance.current.priced_count === 0
-                      ? "Нет оценки"
-                      : money(data.finance.current.inventory_units)
-                  }
-                  note={
-                    data.finance.current.unpriced_count
-                      ? `Без цены партий: ${data.finance.current.unpriced_count}`
-                      : "Имущество не прибавляется к золоту"
-                  }
-                  href="/treasury"
-                  art="/command/art/kpi-drop.webp"
-                />
-              </>
-            )}
-            <StatCard
-              title="Посещаемость"
-              value={
-                data.attendance === null ? "Нет данных" : data.attendance + "%"
-              }
-              note={`${data.completed_events} проведённых учитываемых активностей`}
-              href="/statistics"
-              art="/command/art/kpi-attendance.webp"
-            />
-            <StatCard
-              title="Вам начислено"
-              value={money(data.own_earned_units)}
-              note="Начисления за выбранный период"
-              href="/payments"
-              art="/command/art/kpi-payout.webp"
-            />
-            <StatCard
-              title="Вам осталось выплатить"
-              value={money(data.own_finance.pending_units)}
-              note={`Всего выплачено: ${money(data.own_finance.paid_units)}`}
-              href="/payments"
-            />
-            <StatCard
-              title="Конец расчётного диапазона"
-              value={dashboardDate(range.until)}
-              note={<PeriodCountdown until={range.until} />}
-            />
-          </div>
-          <p className="caption">
-            Казна и задолженность показывают текущие остатки. Посещаемость и
-            начисления — выбранный диапазон. Запись на будущее событие не
-            считается присутствием.
-          </p>
           <CustomizableGrid
             panels={[
+              {
+                id: "personal-summary",
+                label: "Моя посещаемость",
+                defaultSpan: 6,
+                content: (
+                  <section className="panel section-panel personal-attendance">
+                    <div className="section-heading">
+                      <h2>Моя посещаемость</h2>
+                      <Link href={`/members/${access.membership!.id}`}>
+                        Мой профиль →
+                      </Link>
+                    </div>
+                    {own ? (
+                      <>
+                        <div className="personal-attendance-grid">
+                          {[
+                            [
+                              "Общая",
+                              own?.percentage ?? 0,
+                              own?.present ?? 0,
+                              own?.available ?? 0,
+                            ],
+                            [
+                              "Прайм",
+                              own?.prime ?? 0,
+                              own?.primePresent ?? 0,
+                              own?.primeAvailable ?? 0,
+                            ],
+                            [
+                              "Мини РБ",
+                              own?.mini ?? 0,
+                              own?.miniPresent ?? 0,
+                              own?.miniAvailable ?? 0,
+                            ],
+                          ].map(([label, percent, present, total]) => (
+                            <div
+                              key={label}
+                              className="personal-attendance-stat"
+                            >
+                              <span>{label}</span>
+                              <strong>{percent}%</strong>
+                              <span className="attendance-track">
+                                <span style={{ width: `${percent}%` }} />
+                              </span>
+                              <small>
+                                {present} из {total} активностей
+                              </small>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="caption">
+                          За выбранный период · Прайм учитывает коэффициенты
+                        </p>
+                      </>
+                    ) : (
+                      <p className="muted">
+                        Данные посещаемости пока недоступны. Повторите загрузку
+                        страницы.
+                      </p>
+                    )}
+                  </section>
+                ),
+              },
+              {
+                id: "personal-chart",
+                label: "Мой график посещаемости",
+                defaultSpan: 6,
+                content: (
+                  <SeriesChart
+                    title="Мой график посещаемости"
+                    description="Ваши участия по дням выбранного периода"
+                    points={(personal?.daily ?? []).map((d) => ({
+                      label: dashboardDate(d.label),
+                      values: [String(d.prime), String(d.mini)],
+                      display: [String(d.prime), String(d.mini)],
+                    }))}
+                    series={[
+                      { label: "Прайм", color: "var(--gold)" },
+                      { label: "Мини РБ", color: "var(--info)" },
+                    ]}
+                  />
+                ),
+              },
+              {
+                id: "schedule",
+                label: "До активностей",
+                defaultSpan: 6,
+                content: <ActivitySchedule />,
+              },
               {
                 id: "treasury",
                 label: "Динамика казны",
@@ -278,22 +283,22 @@ export default async function Page({
                 id: "prime-top",
                 label: "Топ Прайма",
                 defaultSpan: 6,
-                content: board("prime", "Топ-5 · Прайм"),
+                content: board("prime", "Посещаемость: Прайм"),
               },
               {
                 id: "mini-top",
                 label: "Топ Мини-РБ",
                 defaultSpan: 6,
-                content: board("mini", "Топ-5 · Мини-РБ"),
+                content: board("mini", "Посещаемость: Мини РБ"),
               },
               {
                 id: "recent",
                 label: "Последние события",
-                defaultSpan: 12,
+                defaultSpan: 6,
                 content: (
                   <section className="panel section-panel">
                     <div className="section-heading">
-                      <h2>Последние состоявшиеся активности</h2>
+                      <h2>Последние активности</h2>
                       <Link href="/events?status=completed">Все →</Link>
                     </div>
                     {recent.error ? (
@@ -318,8 +323,109 @@ export default async function Page({
                   </section>
                 ),
               },
-            ]}
+            ].sort(
+              (a, b) =>
+                [
+                  "personal-summary",
+                  "personal-chart",
+                  "schedule",
+                  "recent",
+                  "prime-top",
+                  "mini-top",
+                  "upcoming",
+                  "treasury",
+                  "attendance",
+                  "income",
+                ].indexOf(a.id) -
+                [
+                  "personal-summary",
+                  "personal-chart",
+                  "schedule",
+                  "recent",
+                  "prime-top",
+                  "mini-top",
+                  "upcoming",
+                  "treasury",
+                  "attendance",
+                  "income",
+                ].indexOf(b.id),
+            )}
           />
+          <div className="stats-grid command-stats">
+            {data.finance && (
+              <>
+                <StatCard
+                  title="Казна Прайма"
+                  value={money(data.finance.current.prime_units)}
+                  note="70% — фонд зарплат · текущий остаток"
+                  href="/treasury"
+                  art="/command/art/kpi-prime.webp"
+                />
+                <StatCard
+                  title="Казна Мини-РБ"
+                  value={money(data.finance.current.mini_units)}
+                  note="100% — фонд Мини-РБ · текущий остаток"
+                  href="/treasury?inventory=mini_rb"
+                  art="/command/art/kpi-minirb.webp"
+                />
+                <StatCard
+                  title="Казна гильдии"
+                  value={money(data.finance.current.guild_units)}
+                  note="30% Прайма · резерв после расходов"
+                  href="/treasury"
+                  art="/command/art/kpi-guild.webp"
+                />
+                <StatCard
+                  title="Непроданный дроп"
+                  value={
+                    data.finance.current.unpriced_count &&
+                    data.finance.current.priced_count === 0
+                      ? "Нет оценки"
+                      : money(data.finance.current.inventory_units)
+                  }
+                  note={
+                    data.finance.current.unpriced_count
+                      ? `Без цены партий: ${data.finance.current.unpriced_count}`
+                      : "Имущество не прибавляется к золоту"
+                  }
+                  href="/treasury"
+                  art="/command/art/kpi-drop.webp"
+                />
+              </>
+            )}
+            <StatCard
+              title="Посещаемость"
+              value={
+                data.attendance === null ? "Нет данных" : data.attendance + "%"
+              }
+              note={`${data.completed_events} проведённых учитываемых активностей`}
+              href="/statistics"
+              art="/command/art/kpi-attendance.webp"
+            />
+            <StatCard
+              title="Вам начислено"
+              value={money(data.own_earned_units)}
+              note="Начисления за выбранный период"
+              href="/payments"
+              art="/command/art/kpi-payout.webp"
+            />
+            <StatCard
+              title="Вам осталось выплатить"
+              value={money(data.own_finance.pending_units)}
+              note={`Всего выплачено: ${money(data.own_finance.paid_units)}`}
+              href="/payments"
+            />
+            <StatCard
+              title="Конец расчётного диапазона"
+              value={dashboardDate(range.until)}
+              note={<PeriodCountdown until={range.until} />}
+            />
+          </div>
+          <p className="caption">
+            Казна и задолженность показывают текущие остатки. Посещаемость и
+            начисления — выбранный диапазон. Запись на будущее событие не
+            считается присутствием.
+          </p>
         </>
       )}
     </GuildShell>
