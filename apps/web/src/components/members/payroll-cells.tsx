@@ -69,6 +69,12 @@ export function AttendanceLines({ row }: { row?: AttendanceSummary }) {
     </div>
   );
 }
+// Round the presentation only; all payroll amounts remain exact fixed-point units.
+const salaryGold = (units: string) => {
+  const n = BigInt(units);
+  const whole = n < 0n ? -((-n + 5000n) / 10000n) : (n + 5000n) / 10000n;
+  return formatGold((whole * 10000n).toString());
+};
 export function SalaryLines({ row }: { row?: PayrollRow }) {
   if (!row) return <span className="muted">Нет расчёта</span>;
   const prime = payrollDue(row, "prime"),
@@ -79,19 +85,19 @@ export function SalaryLines({ row }: { row?: PayrollRow }) {
       <div>
         <span>Прайм</span>
         <strong>
-          {formatGold(prime)} <small>зол.</small>
+          {salaryGold(prime)} <small>зол.</small>
         </strong>
       </div>
       <div>
         <span>Мини РБ</span>
         <strong>
-          {formatGold(mini)} <small>зол.</small>
+          {salaryGold(mini)} <small>зол.</small>
         </strong>
       </div>
       <div className="salary-total">
         <span>Всего</span>
         <strong>
-          {formatGold(total)} <small>зол.</small>
+          {salaryGold(total)} <small>зол.</small>
         </strong>
       </div>
       <small className="caption">
