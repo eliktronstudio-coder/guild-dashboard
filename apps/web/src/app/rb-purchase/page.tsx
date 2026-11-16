@@ -1,5 +1,7 @@
+import { historyAttendance } from "@/lib/history-report";
+import { PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { requirePermission } from "@/lib/access";
-import { dashboardDate, dashboardPeriod } from "@/lib/dashboard";
+import { dashboardPeriod } from "@/lib/dashboard";
 import { GuildShell } from "@/components/shell";
 import { RbPurchaseCalculator } from "@/components/rb-purchase/calculator";
 import type { RbPurchaseReport } from "@/lib/rb-purchase";
@@ -7,18 +9,34 @@ export const metadata = { title: "Расчёт покупки РБ" };
 export default async function Page() {
   const a = await requirePermission("members.read"),
     period = dashboardPeriod({ period: "current" });
-  const { data, error } = await a.client.rpc("rb_purchase_candidates", {
-    p_from: period.from,
-  });
+  const { data, error } = PERIOD_CLOSING_ENABLED
+    ? await a.client.rpc("rb_purchase_candidates", { p_from: period.from })
+    : await historyAttendance()
+        .then((rows) => ({
+          data: {
+            participants: rows
+              .filter(
+                (r) =>
+                  r.status === "active" &&
+                  (r.mini_total ?? 0) > 0 &&
+                  (r.mini_present ?? 0) * 5 >= (r.mini_total ?? 0),
+              )
+              .map((r) => ({
+                id: r.id,
+                nickname: r.nickname,
+                attendance_tenths: Math.round((r.mini_percentage ?? 0) * 10),
+              })),
+          },
+          error: null,
+        }))
+        .catch(() => ({ data: null, error: true }));
   return (
     <GuildShell current="/rb-purchase">
       <div className="page-heading">
         <p className="eyebrow">XD · МИНИ РБ</p>
         <h1>Расчёт покупки РБ</h1>
         <p className="muted">
-          Расчётный период: {dashboardDate(period.from)} →{" "}
-          {dashboardDate(period.until)} (UTC). Минимальная посещаемость Мини РБ
-          — 20%.
+          Все сохранённые активности. Минимальная посещаемость Мини РБ — 20%.
         </p>
       </div>
       {error || !data ? (

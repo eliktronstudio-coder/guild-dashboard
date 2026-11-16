@@ -1,10 +1,11 @@
+import { historyPayroll } from "@/lib/history-report";
 import { dashboardPeriod } from "@/lib/dashboard";
 import type { PayrollReport } from "@/lib/payroll";
 import { setMemberWeight } from "@/app/admin/catalog/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
-import { GUILD_ID } from "@/lib/config";
+import { GUILD_ID, PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { GuildShell } from "@/components/shell";
 import { MemberDirectory } from "@/components/members/directory";
 import {
@@ -47,9 +48,11 @@ export default async function Page({
   const lastPage = Math.max(1, Math.ceil((count ?? 0) / 25));
   if (filters.page > lastPage) redirect(directoryHref(filters, lastPage));
   const period = dashboardPeriod({ period: "current" });
-  const payroll = await a.client.rpc("period_payroll_report", {
-    p_from: period.from,
-  });
+  const payroll = PERIOD_CLOSING_ENABLED
+    ? await a.client.rpc("period_payroll_report", { p_from: period.from })
+    : await historyPayroll()
+        .then((data) => ({ data, error: null }))
+        .catch(() => ({ data: null, error: true }));
   return (
     <GuildShell current="/members">
       <Link href="/exports" className="text-button">
@@ -120,8 +123,9 @@ export default async function Page({
           </div>
         </form>
         <p className="caption">
-          Расчётный период: {period.from} → {period.until.slice(0, 10)}. Общий
-          порог зарплаты — 20%. Расчёт обновляется при загрузке страницы.
+          Посещаемость — по всем сохранённым активностям. Общий порог зарплаты —
+          20%. Начисления суммируются по исходным расчётам, проведённые выплаты
+          сохраняются.
         </p>
         {payroll.error && (
           <p role="alert">Посещаемость и зарплата временно недоступны.</p>
