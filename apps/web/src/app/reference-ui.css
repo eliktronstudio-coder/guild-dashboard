@@ -772,3 +772,114 @@ td {
   align-items: center;
   gap: 6px;
 }
+
+.salary-payout-table {
+  min-width: 740px;
+}
+.salary-payout-table td,
+.salary-payout-table th {
+  vertical-align: top;
+}
+.salary-payment-cell {
+  display: grid;
+  gap: 10px;
+  min-width: 170px;
+}
+.salary-payment-cell > strong {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+.salary-payment-cell .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+}
+.salary-payout-form {
+  gap: 8px;
+}
+.salary-payout-form fieldset:empty {
+  display: none;
+}
+.salary-payout-form .button {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+  width: auto;
+}
+.salary-payment-cell .badge.green {
+  color: var(--success);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.salary-source-label {
+  display: none;
+}
+@media (max-width: 700px) {
+  .salary-payout-table {
+    min-width: 0;
+    display: block;
+  }
+  .salary-payout-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .salary-payout-table tbody {
+    display: grid;
+    gap: 14px;
+  }
+  .salary-payout-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .salary-payout-table th[scope="row"],
+  .salary-payout-table td:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+  .salary-payout-table td,
+  .salary-payout-table th[scope="row"] {
+    padding: 6px 0;
+    border: 0;
+    min-width: 0;
+  }
+  .salary-payout-table .salary-payment-cell {
+    min-width: 0;
+  }
+  .salary-source-label {
+    display: block;
+  }
+  .salary-payout-form .button {
+    padding: 8px;
+    gap: 6px;
+  }
+  .salary-payout-form .button svg {
+    flex-shrink: 0;
+  }
+}
+.salary-payout-table {
+  white-space: normal;
+}
+.salary-payment-cell {
+  overflow-wrap: anywhere;
+}
+.salary-payout-form {
+  min-width: 0;
+}
+.salary-payout-notice,
+.salary-payout-form .notice {
+  color: var(--text);
+}
+.salary-payout-table th[scope="row"] {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
