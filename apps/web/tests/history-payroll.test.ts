@@ -141,6 +141,37 @@ test("real all-time SQL API counts pre-15th raids, preserves weighted Prime, enf
     assert.equal(Number(own.percentage), 50);
     assert.equal(Number(own.prime_percentage), 25);
     assert.equal(Number(own.attendance_total), 12);
+    const snapshot = await c.scalar<{
+      events: import("../src/lib/command-analytics").AttendanceFact["event"][];
+      members: { id: string; nickname: string }[];
+      marks: { event_id: string; membership_id: string; mark: string }[];
+    }>(
+      "select public.command_attendance_data('2000-01-01'::timestamptz,now())",
+    );
+    const { summarizeAttendance } =
+      await import("../src/lib/command-analytics");
+    const catalog = snapshot.events.map((e) => ({
+      ...e,
+      boss_name: null,
+      boss_weight: null,
+    }));
+    const events = new Map(catalog.map((e) => [e.id, e]));
+    const fast = summarizeAttendance(
+      snapshot.marks.map((m) => ({
+        membership_id: m.membership_id,
+        mark: m.mark,
+        event: events.get(m.event_id)!,
+      })),
+      snapshot.members,
+      "",
+      new Date(),
+      catalog,
+    );
+    const fastOwn = fast.rows.find((r) => r.id === c.members[2])!;
+    assert.equal(fastOwn.percentage, 50);
+    assert.equal(fastOwn.prime, 25);
+    assert.equal(fastOwn.mini, 50);
+    assert.equal(fast.events, 12);
     await c.db.exec(
       "reset role;delete from public.role_permissions where permission='members.read' and role_id in (select id from public.roles where code='member')",
     );
@@ -152,6 +183,15 @@ test("real all-time SQL API counts pre-15th raids, preserves weighted Prime, enf
       restricted.rows.map((r) => r.id),
       [c.members[2]],
     );
+    const ownSnapshot = await c.scalar<typeof snapshot>(
+      "select public.command_attendance_data('2000-01-01'::timestamptz,now())",
+    );
+    assert.deepEqual(
+      ownSnapshot.members.map((m) => m.id),
+      [c.members[2]],
+    );
+    assert.ok(ownSnapshot.marks.every((m) => m.membership_id === c.members[2]));
+    assert.equal(ownSnapshot.events.length, 12);
     await c.db.exec("reset role");
     await c.db.query(
       "update public.profiles set blocked=true where id=(select user_id from public.memberships where id=$1)",
@@ -160,6 +200,12 @@ test("real all-time SQL API counts pre-15th raids, preserves weighted Prime, enf
     await c.as(2);
     await assert.rejects(
       c.db.query("select * from public.all_time_attendance_report()"),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      c.db.query(
+        "select public.command_attendance_data('2000-01-01'::timestamptz,now())",
+      ),
       /FORBIDDEN/,
     );
     await c.db.exec("reset role;set role anon");

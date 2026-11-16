@@ -47,9 +47,12 @@ export const historyAttendance = cache(async () => {
   return rows;
 });
 export const historyPayroll = cache(async () => {
-  const a = await requireMember(),
-    range = await historyRange(),
-    reports: import("./payroll").PayrollReport[] = [];
+  const a = await requireMember();
+  const [range, attendance] = await Promise.all([
+    historyRange(),
+    historyAttendance(),
+  ]);
+  const reports: import("./payroll").PayrollReport[] = [];
   const months = historyMonths(range.from);
   // Bounded concurrency and the existing authorized API; no service-role bypass.
   for (let i = 0; i < months.length; i += 2) {
@@ -64,7 +67,7 @@ export const historyPayroll = cache(async () => {
       reports.push(result.data as import("./payroll").PayrollReport);
     }
   }
-  return combineHistoryPayroll(reports, await historyAttendance());
+  return combineHistoryPayroll(reports, attendance);
 });
 export async function historyDashboard(range: DashboardPeriod) {
   const a = await requireMember();
