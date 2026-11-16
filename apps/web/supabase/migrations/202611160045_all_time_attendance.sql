@@ -23,4 +23,5 @@ begin
 end $$;
 revoke all on function public.all_time_attendance_report() from public,anon;
 grant execute on function public.all_time_attendance_report() to authenticated;
+notify pgrst,'reload schema';
 commit;

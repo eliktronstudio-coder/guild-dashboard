@@ -32,11 +32,19 @@ export const historyRange = cache(async (): Promise<DashboardPeriod> => {
   };
 });
 export const historyAttendance = cache(async () => {
-  const a = await requireMember();
-  const { data, error } = await a.client.rpc("all_time_attendance_report");
-  if (error || !data)
-    throw new Error("Посещаемость за всю историю временно недоступна.");
-  return data as HistoricalAttendance[];
+  const a = await requireMember(),
+    rows: HistoricalAttendance[] = [];
+  for (let offset = 0; offset < 10000; offset += 500) {
+    const { data, error } = await a.client
+      .rpc("all_time_attendance_report")
+      .order("id")
+      .range(offset, offset + 499);
+    if (error || !data || (offset === 9500 && data.length >= 500))
+      throw new Error("Посещаемость за всю историю временно недоступна.");
+    rows.push(...(data as HistoricalAttendance[]));
+    if (data.length < 500) break;
+  }
+  return rows;
 });
 export const historyPayroll = cache(async () => {
   const a = await requireMember(),
