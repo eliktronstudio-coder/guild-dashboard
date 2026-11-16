@@ -1,3 +1,4 @@
+import { PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { formatGold, type TreasuryTotals } from "@/lib/treasury";
 export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
   return (
@@ -8,7 +9,11 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.prime_units)} <small>зол.</small>
         </strong>
-        <p>Текущий период · остаток после выплат</p>
+        <p>
+          {PERIOD_CLOSING_ENABLED
+            ? "Текущий период · остаток после выплат"
+            : "Вся история · остаток после выплат"}
+        </p>
         <p className="caption">
           К выплате: {formatGold(t.prime_reserved_units)} · свободно:{" "}
           {formatGold(t.prime_free_units)} зол.
@@ -23,7 +28,11 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.mini_units)} <small>зол.</small>
         </strong>
-        <p>Текущий период · выручка после выплат</p>
+        <p>
+          {PERIOD_CLOSING_ENABLED
+            ? "Текущий период · выручка после выплат"
+            : "Вся история · выручка после выплат"}
+        </p>
       </article>
       <article className="panel treasury-total">
         <span className="eyebrow">ДОЛЯ ГИЛЬДИИ · 30%</span>
@@ -31,7 +40,11 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         <strong>
           {formatGold(t.guild_units)} <small>зол.</small>
         </strong>
-        <p>Текущий период · отчисления от прайма</p>
+        <p>
+          {PERIOD_CLOSING_ENABLED
+            ? "Текущий период · отчисления от прайма"
+            : "Вся история · отчисления за вычетом расходов"}
+        </p>
         <span className="caption">
           Расходы: {formatGold(t.guild_expense_units)} зол.
         </span>

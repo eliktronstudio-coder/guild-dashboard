@@ -355,3 +355,69 @@ test("exactly 20% qualifies, zero attendance keeps funds unallocated, registry v
     await c.db.close();
   }
 });
+
+test("lifetime treasury includes prior-period sales and still subtracts actual payouts and guild expenses", async () => {
+  const c = await setup();
+  try {
+    await c.event([c.members[2]]);
+    await c.sale("prime", 100000);
+    await c.sale("mini_rb", 40000);
+    const previous = dashboardPeriod({ period: "previous" });
+    await c.db.exec("reset role");
+    await c.db.query(
+      "update public.events set starts_at=$1 where inventory_receipt=false",
+      [previous.from + "T12:00:00Z"],
+    );
+    // Seed historical receipts only in this isolated database; keep production guards intact.
+    await c.db.exec(
+      "alter table public.treasury_sales disable trigger sale_period",
+    );
+    await c.db.query(
+      "update public.treasury_sales set created_at=$1,accounting_period=$2",
+      [previous.from + "T13:00:00Z", previous.from],
+    );
+    await c.db.exec(
+      "alter table public.treasury_sales enable trigger sale_period",
+    );
+    await c.as(1);
+    const current = await c.scalar<Record<string, string>>(
+      "select public.treasury_summary()",
+    );
+    let full = await c.scalar<Record<string, string>>(
+      "select public.treasury_lifetime_summary()",
+    );
+    assert.equal(current.prime_units, "0");
+    assert.equal(full.prime_units, "70000");
+    assert.equal(full.mini_units, "40000");
+    assert.equal(full.guild_units, "30000");
+    await c.db.query(
+      "select public.record_treasury_expense($1,5000,'Расход гильдии')",
+      [randomUUID()],
+    );
+    const payroll = await c.scalar<PayrollReport>(
+      "select public.period_payroll_report($1)",
+      [previous.from],
+    );
+    await c.db.query(
+      "select public.pay_period_member($1,$2,$3,'prime',$4,'Выплата игроку')",
+      [randomUUID(), previous.from, c.members[2], payroll.signature],
+    );
+    full = await c.scalar<Record<string, string>>(
+      "select public.treasury_lifetime_summary()",
+    );
+    assert.equal(full.prime_units, "0");
+    assert.equal(full.mini_units, "40000");
+    assert.equal(full.guild_units, "25000");
+    assert.equal(full.guild_expense_units, "5000");
+    await c.db.exec(
+      "reset role;delete from public.role_permissions where permission='treasury.read'",
+    );
+    await c.as(2);
+    await assert.rejects(
+      c.db.query("select public.treasury_lifetime_summary()"),
+      /FORBIDDEN/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
