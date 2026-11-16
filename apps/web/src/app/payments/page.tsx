@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireMember } from "@/lib/access";
 import { GuildShell } from "@/components/shell";
 import { SettlementPanel } from "@/components/settlements/panel";
@@ -9,9 +10,10 @@ export default async function Page({
 }) {
   const a = await requireMember(),
     p = await searchParams;
-  const [pay, spend] = await Promise.all([
+  const [pay, spend, allocate] = await Promise.all([
     a.permission("treasury.pay"),
     a.permission("treasury.spend"),
+    a.permission("treasury.allocate"),
   ]);
   return (
     <GuildShell current="/payments">
@@ -21,6 +23,11 @@ export default async function Page({
           Начисления, проведённые выплаты и остаток к выплате.
         </p>
       </div>
+      {pay && allocate && (
+        <Link className="button primary inline" href="/payments/salary">
+          Выплата ЗП
+        </Link>
+      )}
       <SettlementPanel
         client={a.client}
         permissions={{ allocate: false, pay, spend }}

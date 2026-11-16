@@ -1,3 +1,4 @@
+import { formatGold } from "./treasury";
 export type AttendanceSummary = {
   percentage: number | null;
   prime_percentage: number | null;
@@ -52,3 +53,12 @@ export const payrollDue = (row: PayrollRow, source: "prime" | "mini") =>
   ).toString();
 export const attendancePercent = (value: number | null) =>
   value === null ? "—" : `${value.toLocaleString("ru-RU")}%`;
+
+export type LifetimePayrollReport = Omit<PayrollReport, "from" | "until"> & {
+  scope: "lifetime";
+};
+export const formatSalaryGold = (units: string) => {
+  const n = BigInt(units),
+    whole = n < 0n ? -((-n + 5000n) / 10000n) : (n + 5000n) / 10000n;
+  return formatGold((whole * 10000n).toString());
+};

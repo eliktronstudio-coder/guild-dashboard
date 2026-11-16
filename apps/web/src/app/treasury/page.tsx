@@ -467,7 +467,7 @@ export default async function Page({
           )}
         </nav>
       </section>
-      <PeriodPayroll />
+      {PERIOD_CLOSING_ENABLED && <PeriodPayroll />}
       <SettlementPanel
         client={a.client}
         permissions={{ allocate: false, pay: canPay, spend: canSpend }}

@@ -15,6 +15,7 @@ const paths: Record<string, string> = {
     "M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8ZM12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2",
   moon: "M21 12.8A9 9 0 0 1 11.2 3 9 9 0 1 0 21 12.8Z",
   sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5",
+  check: "m5 12 4 4L19 6",
   arrow: "M7 17 17 7M7 7h10v10",
   edit: "m16 3 5 5-12 12H4v-5L16 3Zm-3 3 5 5",
   menu: "M3 6h18M3 12h18M3 18h18",

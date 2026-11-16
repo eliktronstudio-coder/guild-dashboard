@@ -2,11 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { requireMember } from "./access";
 import { GUILD_ID } from "./config";
-import {
-  combineHistoryPayroll,
-  historyMonths,
-  type HistoricalAttendance,
-} from "./history-payroll";
+import type { HistoricalAttendance } from "./history-payroll";
 import type { DashboardPeriod, DashboardReport } from "./dashboard";
 export const historyRange = cache(async (): Promise<DashboardPeriod> => {
   const a = await requireMember();
@@ -48,26 +44,10 @@ export const historyAttendance = cache(async () => {
 });
 export const historyPayroll = cache(async () => {
   const a = await requireMember();
-  const [range, attendance] = await Promise.all([
-    historyRange(),
-    historyAttendance(),
-  ]);
-  const reports: import("./payroll").PayrollReport[] = [];
-  const months = historyMonths(range.from);
-  // Bounded concurrency and the existing authorized API; no service-role bypass.
-  for (let i = 0; i < months.length; i += 2) {
-    const results = await Promise.all(
-      months
-        .slice(i, i + 2)
-        .map((p_from) => a.client.rpc("period_payroll_report", { p_from })),
-    );
-    for (const result of results) {
-      if (result.error || !result.data)
-        throw new Error("Не удалось загрузить полную историю посещаемости.");
-      reports.push(result.data as import("./payroll").PayrollReport);
-    }
-  }
-  return combineHistoryPayroll(reports, attendance);
+  const { data, error } = await a.client.rpc("lifetime_payroll_report");
+  if (error || data?.scope !== "lifetime" || !Array.isArray(data.rows))
+    throw new Error("Не удалось загрузить расчёт зарплаты.");
+  return data as import("./payroll").LifetimePayrollReport;
 });
 export async function historyDashboard(range: DashboardPeriod) {
   const a = await requireMember();

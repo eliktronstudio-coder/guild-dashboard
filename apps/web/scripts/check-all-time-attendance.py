@@ -21,9 +21,9 @@ class ArchiveFixture(Fixture):
   elif path.endswith('/rpc/treasury_lifetime_summary'):data=totals
   elif path.endswith('/rpc/all_time_attendance_report'):
    data=[{'id':MEMBER,'nickname':member['nickname'],'status':'active','percentage':50,'prime_percentage':0,'mini_percentage':50,'pvp_percentage':0,'attendance_total':10,'attendance_present':5,'prime_total':0,'prime_present':0,'mini_total':10,'mini_present':5,'pvp_total':0,'pvp_present':0,'excused':0,'excluded':0,'absent':5,'eligible':True}]
-  elif path.endswith('/rpc/period_payroll_report'):
-   old=p['p_from']=='2026-10-15';t=10 if old else 0;n=5 if old else 0
-   data={'from':p['p_from'],'until':'2026-12-15','prime_units':'0','mini_units':'0','signature':'a'*32,'rows':[{'id':MEMBER,'nickname':member['nickname'],'status':'active','payout_weight':100,'available':str(t),'present':str(n),'percentage':50 if old else 0,'prime_percentage':0,'mini_percentage':50 if old else 0,'pvp_percentage':0,'eligible':old,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}]}
+  elif path.endswith(('/rpc/period_payroll_report','/rpc/lifetime_payroll_report')):
+   old=path.endswith('/lifetime_payroll_report') or p.get('p_from')=='2026-10-15';t=10 if old else 0;n=5 if old else 0
+   data={'scope':'lifetime','from':p.get('p_from','2026-10-15'),'until':'2026-12-15','prime_units':'0','mini_units':'0','signature':'a'*32,'rows':[{'id':MEMBER,'nickname':member['nickname'],'status':'active','payout_weight':100,'available':str(t),'present':str(n),'percentage':50 if old else 0,'prime_percentage':0,'mini_percentage':50 if old else 0,'pvp_percentage':0,'eligible':old,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}]}
   else:return super().reply()
   encoded=json.dumps(data).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(encoded)));self.end_headers();self.wfile.write(encoded)
 fixture=ThreadingHTTPServer(('127.0.0.1',0),ArchiveFixture);Thread(target=fixture.serve_forever,daemon=True).start()
