@@ -71,6 +71,14 @@ export const historyPayroll = cache(async () => {
 });
 export async function historyDashboard(range: DashboardPeriod) {
   const a = await requireMember();
+  const lifetimeBalance = a
+    .permission("treasury.read")
+    .then(async (allowed) => {
+      if (!allowed) return { data: null, error: null };
+      const { data, error } = await a.client.rpc("treasury_lifetime_summary");
+      return { data, error };
+    })
+    .catch(() => ({ data: null, error: new Error("BALANCE_UNAVAILABLE") }));
   let from = range.from + "T00:00:00.000Z";
   const reports: DashboardReport[] = [];
   while (from < range.until) {
@@ -88,8 +96,15 @@ export async function historyDashboard(range: DashboardPeriod) {
   }
   const first = reports[0],
     last = reports.at(-1)!;
+  const balance = await lifetimeBalance;
+  if (last.finance && (balance.error || !balance.data))
+    return {
+      data: null,
+      error: balance.error ?? new Error("BALANCE_UNAVAILABLE"),
+    };
   const finance = last.finance && {
     ...last.finance,
+    current: balance.data as import("./treasury").TreasuryTotals,
     opening_units: first.finance?.opening_units ?? "0",
     sales_units: String(
       reports.reduce((n, r) => n + BigInt(r.finance?.sales_units ?? "0"), 0n),

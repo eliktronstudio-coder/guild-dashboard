@@ -16,7 +16,9 @@ class ArchiveFixture(Fixture):
   elif path.endswith('/attendance'):data=[{'membership_id':MEMBER,'mark':'present','events':e} for e in raid[:5]]
   elif path.endswith('/rpc/command_attendance_data'):data={'events':raid,'members':[member],'marks':[{'event_id':e['id'],'membership_id':MEMBER,'mark':'present'} for e in raid[:5]]}
   elif path.endswith('/rpc/dashboard_report'):
-   queries.append(p);data=report
+   queries.append(p);data={**report,'finance':{**report['finance'],'current':{**totals,'prime_units':'0','mini_units':'0','guild_units':'0'}}}
+  elif path.endswith('/rpc/treasury_summary'):data={**totals,'prime_units':'0','mini_units':'0','guild_units':'0'}
+  elif path.endswith('/rpc/treasury_lifetime_summary'):data=totals
   elif path.endswith('/rpc/all_time_attendance_report'):
    data=[{'id':MEMBER,'nickname':member['nickname'],'status':'active','percentage':50,'prime_percentage':0,'mini_percentage':50,'pvp_percentage':0,'attendance_total':10,'attendance_present':5,'prime_total':0,'prime_present':0,'mini_total':10,'mini_present':5,'pvp_total':0,'pvp_present':0,'excused':0,'excluded':0,'absent':5,'eligible':True}]
   elif path.endswith('/rpc/period_payroll_report'):
@@ -41,6 +43,7 @@ with tempfile.TemporaryFile() as log:
     page.set_viewport_size({'width':width,'height':1000})
     page.goto(origin+'/dashboard?period=current',wait_until='networkidle')
     expect(page.locator('.personal-attendance').get_by_text('50%',exact=True)).to_have_count(2)
+    expect(page.locator('.command-stat').filter(has_text='Казна Прайма').locator('strong')).to_contain_text('7\u202f000')
     for route in ['/members','/attendance','/statistics?period=current']:
      page.goto(origin+route,wait_until='networkidle')
      expect(page.get_by_role('heading',name='Не удалось загрузить страницу',exact=True)).to_have_count(0)
@@ -48,9 +51,12 @@ with tempfile.TemporaryFile() as log:
      assert not page.evaluate('document.documentElement.scrollWidth>innerWidth+1'),route
     page.goto(origin+'/rb-purchase',wait_until='networkidle')
     expect(page.get_by_text(member['nickname'],exact=False)).not_to_have_count(0)
+    page.goto(origin+'/treasury',wait_until='networkidle')
+    for index,amount in enumerate(['7\u202f000','1\u202f000','3\u202f000']):expect(page.locator('.treasury-total').nth(index).locator('strong')).to_contain_text(amount)
+    expect(page.get_by_text('Вся история · остаток после выплат',exact=True)).to_be_visible()
    assert sum(path.endswith('/rpc/command_attendance_data') for path in data_queries)==4,data_queries
    assert not any(path.endswith('/attendance') for path in data_queries),data_queries
    assert queries and all(q['p_from']=='2026-10-20T00:00:00.000Z' for q in queries),queries
    assert not errors,errors
-   browser.close();print('PASS: pre-15th 5/10=50% across dashboard, roster, statistics, attendance and Mini RB candidates despite empty current period; 390/1440px; isolated fixtures')
+   browser.close();print('PASS: pre-15th 5/10=50% across dashboard, roster, statistics, attendance and Mini RB candidates despite empty current period; lifetime treasury remains nonzero despite empty period; 390/1440px; isolated fixtures')
  finally:server.terminate();server.wait(timeout=15);fixture.shutdown()

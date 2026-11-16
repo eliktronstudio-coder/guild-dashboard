@@ -6,7 +6,7 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requirePermission } from "@/lib/access";
-import { GUILD_ID } from "@/lib/config";
+import { GUILD_ID, PERIOD_CLOSING_ENABLED } from "@/lib/config";
 import { monthRange, queryValue } from "@/lib/events";
 import {
   formatGold,
@@ -91,7 +91,9 @@ export default async function Page({
     .eq("guild_id", GUILD_ID);
   if (auctionSales) salesQuery = salesQuery.eq("sale_channel", "auction");
   const [summary, general, xd, sales, events] = await Promise.all([
-    a.client.rpc("treasury_summary"),
+    a.client.rpc(
+      PERIOD_CLOSING_ENABLED ? "treasury_summary" : "treasury_lifetime_summary",
+    ),
     inventoryQuery("general_quantity", gp),
     inventoryQuery("xd_quantity", xp),
     salesQuery
@@ -216,7 +218,9 @@ export default async function Page({
       <nav className="form-links">
         <Link href="/rb-purchase">Расчёт покупки РБ →</Link>
         <Link href="/treasury#settlements">Начисления и выплаты →</Link>
-        <Link href="/archive">История периодов →</Link>
+        {PERIOD_CLOSING_ENABLED && (
+          <Link href="/archive">История периодов →</Link>
+        )}
         <Link href="/statistics">Финансовая статистика →</Link>
       </nav>
       <TreasurySummary totals={totals} />
