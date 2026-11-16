@@ -5,7 +5,7 @@ STAFF=True
 paid={'prime':False,'mini_rb':False};version=1;fail_once=True;empty=False
 OTHER='44444444-4444-4444-8444-444444444444';EXCLUDED='55555555-5555-4555-8555-555555555555'
 def salary_row(id,nickname,eligible=True):
- return {'id':id,'nickname':nickname,'status':'active','payout_weight':100,'percentage':50 if eligible else 20,'prime_percentage':50,'mini_percentage':50,'pvp_percentage':0,'attendance_present':5 if eligible else 10,'attendance_total':10 if eligible else 51,'available':'1000','present':'500','eligible':eligible and not empty,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}
+ return {'id':id,'nickname':nickname,'status':'active','payout_weight':100,'percentage':50 if eligible else 20,'prime_percentage':75,'mini_percentage':25,'pvp_percentage':0,'attendance_present':5 if eligible else 10,'attendance_total':10 if eligible else 51,'prime_present':3,'prime_total':4,'mini_present':1,'mini_total':4,'available':'1000','present':'500','eligible':eligible and not empty,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}
 class ArchiveFixture(Fixture):
  def do_POST(self):
   self.payload=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}');self.reply()
@@ -43,6 +43,9 @@ with tempfile.TemporaryFile() as log:
     expect(page.locator('.salary-payout-table tbody tr')).to_have_count(2)
     page.screenshot(path=str(artifacts/f'salary-before-{width}.png'),full_page=True)
     expect(page.get_by_text('Ниже порога',exact=True)).to_have_count(0)
+    expect(page.get_by_text('Прайм: 75% · 3/4',exact=True)).to_have_count(2)
+    expect(page.get_by_text('Мини РБ: 25% · 1/4',exact=True)).to_have_count(2)
+    expect(page.get_by_text('50% · 5/10',exact=True)).to_have_count(0)
     prime=page.get_by_role('group',name=member['nickname']+' · Прайм',exact=True)
     mini=page.get_by_role('group',name=member['nickname']+' · Мини РБ',exact=True)
     expect(prime.get_by_text('14\u202f038 зол.',exact=True)).to_be_visible()

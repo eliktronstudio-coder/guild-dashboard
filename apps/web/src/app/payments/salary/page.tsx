@@ -142,11 +142,22 @@ export default async function Page() {
                     <tr key={row.id}>
                       <th scope="row">{row.nickname}</th>
                       <td>
-                        {attendanceLabel(
-                          row.percentage,
-                          row.attendance_present,
-                          row.attendance_total,
-                        )}
+                        <div>
+                          Прайм:{" "}
+                          {attendanceLabel(
+                            row.prime_percentage,
+                            row.prime_present,
+                            row.prime_total,
+                          )}
+                        </div>
+                        <div>
+                          Мини РБ:{" "}
+                          {attendanceLabel(
+                            row.mini_percentage,
+                            row.mini_present,
+                            row.mini_total,
+                          )}
+                        </div>
                         <p className="caption">
                           Коэффициент: {row.payout_weight / 100}
                         </p>
