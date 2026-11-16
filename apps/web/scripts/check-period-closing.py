@@ -1,20 +1,14 @@
 """Archive rendering and close action against isolated fixtures; never touches production."""
 from pathlib import Path
-exec(compile(Path(__file__).with_name('check-activity-workspace.py').read_text().split('\nfixture=ThreadingHTTPServer')[0],__file__,'exec'))
+exec(compile(Path(__file__).with_name('check-command-center.py').read_text().split('fixture=ThreadingHTTPServer')[0],__file__,'exec'))
 closed=False
 selected='2026-09-15'
-rows=[{'id':m['id'],'nickname':m['nickname'],'status':'active','payout_weight':100,'available':'100','present':'100','percentage':100,'prime_percentage':100,'mini_percentage':100,'pvp_percentage':100,'eligible':True,'prime_projection':'35000000','mini_projection':'10000000','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'} for m in people[:4]]
-report={'from':selected,'until':'2026-10-15','rows':rows,'prime_units':'140000000','mini_units':'40000000','signature':'a'*32}
-archive={'id':DROP,'period_from':selected,'closed_at':'2026-10-14T15:00:00Z','snapshot':{'payroll':report,'inventory':[{'id':DROP,'name':'Непроданная эссенция','quantity':200,'source':'prime'}],'activities':[{'id':EVENT,'title':'Архивный Левиафан','starts_at':'2026-09-20T12:00:00Z','roster':[{'mark':'present'}]}]}}
-class ArchiveFixture(WorkspaceFixture):
+class ArchiveFixture(Fixture):
  def reply(self):
   global closed
-  path=urllib.parse.urlsplit(self.path).path;q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
-  if path.endswith('/rpc/period_payroll_report'):return self.send(report)
-  if path.endswith('/period_archives'):
-   if q.get('period_from'):return self.send([archive] if closed and q['period_from'][0]=='eq.'+selected else [])
-   return self.send([archive] if closed else [])
-  if path.endswith('/rpc/close_payroll_period'):closed=True;return self.send(DROP)
+  path=urllib.parse.urlsplit(self.path).path
+  if path.endswith('/rpc/close_payroll_period'):
+   closed=True;self.send_response(204);self.end_headers();return
   return super().reply()
 fixture=ThreadingHTTPServer(('127.0.0.1',0),ArchiveFixture);Thread(target=fixture.serve_forever,daemon=True).start()
 with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
