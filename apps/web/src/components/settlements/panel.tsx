@@ -70,10 +70,12 @@ export async function SettlementPanel({
   client,
   permissions,
   p,
+  basePath = "/treasury",
 }: {
   client: SupabaseClient;
   permissions: { allocate: boolean; pay: boolean; spend: boolean };
   p: Params;
+  basePath?: "/treasury" | "/payments";
 }) {
   const apage = pageOf(queryValue(p.apage)),
     ppage = pageOf(queryValue(p.ppage)),
@@ -87,7 +89,7 @@ export async function SettlementPanel({
       if (value) q.set(k, value);
     }
     q.set(key, String(page));
-    return `/treasury?${q}#settlements`;
+    return `${basePath}?${q}#settlements`;
   };
   const [personal, awards, payouts, expenses, batches, preview] =
     await Promise.all([

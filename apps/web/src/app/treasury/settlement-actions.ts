@@ -14,6 +14,7 @@ const confirmed = (f: FormData) => f.get("confirm") === "on";
 const refresh = () => {
   scheduleTelegram();
   revalidatePath("/treasury");
+  revalidatePath("/payments");
   revalidatePath("/account");
 };
 export async function allocateSale(
