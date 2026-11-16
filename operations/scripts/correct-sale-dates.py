@@ -32,7 +32,7 @@ if not prior:
  query(correction_sql(rows,operation))
  print('SALE_DATES_CORRECTED_WITH_FINANCE_STOCK_AND_HISTORY_PRESERVED',flush=True)
 else:print('SALE_DATE_CORRECTION_ALREADY_APPLIED',flush=True)
-verified=query("""select count(*)::int count, bool_and(s.accounting_period='2026-10-15' and (s.created_at at time zone 'Asia/Yekaterinburg')::date='2026-11-11' and (s.created_at at time zone 'UTC')::date='2026-11-11' and (to_jsonb(s)-'created_at'-'accounting_period')=(a.detail->'before'-'created_at'-'accounting_period')) valid,
+verified=query("""select count(*)::int count, bool_and(s.accounting_period='2026-10-15' and (s.created_at at time zone 'Asia/Yekaterinburg')::date='2026-11-11' and (s.created_at at time zone 'UTC')::date='2026-11-11' and (to_jsonb(s)-'created_at'-'accounting_period')=((a.detail->'before')-'created_at'-'accounting_period')) valid,
  sum(s.gross_units)::text gross_units,coalesce(sum(s.fund_units) filter(where s.source='prime'),0)::text prime_units,coalesce(sum(s.fund_units) filter(where s.source='mini_rb'),0)::text mini_units,sum(s.guild_units)::text guild_units
  from public.audit_log a join public.treasury_sales s on s.id=a.target_id where a.action='treasury.sale_date_corrected' and a.detail->>'operation'='"""+operation+"'")
 assert len(verified)==1 and verified[0]['count']==plan['count'] and verified[0]['valid']
