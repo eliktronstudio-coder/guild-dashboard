@@ -32,7 +32,7 @@ with tempfile.TemporaryFile() as log:
     STAFF=staff
     for width in [390,1440]:
      context.clear_cookies();context.add_cookies([{'name':'sb-127-auth-token','value':cookie,'url':origin}]);page.set_viewport_size({'width':width,'height':1000})
-     page.goto(origin+'/dashboard',wait_until='networkidle')
+     page.goto(origin+('/treasury' if staff else '/dashboard'),wait_until='networkidle')
      if width==390:page.get_by_role('button',name='Открыть меню',exact=True).click()
      page.get_by_role('link',name='Выплаты',exact=True).click()
      page.wait_for_url(origin+'/payments',wait_until='networkidle')
