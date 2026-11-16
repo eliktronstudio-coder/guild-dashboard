@@ -28,4 +28,25 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'df -h /; systemctl show xd-guild xd-discord-bot --property=WorkingDirectory; du -sh /var/www/xd-guild-releases/*'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          python3 - <<'PYTHON'
+          import pathlib,subprocess,shutil
+          base=pathlib.Path('/var/www/xd-guild-releases')
+          active=[pathlib.Path(subprocess.check_output(['systemctl','show',unit,'--property=WorkingDirectory','--value'],text=True).strip()).resolve() for unit in ['xd-guild','xd-discord-bot']]
+          for name in ['ac55653-20261109043206','baab65d-20261109044425','7a2d30c-20261109051758','797edf6-20261109123020']:
+           release=base/name
+           assert release.is_dir() and not release.is_symlink()
+           assert not any(release.resolve()==p or release.resolve() in p.parents for p in active)
+           for relative in ['apps/web/node_modules','apps/web/.next/cache']:
+            generated=release/relative
+            assert not generated.is_symlink()
+            if generated.is_dir():shutil.rmtree(generated)
+           print('REMOVED_OLD_GENERATED_DEPENDENCIES',name)
+          PYTHON
+          df -h /
+          systemctl is-active xd-guild
+          systemctl is-active xd-discord-bot
+          REMOTE
