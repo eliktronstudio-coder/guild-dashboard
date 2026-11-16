@@ -27,4 +27,15 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -eu
+          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          cd "$app"
+          node <<'JS'
+          require('@next/env').loadEnvConfig(process.cwd());
+          const names=Object.keys(process.env).filter(k=>/DATABASE_URL|POSTGRES|DB_PASSWORD|SUPABASE_ACCESS_TOKEN/.test(k));
+          console.log('DATABASE_CONNECTION_VARIABLE_NAMES',names.join(',') || 'none');
+          const fs=require('fs');
+          for(const p of ['/root/.config/supabase/access-token','/root/.supabase/access-token','/etc/xd-guild.env']) console.log('CREDENTIAL_FILE_PRESENT',p,fs.existsSync(p));
+          JS
+          REMOTE
