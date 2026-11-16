@@ -11,3 +11,5 @@ backups/
 *.dump
 *.backup
 __pycache__/
+
+.impeccable/review/

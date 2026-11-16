@@ -48,12 +48,18 @@ export function MemberDirectory({
                     <strong>{m.nickname}</strong>
                   </Link>
                 </td>
-                <td>{m.role_names.join(", ") || "Без роли"}</td>
+                <td>
+                  <span className="role-badge">
+                    {m.role_names.join(", ") || "Без роли"}
+                  </span>
+                </td>
                 <td>
                   {m.main_character ?? <span className="muted">Не указан</span>}
                 </td>
                 <td>
-                  <span>{m.character_class || "Не указан"}</span>
+                  <span className="class-badge" data-class={m.character_class}>
+                    {m.character_class || "Не указан"}
+                  </span>
                   <p className="caption">
                     {m.game_server || "Сервер не указан"}
                   </p>

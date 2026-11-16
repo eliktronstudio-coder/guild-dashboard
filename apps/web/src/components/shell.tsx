@@ -1,3 +1,5 @@
+import { Sidebar } from "@/components/navigation/sidebar";
+import { NavIcon } from "@/components/navigation/nav-icon";
 import { GUILD_ID, getConfig } from "@/lib/config";
 import { canAttachEmailLogin } from "@/lib/email-login";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -9,11 +11,9 @@ import { PlayerClassPrompt } from "@/components/members/player-class-prompt";
 export function Brand() {
   return (
     <Link href="/" className="brand" aria-label="XD — главная">
-      <span className="monogram">
-        XD<span>✦</span>
-      </span>
+      <span className="monogram">XD</span>
       <span>
-        GUILD COMMAND<span>ARCH EAGE · ХД</span>
+        XD GUILD<span>ARCH EAGE · ХД</span>
       </span>
     </Link>
   );
@@ -77,61 +77,86 @@ export async function GuildShell({
         .eq("guild_id", GUILD_ID)
         .eq("status", "pending")
     : null;
-  const links = [
-    ["/dashboard", "Главная", "◈"],
-    ["/statistics", "Статистика", "◴"],
-    ["/events", "Активности", "◷"],
-    ...(canReadTreasury ? [["/treasury", "Экономика", "◉"]] : []),
-    ...(canAllocate || canClose ? [["/archive", "Архив и закрытие", "▣"]] : []),
-    ...(canRead
-      ? [
-          ["/members", "Состав", "◎"],
-          ["/rb-purchase", "Покупка РБ", "◈"],
-        ]
-      : []),
-    ...(canReview ? [["/admin", "Управление", "◇"]] : []),
-    ...(canAttend
-      ? [
-          [
-            "/admin/participation",
-            `Заявки на участие (${claims?.count ?? 0})`,
-            "♧",
-          ],
-        ]
-      : []),
-    ["/account", "Аккаунт", "○"],
+  const sections = [
+    {
+      label: "Обзор",
+      links: [
+        ["/dashboard", "Главная", "home"],
+        ["/statistics", "Статистика", "chart"],
+        ["/events", "Активности", "activity"],
+        ...(canRead ? [["/members", "Состав", "members"]] : []),
+        ...(a.membership?.status === "active"
+          ? [[`/members/${a.membership.id}`, "Мой профиль", "user"]]
+          : []),
+      ],
+    },
+    {
+      label: "Экономика",
+      links: [
+        ...(canReadTreasury ? [["/treasury", "Казна", "treasury"]] : []),
+        ["/payments", "Выплаты", "payments"],
+        ...(canAllocate || canClose
+          ? [["/archive", "Архив и закрытие", "archive"]]
+          : []),
+      ],
+    },
+    {
+      label: "Инструменты",
+      links: [
+        ...(canRead ? [["/rb-purchase", "Покупка РБ", "tool"]] : []),
+        ["/account", "Аккаунт", "settings"],
+      ],
+    },
+    {
+      label: "Управление",
+      links: [
+        ...(canReview ? [["/admin", "Управление", "admin"]] : []),
+        ...(canAttend
+          ? [
+              [
+                "/admin/participation",
+                `Заявки на участие (${claims?.count ?? 0})`,
+                "claims",
+              ],
+            ]
+          : []),
+      ],
+    },
   ];
+  const selected = sections
+    .flatMap((s) => s.links)
+    .find(([href]) => href === current);
+  const title = selected?.[1] ?? "Гильдия XD";
+  const group =
+    sections.find((s) => s.links.some(([href]) => href === current))?.label ??
+    "Обзор";
   return (
     <div className="guild-layout">
       {a.membership?.status === "active" && !a.membership.class_selected_at && (
         <PlayerClassPrompt />
       )}
-      <aside className="sidebar">
+      <Sidebar>
         <Brand />
-        <p className="eyebrow nav-label">КОМАНДНЫЙ ЦЕНТР</p>
         <nav aria-label="Основная навигация">
-          {links.map(([href, label, icon]) => (
-            <Link
-              key={href}
-              href={href}
-              prefetch={false}
-              aria-label={label}
-              className={href === "/account" ? "nav-account" : undefined}
-              aria-current={current === href ? "page" : undefined}
-            >
-              <span aria-hidden="true">{icon}</span>
-              <span className="nav-text nav-full" aria-hidden="true">
-                {label}
-              </span>
-              <span className="nav-text nav-short" aria-hidden="true">
-                {href === "/events"
-                  ? "События"
-                  : href === "/admin"
-                    ? "Админ"
-                    : label}
-              </span>
-            </Link>
-          ))}
+          {sections
+            .filter((section) => section.links.length)
+            .map((section) => (
+              <div className="nav-section" key={section.label}>
+                <p className="nav-label">{section.label}</p>
+                {section.links.map(([href, label, icon]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    prefetch={false}
+                    aria-label={label}
+                    aria-current={current === href ? "page" : undefined}
+                  >
+                    <NavIcon name={icon} />
+                    <span className="nav-text">{label}</span>
+                  </Link>
+                ))}
+              </div>
+            ))}
         </nav>
         <div className="sidebar-foot">
           <span className="status-dot" /> XD · ArcheAge
@@ -139,12 +164,15 @@ export async function GuildShell({
             <button className="text-button">Выйти</button>
           </form>
         </div>
-      </aside>
+      </Sidebar>
       <div className="guild-content">
         <header className="topbar">
-          <span>
-            Гильдия <strong>XD</strong>
-          </span>
+          <div className="route-heading">
+            <span>{title}</span>
+            <small>
+              {group} / {title}
+            </small>
+          </div>
           <ThemeToggle />
           <Link
             href="/account"
@@ -155,7 +183,9 @@ export async function GuildShell({
               nickname={a.membership?.nickname ?? "XD"}
               style={a.membership?.avatar_style}
             />
-            {a.membership?.nickname ?? "Новый игрок"}
+            <span className="user-chip-name">
+              {a.membership?.nickname ?? "Новый игрок"}
+            </span>
           </Link>
         </header>
         <main id="main" className="page-content">

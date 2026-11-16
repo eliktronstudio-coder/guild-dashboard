@@ -24,7 +24,7 @@ export async function ClosingNotice() {
       .maybeSingle();
   if (error || data) return null;
   return (
-    <section className="panel section-panel" role="status">
+    <section className="panel section-panel closing-notice" role="status">
       <h2>
         {day === 14
           ? "Сегодня — закрытие расчётного периода"

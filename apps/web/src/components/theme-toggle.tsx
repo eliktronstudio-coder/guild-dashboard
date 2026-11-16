@@ -1,5 +1,6 @@
 "use client";
 import { useSyncExternalStore } from "react";
+import { NavIcon } from "@/components/navigation/nav-icon";
 const listeners = new Set<() => void>();
 function subscribe(callback: () => void) {
   listeners.add(callback);
@@ -35,7 +36,7 @@ export function ThemeToggle() {
         listeners.forEach((callback) => callback());
       }}
     >
-      {light ? "☾" : "☀"}
+      <NavIcon name={light ? "moon" : "sun"} />
       <span className="theme-text">{light ? "Тёмная" : "Светлая"}</span>
     </button>
   );

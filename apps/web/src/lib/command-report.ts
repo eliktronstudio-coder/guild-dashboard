@@ -175,6 +175,19 @@ export async function loadCommandReport(
     range,
     category,
     summary: summarizeAttendance(facts, members, category, new Date(), catalog),
+    personalSummary: summarizeAttendance(
+      facts.filter((f) => f.membership_id === access.membership!.id),
+      [
+        {
+          id: access.membership!.id,
+          nickname: access.membership!.nickname,
+          character_class: null,
+        },
+      ],
+      category,
+      new Date(),
+      catalog,
+    ),
     report,
     error: null,
   };
