@@ -103,8 +103,8 @@ export default async function Page({
               display: [String(d.prime), String(d.mini), String(d.pvp)],
             }))}
             series={[
-              { label: "Прайм", color: "var(--gold)" },
-              { label: "Мини-РБ", color: "var(--info)" },
+              { label: "Прайм", color: "var(--accent)" },
+              { label: "Мини-РБ", color: "var(--gold)" },
               { label: "PvP", color: "var(--red)" },
             ]}
           />

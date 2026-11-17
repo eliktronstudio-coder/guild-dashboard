@@ -4,6 +4,7 @@ import "./globals.css";
 import "./command-fonts.css";
 import "./reference-ui.css";
 import "./silver-ui.css";
+import "./blood-ui.css";
 const golos = localFont({
   src: "./fonts/golos.woff2",
   variable: "--font-golos",
