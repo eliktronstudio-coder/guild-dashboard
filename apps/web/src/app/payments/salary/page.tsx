@@ -97,7 +97,8 @@ export default async function Page() {
         </Link>
         <h1>Выплата ЗП</h1>
         <p className="muted">
-          Участники с общей посещаемостью от 20% по всей истории активностей.
+          Участники с общей посещаемостью от 20% по текущим неархивированным
+          активностям.
         </p>
       </div>
       <p className="notice salary-payout-notice">

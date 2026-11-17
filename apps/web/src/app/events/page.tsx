@@ -54,6 +54,7 @@ export default async function Page({
     return "/events?" + q;
   }
   const calendar = params.view === "calendar";
+  const archived = filters.archive === "1";
   return (
     <GuildShell current="/events">
       <div className="activity-workspace">
@@ -63,6 +64,21 @@ export default async function Page({
             <p className="eyebrow">Обзор / Активность</p>
           </div>
           <div className="activity-heading-links">
+            <Link
+              href={
+                "/events?" +
+                new URLSearchParams({
+                  from: range.from,
+                  through: range.through,
+                  archive: archived ? "" : "1",
+                })
+              }
+            >
+              {archived ? "Текущие активности" : "Архив активностей"}
+            </Link>
+            {(await a.permission("periods.close")) && manage && (
+              <Link href="/events/archive">Архивировать активности</Link>
+            )}
             <Link href="/attendance">Отчёт посещаемости</Link>
             <Link
               href={
@@ -115,6 +131,7 @@ export default async function Page({
           ))}
         </div>
         <form className="activity-filter-panel">
+          <input type="hidden" name="archive" value={filters.archive} />
           <h2>⌕ Фильтры</h2>
           <div className="activity-filter-grid">
             <label>
@@ -186,7 +203,7 @@ export default async function Page({
             </Link>
           </div>
         </form>
-        {manage && (
+        {manage && !archived && (
           <Link
             className="button primary inline activity-add"
             href="/events/new"
@@ -209,7 +226,7 @@ export default async function Page({
         )}
         <section className="activity-journal">
           <header>
-            <h2>Журнал активностей</h2>
+            <h2>{archived ? "Архив активностей" : "Журнал активностей"}</h2>
             <span>
               {report?.total
                 ? `${(range.page - 1) * 15 + 1}–${Math.min(range.page * 15, report.total)} / ${report.total} активностей`
@@ -293,7 +310,7 @@ export default async function Page({
                       </span>
                     </td>
                     <td>
-                      {manage && row.status !== "cancelled" && (
+                      {manage && !archived && row.status !== "cancelled" && (
                         <Link
                           className="activity-row-cancel"
                           href={"/events/" + row.id + "/delete"}

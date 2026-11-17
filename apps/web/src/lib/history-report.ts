@@ -10,6 +10,7 @@ export const historyRange = cache(async (): Promise<DashboardPeriod> => {
     .from("events")
     .select("starts_at")
     .eq("guild_id", GUILD_ID)
+    .is("activity_archive_id", null)
     .is("deleted_at", null)
     .eq("inventory_receipt", false)
     .lte("starts_at", new Date().toISOString())

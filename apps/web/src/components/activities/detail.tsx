@@ -14,12 +14,18 @@ import { formatGold } from "@/lib/treasury";
 import { ActionForm } from "@/components/action-form";
 import { removeActivityDrop } from "@/app/events/workspace-actions";
 import { AddDropForm } from "./add-drop-form";
-export async function ActivityDetailPanel({ id }: { id: string }) {
+export async function ActivityDetailPanel({
+  id,
+  readOnly = false,
+}: {
+  id: string;
+  readOnly?: boolean;
+}) {
   const a = await requireMember();
   const [{ data, error }, manage, treasury, economyRead] = await Promise.all([
     a.client.rpc("activity_detail", { p_event: id }),
-    a.permission("events.manage"),
-    canManageActivityLoot(a),
+    readOnly ? Promise.resolve(false) : a.permission("events.manage"),
+    readOnly ? Promise.resolve(false) : canManageActivityLoot(a),
     a.permission("treasury.read"),
   ]);
   if (error || !data)
@@ -70,7 +76,7 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
           UTC {r.night ? "· Ночная активность" : ""}
         </time>
       </header>
-      {e.status === "completed" && (
+      {!readOnly && e.status === "completed" && (
         <section className="panel section-panel">
           <h2>Я участвовал в активности</h2>
           {await (async () => {
@@ -106,7 +112,9 @@ export async function ActivityDetailPanel({ id }: { id: string }) {
             return (
               <details>
                 <summary>Подать заявку на участие</summary>
-                <ClaimForm eventId={id} requestId={randomUUID()} />
+                {!readOnly && (
+                  <ClaimForm eventId={id} requestId={randomUUID()} />
+                )}
               </details>
             );
           })()}

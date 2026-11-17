@@ -20,6 +20,7 @@ export default async function Page({
     .from("events")
     .select("id,title,starts_at,attendance_finalized_at")
     .eq("guild_id", GUILD_ID)
+    .is("activity_archive_id", null)
     .eq("status", "completed")
     .eq("inventory_receipt", false)
     .lte("starts_at", new Date().toISOString())
