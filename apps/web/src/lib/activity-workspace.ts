@@ -145,6 +145,7 @@ export function activityFilters(
     error,
     page: Math.max(1, Math.min(10000, parseInt(value("page")) || 1)),
     filters: {
+      archive: value("archive") === "1" ? "1" : "",
       status: Object.hasOwn(JOURNAL_STATUSES, value("status"))
         ? value("status")
         : "",
