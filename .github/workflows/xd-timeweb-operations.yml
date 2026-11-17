@@ -14,9 +14,8 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of XD website and Discord services
+      - name: Deploy silver XD identity and verify services
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -27,27 +26,35 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'bash -se' <<'REMOTE'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
           set -euo pipefail
           exec 9>/var/lib/xd-guild-deploy/lock
           flock -w 180 9
-          python3 - <<'PYTHON'
-          import pathlib,subprocess,shutil
-          base=pathlib.Path('/var/www/xd-guild-releases')
-          active=[pathlib.Path(subprocess.check_output(['systemctl','show',unit,'--property=WorkingDirectory','--value'],text=True).strip()).resolve() for unit in ['xd-guild','xd-discord-bot']]
-          if shutil.disk_usage('/').free<2300000000:
-           for name in ['15fc687-20261109132552','6297ecc-20261109140221']:
-            release=base/name
-            assert release.is_dir() and not release.is_symlink()
-            assert not any(release.resolve()==p or release.resolve() in p.parents for p in active)
-            for relative in ['apps/web/node_modules','apps/web/.next/cache']:
-             generated=release/relative
-             assert not generated.is_symlink()
-             if generated.is_dir():shutil.rmtree(generated)
-            print('REMOVED_OLD_GENERATED_DEPENDENCIES',name)
-          PYTHON
+          cd /var/www/xd-guild-command-center
+          test "$(git branch --show-current)" = codex/xd-foundation-20261031
+          test -z "$(git status --porcelain)"
+          git fetch origin codex/xd-foundation-20261031
+          expected=d8a4a3a04e0ed2d92eecacc3da58931c630331a5
+          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = "$expected"
           df -h /
+          git merge --ff-only "$expected"
+          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$expected" ]; then
+          test "$(df -Pk / | awk 'NR==2 { print $4 }')" -gt 2097152
+            bash scripts/deploy-timeweb.sh
+            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
+          fi
+          test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$expected"
+          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          grep -q 'export const PERIOD_CLOSING_ENABLED = false;' "$app/src/lib/config.ts"
+          test -f "$app/src/app/reference-ui.css"
+          grep -q 'schedule-scroll' "$app/src/app/reference-ui.css"
+          test -f "$app/src/components/dashboard/activity-schedule.tsx"
+          test -f "$app/src/app/silver-ui.css"
+          test -f "$app/public/brand/xd-seal.webp"
+          grep -q silver-ui.css "$app/src/app/layout.tsx"
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/brand/xd-seal-small.webp
           systemctl is-active xd-guild
           systemctl is-active xd-discord-bot
+          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/login
+          echo XD_SILVER_IDENTITY_RELEASE_AND_SERVICES_VERIFIED
           REMOTE
