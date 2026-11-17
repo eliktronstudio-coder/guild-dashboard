@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import "./command-fonts.css";
 import "./reference-ui.css";
+import "./silver-ui.css";
 const golos = localFont({
   src: "./fonts/golos.woff2",
   variable: "--font-golos",

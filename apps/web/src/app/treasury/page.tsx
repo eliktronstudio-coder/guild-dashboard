@@ -209,7 +209,6 @@ export default async function Page({
         Экспорт CSV →
       </Link>
       <div className="page-heading">
-        <p className="eyebrow">XD · ЗОЛОТО И ДРОП</p>
         <h1>Экономика гильдии</h1>
         <p className="muted">
           Прайм, мини РБ, доля гильдии и имущество — в одном месте.

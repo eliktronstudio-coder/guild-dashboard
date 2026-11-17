@@ -30,7 +30,6 @@ export default async function LoginPage({
       title={"Ваша гильдия.\nВаш следующий горизонт."}
       subtitle="Состав, события и общие цели — в одном пространстве гильдии XD."
     >
-      <p className="eyebrow">ДОБРО ПОЖАЛОВАТЬ В XD</p>
       <h2>{register ? "Начните свой путь" : "С возвращением"}</h2>
       <p className="muted">
         {register

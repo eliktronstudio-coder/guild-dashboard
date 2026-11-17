@@ -1,0 +1,6 @@
+{
+  "asset": "xd-seal.webp / xd-seal-small.webp",
+  "origin": "User-supplied silver XD circular emblem, conversation 2026-11-17. Transparent asset prepared with image_gen, then resized and WebP encoded for delivery. Original output retained in /workspace/generated_images/exec-deadf813-3f0c-4435-8bf3-512b89b76fe1.png.",
+  "prompt": "Prepare a faithful clean website brand asset from the user's supplied XD emblem image. Preserve exactly its composition and personality: scratched distressed silver/off-white painted X and D, jagged crescent grin below, imperfect double circular ring, small ArcheAge-style A centered above ring. Remove ONLY the black background to real transparency. Do not redesign, add text, add color, add shadows, or add decorative elements. Preserve distressed organic paint edges and small silver drips, keep the complete circular outline and top A with generous transparent margin. Silver foreground should be legible over a near-black website background. Output one centered square transparent PNG emblem, no mockup.",
+  "presentation": "CSS grayscale preserves the reference's monochrome silver ink; the mark is decorative where its accessible link label already names XD."
+}

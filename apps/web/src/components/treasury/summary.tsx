@@ -4,8 +4,8 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
   return (
     <div className="treasury-totals">
       <article className="panel treasury-total">
-        <span className="eyebrow">ПРАЙМ · 70%</span>
         <h2>Казна прайм</h2>
+        <p className="caption">70% выручки Прайма — фонд зарплат</p>
         <strong>
           {formatGold(t.prime_units)} <small>зол.</small>
         </strong>
@@ -23,8 +23,8 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         </span>
       </article>
       <article className="panel treasury-total">
-        <span className="eyebrow">МИНИ РБ · 100%</span>
         <h2>Казна мини РБ</h2>
+        <p className="caption">100% выручки Мини РБ — фонд зарплат</p>
         <strong>
           {formatGold(t.mini_units)} <small>зол.</small>
         </strong>
@@ -35,8 +35,8 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         </p>
       </article>
       <article className="panel treasury-total">
-        <span className="eyebrow">ДОЛЯ ГИЛЬДИИ · 30%</span>
         <h2>Казна гильдии</h2>
+        <p className="caption">30% выручки Прайма — доля гильдии</p>
         <strong>
           {formatGold(t.guild_units)} <small>зол.</small>
         </strong>
@@ -50,7 +50,6 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
         </span>
       </article>
       <article className="panel treasury-total stock">
-        <span className="eyebrow">ДРОП В ДВУХ ИНВЕНТАРЯХ</span>
         <h2>Общая казна</h2>
         <strong>
           {t.unpriced_count > 0 && t.priced_count === 0 ? (
@@ -61,7 +60,7 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
             </>
           )}
         </strong>
-        <p>Оценка непроданного дропа</p>
+        <p>Оценка непроданного дропа в обоих инвентарях</p>
         {t.unpriced_count > 0 ? (
           <span className="caption">
             Неполная оценка: без цены {t.unpriced_count} поз.
