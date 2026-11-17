@@ -1,5 +1,6 @@
 "use client";
 
+import { NavIcon } from "@/components/navigation/nav-icon";
 import { useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 const clsx = (...values: unknown[]) => values.filter(Boolean).join(" ");
 
@@ -117,7 +118,7 @@ export default function CustomizableGrid({ panels }: { panels: GridPanel[] }) {
             onClick={resetLayout}
             className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted hover:text-foreground"
           >
-            <span aria-hidden="true">↶</span> Сбросить
+            <NavIcon name="reset" /> Сбросить
           </button>
         )}
         <button
@@ -130,11 +131,7 @@ export default function CustomizableGrid({ panels }: { panels: GridPanel[] }) {
               : "border-border text-muted hover:text-foreground",
           )}
         >
-          {editing ? (
-            <span aria-hidden="true">✓</span>
-          ) : (
-            <span aria-hidden="true">⚙</span>
-          )}
+          {editing ? <NavIcon name="check" /> : <NavIcon name="settings" />}
           {editing ? "Готово" : "Настроить"}
         </button>
       </div>
@@ -269,8 +266,7 @@ export default function CustomizableGrid({ panels }: { panels: GridPanel[] }) {
                     }}
                     className="absolute left-3 top-3 z-20 flex cursor-grab items-center gap-1.5 rounded-md border border-accent/30 bg-background/90 px-2 py-1 text-[11px] text-accent active:cursor-grabbing"
                   >
-                    <span aria-hidden="true">↕</span> {panel.label} ·{" "}
-                    {entry.span}/12
+                    <NavIcon name="move" /> {panel.label} · {entry.span}/12
                   </div>
                   <div
                     role="separator"

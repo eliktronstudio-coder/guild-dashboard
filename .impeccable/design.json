@@ -1,31 +1,36 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-16T11:54:31.544073+00:00",
+  "generatedAt": "2026-11-17T19:05:16.535832+00:00",
   "title": "Design System: XD Guild Command Center",
   "extensions": {
     "sourceDocument": "docs/DESIGN.md",
     "sourceStyles": [
       "apps/web/src/app/globals.css",
-      "apps/web/src/app/command-fonts.css",
-      "apps/web/src/app/reference-ui.css"
+      "apps/web/src/app/reference-ui.css",
+      "apps/web/src/app/silver-ui.css"
     ],
     "shadows": [
       {
         "name": "panel",
         "value": "none",
-        "purpose": "Flat working panels separated by borders."
+        "purpose": "Flat working surfaces and public cards."
       },
       {
-        "name": "primary-inherited",
-        "value": "0 4px 20px #9a333d15",
-        "purpose": "Existing base primary-button shadow."
+        "name": "primary",
+        "value": "none",
+        "purpose": "Silver primary controls."
       }
     ],
     "motion": [
       {
-        "name": "control-colors",
-        "value": "color 0.18s, background-color 0.18s, border-color 0.18s, box-shadow 0.18s",
-        "purpose": "Existing shared control transitions; disabled under prefers-reduced-motion."
+        "name": "seal-resolve",
+        "value": "0.45s ease-out",
+        "purpose": "One-time soft-focus resolve; disabled in light theme and reduced motion."
+      },
+      {
+        "name": "focus",
+        "value": "2px solid var(--gold); outline-offset: 3px",
+        "purpose": "Keyboard focus treatment."
       }
     ],
     "breakpoints": [
@@ -36,82 +41,111 @@
       {
         "name": "mobile-max",
         "value": "767px"
+      },
+      {
+        "name": "salary-mobile-max",
+        "value": "700px"
       }
-    ]
+    ],
+    "assets": {
+      "seal": "apps/web/public/brand/xd-seal.webp",
+      "smallSeal": "apps/web/public/brand/xd-seal-small.webp",
+      "provenance": "apps/web/public/brand/provenance.json",
+      "fonts": [
+        "apps/web/src/app/fonts/cormorant.woff2",
+        "apps/web/src/app/fonts/golos.woff2"
+      ]
+    },
+    "validation": {
+      "testsPassed": 181,
+      "build": "passed per implementation handoff",
+      "routes": 11,
+      "widths": [
+        390,
+        1440
+      ],
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "fixtures": "Isolated synthetic Auth/DB; no production changes",
+      "screenshots": ".impeccable/review/silver/viewport-*.png",
+      "reviewBoundary": "Original finish review plus confirmation of four resolved fixes; ship disposition applies to those fixes, not a separate whole-surface approval."
+    }
   },
   "components": [
     {
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Primary Button from the implemented reference system.",
+      "description": "Extracted from the implemented shared silver visual layer.",
       "html": "<button class=\"ds-primary\">Сохранить</button>",
-      "css": ".ds-primary{background:#ff9e2c;color:#0a080c;border:1px solid #ff9e2c;border-radius:8px;min-height:44px;padding:12px 20px;font:500 13px Geist,Arial,sans-serif;transition:background-color .18s,color .18s}.ds-primary:hover{background:#b23f4b;color:white}.ds-primary:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+      "css": ".ds-primary{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--gold,#ded9cf);color:var(--ink-on-silver,#171819);border:1px solid var(--gold,#ded9cf);font-weight:600;border-radius:5px;min-height:42px;padding:12px 20px}.ds-primary:hover{background:color-mix(in srgb,var(--gold,#ded9cf) 88%,var(--text,#eeeae3));border-color:var(--text,#eeeae3)}.ds-primary:focus-visible{outline:2px solid var(--gold,#ded9cf);outline-offset:3px}"
     },
     {
       "name": "Secondary Button",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Secondary Button from the implemented reference system.",
-      "html": "<button class=\"ds-secondary\">Отмена</button>",
-      "css": ".ds-secondary{background:var(--panel,#150f16);color:var(--text,#fff);border:1px solid var(--line,#2d1d28);border-radius:8px;min-height:44px;padding:12px 20px;font:500 13px Geist,Arial,sans-serif}.ds-secondary:hover{color:var(--gold,#ff9e2c)}.ds-secondary:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+      "description": "Extracted from the implemented shared silver visual layer.",
+      "html": "<button class=\"ds-secondary\">Сохранить</button>",
+      "css": ".ds-secondary{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--panel,#131416);color:var(--text,#eeeae3);border:1px solid var(--line,#323437);border-radius:5px;min-height:42px;padding:12px 20px}.ds-secondary:hover{background:var(--gold-soft,#ded9cf0d);border-color:var(--muted,#aaa9a5)}.ds-secondary:focus-visible{outline:2px solid var(--gold,#ded9cf);outline-offset:3px}"
     },
     {
       "name": "Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Input from the implemented reference system.",
+      "description": "Extracted from the implemented shared silver visual layer.",
       "html": "<label class=\"ds-label\">Ник<input class=\"ds-input\" placeholder=\"Игровое имя\"></label>",
-      "css": ".ds-label{display:grid;gap:6px;color:var(--text,#fff);font:14px Geist,Arial,sans-serif}.ds-input{min-height:44px;border:1px solid var(--line,#2d1d28);border-radius:8px;padding:12px 14px;background:var(--field,#0e0b10);color:var(--text,#fff);font:14px Geist,Arial,sans-serif}.ds-input:hover{border-color:var(--gold,#ff9e2c)}.ds-input:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+      "css": ".ds-label{display:grid;gap:6px;color:var(--text,#eeeae3);font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-input{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--field,#0b0c0d);color:var(--text,#eeeae3);border:1px solid var(--line,#323437);border-radius:5px;padding:12px 14px}.ds-input::placeholder{color:var(--muted,#aaa9a5)}.ds-input:focus{border-color:var(--gold,#ded9cf)}.ds-input:focus-visible{outline:2px solid var(--gold,#ded9cf);outline-offset:3px}"
     },
     {
       "name": "Active Navigation",
       "kind": "nav",
       "refersTo": "navigation-active",
-      "description": "Active Navigation from the implemented reference system.",
-      "html": "<nav><a class=\"ds-nav\" href=\"#\" aria-current=\"page\">Обзор гильдии</a></nav>",
-      "css": ".ds-nav{display:flex;align-items:center;min-height:46px;padding:10px 14px;border:1px solid color-mix(in srgb,var(--gold,#ff9e2c) 25%,transparent);border-radius:12px;background:var(--gold-soft,rgba(255,158,44,.1));color:var(--gold,#ff9e2c);font:14px Geist,Arial,sans-serif;text-decoration:none}.ds-nav:hover{color:var(--text,#fff)}.ds-nav:focus-visible{outline:2px solid var(--gold,#ff9e2c);outline-offset:3px}"
+      "description": "Extracted from the implemented shared silver visual layer.",
+      "html": "<nav><a href=\"#\" class=\"ds-nav\" aria-current=\"page\">Обзор гильдии</a></nav>",
+      "css": ".ds-nav{display:flex;min-height:43px;align-items:center;padding:10px 14px;border-radius:5px;border:1px solid var(--line,#323437);background:var(--gold-soft,#ded9cf0d);color:var(--text,#eeeae3);text-decoration:none;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-nav:hover{border-color:var(--muted,#aaa9a5)}.ds-nav:focus-visible{outline:2px solid var(--gold,#ded9cf);outline-offset:3px}"
     },
     {
       "name": "Role Badge",
       "kind": "chip",
-      "description": "Role Badge from the implemented reference system.",
+      "description": "Extracted from the implemented shared silver visual layer.",
       "html": "<span class=\"ds-badge\">Участник</span>",
-      "css": ".ds-badge{display:inline-block;padding:3px 7px;border:1px solid var(--line,#2d1d28);border-radius:6px;color:var(--text,#fff);font:11px Geist,Arial,sans-serif;white-space:nowrap}"
+      "css": ".ds-badge{display:inline-block;padding:3px 7px;border:1px solid var(--line,#323437);border-radius:6px;color:var(--text,#eeeae3);font-size:11px;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}"
     },
     {
       "name": "Working Panel",
       "kind": "card",
       "refersTo": "panel",
-      "description": "Working Panel from the implemented reference system.",
-      "html": "<section class=\"ds-panel\"><h2>Личная посещаемость</h2><p>Подтверждённые данные за выбранный период</p></section>",
-      "css": ".ds-panel{padding:20px;border:1px solid var(--line,#2d1d28);border-radius:16px;background:var(--panel,#150f16);color:var(--text,#fff);box-shadow:none}.ds-panel h2{margin:0;font:700 17px/1.4 Unbounded,Geist,sans-serif;letter-spacing:-.02em}.ds-panel p{font:14px/1.5 Geist,Arial,sans-serif;color:var(--muted,#ada0ab)}"
+      "description": "Extracted from the implemented shared silver visual layer.",
+      "html": "<section class=\"ds-panel\"><h2>Личная посещаемость</h2><p>Подтверждённые данные</p></section>",
+      "css": ".ds-panel{padding:24px;border:1px solid var(--line,#323437);border-radius:12px;background:var(--panel,#131416);color:var(--text,#eeeae3);box-shadow:none;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-panel h2{margin:0 0 18px;font:600 27px/1.2 var(--font-cormorant,\"Cormorant Garamond\"),serif;letter-spacing:-.02em}.ds-panel p{color:var(--muted,#aaa9a5);font-size:14px;line-height:1.5}"
     }
   ],
   "narrative": {
-    "overview": "The current system transfers the owner-approved visual reference at http://xd.200.165.236.194.sslip.io across the existing application. The pinned reference is the visual authority; source CSS defines implemented values. This is a compact working interface with warm dark surfaces, orange accents, grouped navigation and quiet borders, with a corresponding light theme.",
+    "northStar": "The guild’s distressed silver XD seal",
+    "overview": "User-pinned black/silver identity implemented in code across existing application pages. Organic ink stays in the emblem; Cormorant headings, Golos controls and readable financial data form the working interface. The emblem is not an approved UI composition.",
     "keyCharacteristics": [
-      "Dense, labeled working panels and tables.",
-      "Geometric headings with neutral interface text and monospaced financial values.",
-      "Limited existing imagery, subordinate to readable data."
+      "Graphite surfaces and silver actions",
+      "Neutral ivory/charcoal light theme",
+      "Local typography and tabular values",
+      "Responsive navigation and visible mobile header seal"
     ],
     "rules": [
       {
-        "name": "The Reference Rule",
-        "body": "Keep the approved reference authoritative for visual decisions; do not revive archived concept tokens as current values.",
+        "name": "Silver alias",
+        "body": "Legacy --gold is silver/charcoal; never restore historical gold or orange.",
         "section": "colors"
       }
     ],
     "dos": [
-      "Do use the approved reference and current theme tokens for shared chrome and working surfaces.",
-      "Do preserve current Auth, ACL, real data, payroll formulas and saved layout behavior.",
-      "Do reuse existing imagery and keep content readable in both themes and at mobile widths.",
-      "Do label the static countdown as the Moscow-time game schedule."
+      "Do preserve real data, Auth, permissions, calculations and saved layouts.",
+      "Do use the user-derived seal with its recorded provenance."
     ],
     "donts": [
-      "Don't treat historical concept palettes or typography as the current system.",
-      "Don't introduce fake translations, balances, levels, roles or unavailable features.",
-      "Don't present the static rotation as database events or automatic attendance."
+      "Do not revive superseded orange/purple visual authority.",
+      "Do not distress small text or numbers.",
+      "Do not present synthetic fixture checks as production changes."
     ]
   }
 }

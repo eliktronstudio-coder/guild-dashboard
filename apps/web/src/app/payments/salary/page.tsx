@@ -124,7 +124,7 @@ export default async function Page() {
             <p>Пока нет участников с посещаемостью от 20%.</p>
           ) : (
             <div
-              className="table-wrap"
+              className="table-wrap salary-payout-wrap"
               tabIndex={0}
               role="region"
               aria-label="Зарплата участников"

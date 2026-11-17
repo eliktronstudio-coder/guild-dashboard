@@ -1,3 +1,4 @@
+import { NavIcon } from "@/components/navigation/nav-icon";
 import Link from "next/link";
 import { GuildShell } from "@/components/shell";
 import { requireMember } from "@/lib/access";
@@ -61,7 +62,6 @@ export default async function Page({
         <header className="activity-page-heading">
           <div>
             <h1>Активность</h1>
-            <p className="eyebrow">Обзор / Активность</p>
           </div>
           <div className="activity-heading-links">
             <Link
@@ -132,7 +132,7 @@ export default async function Page({
         </div>
         <form className="activity-filter-panel">
           <input type="hidden" name="archive" value={filters.archive} />
-          <h2>⌕ Фильтры</h2>
+          <h2>Фильтры</h2>
           <div className="activity-filter-grid">
             <label>
               Дата с
@@ -197,9 +197,11 @@ export default async function Page({
             </label>
           </div>
           <div className="activity-filter-actions">
-            <button className="button primary">⌕ Найти</button>
+            <button className="button primary">
+              <NavIcon name="search" /> Найти
+            </button>
             <Link href="/events" className="button secondary">
-              ↺ Сбросить
+              <NavIcon name="reset" /> Сбросить
             </Link>
           </div>
         </form>
@@ -208,7 +210,7 @@ export default async function Page({
             className="button primary inline activity-add"
             href="/events/new"
           >
-            ＋ Добавить активность
+            <NavIcon name="plus" /> Добавить активность
           </Link>
         )}
         {error && (
@@ -261,7 +263,9 @@ export default async function Page({
                         {row.starts_at.slice(0, 10)}
                       </time>
                       {row.is_night && (
-                        <span title="Ночная активность"> ☾</span>
+                        <span title="Ночная активность">
+                          <NavIcon name="moon" />
+                        </span>
                       )}
                     </td>
                     <th scope="row">
@@ -317,7 +321,7 @@ export default async function Page({
                           aria-label={"Удалить " + row.title}
                           title="Удалить активность"
                         >
-                          ⌫
+                          <NavIcon name="trash" />
                         </Link>
                       )}
                     </td>

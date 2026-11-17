@@ -1,4 +1,9 @@
 const paths: Record<string, string> = {
+  search: "M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z",
+  reset: "M3 10a9 9 0 1 1 1 8M3 4v6h6",
+  plus: "M12 4v16M4 12h16",
+  trash: "M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7",
+  move: "M12 2v20M8 6l4-4 4 4M8 18l4 4 4-4",
   home: "M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z",
   chart: "M4 20V10h4v10m4 0V4h4v16m4 0V8h2v12",
   activity: "m5 3 16 16-2 2L3 5V3h2Zm10 0h6v6m-6-1 6-5M3 21l6-6",

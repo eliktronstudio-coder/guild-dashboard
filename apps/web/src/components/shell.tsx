@@ -11,8 +11,14 @@ import { PlayerClassPrompt } from "@/components/members/player-class-prompt";
 export function Brand() {
   return (
     <Link href="/" className="brand" aria-label="XD — главная">
-      <span className="monogram">XD</span>
-      <span>
+      <img
+        className="guild-seal"
+        src="/brand/xd-seal-small.webp"
+        alt=""
+        width={96}
+        height={96}
+      />
+      <span className="brand-name">
         XD GUILD<span>ARCH EAGE · ХД</span>
       </span>
     </Link>
@@ -37,9 +43,7 @@ export function PublicFrame({
           <p className="eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
           <p>{subtitle}</p>
-          <div className="story-rule">
-            <span>月</span> Одна гильдия. Общий путь.
-          </div>
+          <div className="story-rule">Одна гильдия. Общий путь.</div>
         </div>
         <p className="caption">Гавань под луной · XD / ХД</p>
       </div>
@@ -173,6 +177,13 @@ export async function GuildShell({
               {group} / {title}
             </small>
           </div>
+          <img
+            className="topbar-seal"
+            src="/brand/xd-seal-small.webp"
+            alt=""
+            width={32}
+            height={32}
+          />
           <ThemeToggle />
           <Link
             href="/account"

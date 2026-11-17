@@ -1,0 +1,556 @@
+/* User-approved XD silver seal, 2026-11-17. Shared visual layer only. */
+:root {
+  --bg: #090a0b;
+  --panel: #131416;
+  --sidebar: #0c0d0e;
+  --field: #0b0c0d;
+  --line: #323437;
+  --text: #eeeae3;
+  --muted: #aaa9a5;
+  --gold: #ded9cf;
+  --gold-soft: #ded9cf0d;
+  --red: #ed9393;
+  --success: #91cba7;
+  --info: #9ab5d5;
+  --card-scrim: #131416f5;
+  --ink-on-silver: #171819;
+}
+:root[data-theme="light"] {
+  --bg: #eeece7;
+  --panel: #faf9f5;
+  --sidebar: #e7e5df;
+  --field: #f2f0eb;
+  --line: #cbc8c0;
+  --text: #252728;
+  --muted: #66645f;
+  --gold: #373b3c;
+  --gold-soft: #373b3c0a;
+  --red: #a72d37;
+  --success: #28643c;
+  --info: #3d6087;
+  --card-scrim: #faf9f5f5;
+  --ink-on-silver: #faf9f5;
+}
+body {
+  font-family: var(--font-golos), sans-serif;
+}
+body,
+input,
+textarea,
+select,
+button {
+  font-variant-numeric: tabular-nums;
+}
+a:hover {
+  color: var(--text);
+}
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--gold);
+}
+.world-background {
+  background: url("/brand/xd-seal.webp") right -150px bottom -140px /
+    min(820px, 78vw) auto no-repeat;
+  filter: grayscale(1);
+  opacity: 0.045;
+}
+.world-background::after {
+  display: none;
+}
+:root[data-theme="light"] .world-background {
+  filter: grayscale(1) invert(1);
+  opacity: 0.035;
+}
+h1,
+h2,
+h3,
+.route-heading > span,
+.section-heading h2 {
+  font-family: var(--font-cormorant), serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+h1 {
+  font-size: clamp(34px, 3.4vw, 48px);
+  line-height: 1.08;
+}
+h2,
+.section-heading h2 {
+  font-size: 27px;
+  line-height: 1.2;
+}
+h3 {
+  font-size: 23px;
+}
+.route-heading > span {
+  font-size: 38px;
+  line-height: 1.1;
+}
+.route-heading > small {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.sidebar {
+  padding: 22px 12px 16px;
+}
+.brand,
+.sidebar .brand {
+  gap: 8px;
+  color: var(--text);
+}
+.sidebar .brand {
+  flex-direction: column;
+  padding: 0 8px 21px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+.guild-seal {
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: grayscale(1);
+  animation: seal-resolve 0.45s ease-out both;
+}
+.sidebar .guild-seal {
+  width: 104px;
+  height: 104px;
+}
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+}
+.brand .brand-name > span {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  margin-top: 4px;
+}
+:root[data-theme="light"] .guild-seal {
+  filter: grayscale(1) invert(1);
+}
+.sidebar .nav-label {
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+.nav-section {
+  margin-top: 18px;
+}
+.sidebar nav a {
+  border-radius: 5px;
+  min-height: 43px;
+  margin: 3px 0;
+}
+.sidebar nav a[aria-current="page"] {
+  background: var(--gold-soft);
+  border-color: var(--line);
+  color: var(--text);
+}
+.sidebar nav a[aria-current="page"] svg {
+  color: var(--gold);
+}
+.sidebar-foot .status-dot {
+  background: var(--success);
+}
+.topbar {
+  min-height: 94px;
+  background: var(--bg);
+  padding-block: 18px;
+}
+.user-chip,
+.theme-toggle,
+.sidebar-foot form button {
+  border-radius: 5px;
+}
+.page-content {
+  padding: 28px;
+}
+.page-footer {
+  letter-spacing: 0.06em;
+}
+.panel,
+.member-card,
+.character-card,
+.public-card {
+  border-radius: 12px;
+}
+.section-panel {
+  padding: 24px;
+}
+.panel > h2 {
+  margin-bottom: 18px;
+}
+.button,
+.activity-workspace .button {
+  border-radius: 5px;
+  min-height: 42px;
+}
+.button.primary,
+.activity-workspace .button.primary {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--ink-on-silver);
+  box-shadow: none;
+  font-weight: 600;
+}
+.button.primary:hover,
+.activity-workspace .button.primary:hover {
+  background: color-mix(in srgb, var(--gold) 88%, var(--text));
+  border-color: var(--text);
+  color: var(--ink-on-silver);
+}
+.button.secondary,
+.text-button {
+  color: var(--text);
+}
+.button.secondary:hover {
+  border-color: var(--muted);
+  background: var(--gold-soft);
+}
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  border-radius: 5px;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--gold);
+}
+.notice {
+  color: var(--text);
+  border-radius: 8px;
+}
+.notice.error {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+}
+.notice.success {
+  color: var(--success);
+}
+.table-wrap,
+.activity-journal {
+  border-radius: 9px;
+}
+thead th {
+  background: var(--field);
+  color: var(--muted);
+}
+tbody tr:hover {
+  background: var(--gold-soft);
+}
+.salary-cell strong,
+.salary-payout-table strong {
+  color: var(--text);
+}
+.attendance-track {
+  height: 4px;
+  background: var(--line);
+}
+.attendance-track > span {
+  background: var(--gold);
+}
+.personal-attendance-stat > strong {
+  font-family: var(--font-golos), sans-serif;
+  font-weight: 500;
+  color: var(--text);
+}
+.schedule-row time {
+  font-family: var(--font-golos), sans-serif;
+  font-weight: 500;
+}
+.schedule-row,
+.command-event-list li,
+.command-leaderboard li {
+  border-radius: 6px;
+  background: var(--field);
+}
+.command-stat {
+  background: var(--panel) !important;
+}
+.command-stat strong {
+  font-family: var(--font-golos), sans-serif;
+  color: var(--text);
+}
+.activity-workspace,
+html[data-theme="light"] .activity-workspace {
+  --aw-bg: var(--bg);
+  --aw-panel: var(--panel);
+  --aw-input: var(--field);
+  --aw-border: var(--line);
+  --aw-muted: var(--muted);
+  --aw-text: var(--text);
+  --aw-accent: var(--gold);
+}
+.activity-workspace h2 {
+  font-family: var(--font-cormorant), serif;
+  font-size: 25px;
+}
+.activity-workspace h3 {
+  font-family: var(--font-golos), sans-serif;
+  font-size: 14px;
+}
+.activity-kpi h2 {
+  font-family: var(--font-golos), sans-serif;
+  font-size: 11px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.activity-kpi strong {
+  font-weight: 500;
+}
+.activity-page-heading .eyebrow,
+.public-story .eyebrow {
+  display: none;
+}
+.activity-status.pending_payout,
+.activity-status.unconfirmed {
+  border-color: var(--line);
+}
+.activity-status.completed,
+.activity-status.paid,
+.activity-tag.pve {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--line));
+}
+.activity-status.cancelled,
+.activity-tag.pvp {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+}
+.activity-cover {
+  filter: saturate(0.5);
+}
+.loot-sell-total,
+.loot-sum,
+.codex-source {
+  color: var(--text);
+}
+.loot-icon-button {
+  border-color: var(--line);
+  border-radius: 7px;
+}
+.loot-icon-button:hover {
+  border-color: var(--gold);
+}
+.avatar-gold {
+  color: var(--text);
+  border-color: var(--line);
+  background: var(--field);
+}
+.public-layout {
+  gap: clamp(30px, 6vw, 100px);
+}
+.public-story,
+:root[data-theme="light"] .public-story {
+  position: relative;
+  isolation: isolate;
+  background: none;
+}
+.public-story::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: min(100%, 560px);
+  aspect-ratio: 1;
+  top: 48%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: url("/brand/xd-seal.webp") center / contain no-repeat;
+  filter: grayscale(1);
+  opacity: 0.18;
+}
+:root[data-theme="light"] .public-story::before {
+  filter: grayscale(1) invert(1);
+  opacity: 0.1;
+}
+.public-story .guild-seal {
+  width: 64px;
+  height: 64px;
+}
+.public-story h1 {
+  font-size: clamp(48px, 5.6vw, 76px);
+  line-height: 0.98;
+  max-width: 9ch;
+}
+.story-copy {
+  padding: 90px 0;
+}
+.story-copy > p:not(.eyebrow) {
+  color: var(--muted);
+}
+.story-rule {
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.story-rule > span {
+  border: 0;
+  padding: 0;
+  color: var(--gold);
+}
+.public-card {
+  background: var(--panel);
+  border-color: var(--line);
+  box-shadow: none;
+  animation: none;
+}
+.public-card h2 {
+  font-size: 36px;
+}
+.public-card .eyebrow {
+  color: var(--muted);
+}
+.mini-toolbar [aria-pressed="true"] {
+  color: var(--text);
+}
+@keyframes seal-resolve {
+  from {
+    filter: grayscale(1) blur(1px);
+  }
+  to {
+    filter: grayscale(1) blur(0);
+  }
+}
+:root[data-theme="light"] .guild-seal {
+  animation: none;
+}
+@media (max-width: 1023px) {
+  .sidebar .guild-seal {
+    width: 90px;
+    height: 90px;
+  }
+  .page-content {
+    padding: 22px;
+  }
+}
+@media (max-width: 767px) {
+  .sidebar {
+    padding-top: 75px;
+  }
+  .sidebar .brand {
+    flex-direction: row;
+    text-align: left;
+    padding-bottom: 18px;
+  }
+  .sidebar .guild-seal {
+    width: 60px;
+    height: 60px;
+  }
+  .brand-name {
+    font-size: 13px;
+  }
+  .topbar {
+    min-height: 78px;
+    padding: 12px 14px 12px 66px;
+  }
+  .route-heading > span {
+    font-size: 29px;
+  }
+  .route-heading > small {
+    font-size: 8px;
+  }
+  .page-content {
+    padding: 20px 14px;
+  }
+  .section-panel {
+    padding: 18px;
+  }
+  h1 {
+    font-size: 36px;
+  }
+  h2,
+  .section-heading h2 {
+    font-size: 26px;
+  }
+  .public-layout {
+    gap: 24px;
+  }
+  .public-story {
+    min-height: 260px;
+    padding-top: 12px;
+  }
+  .public-story .guild-seal {
+    width: 48px;
+    height: 48px;
+  }
+  .public-story::before {
+    width: 250px;
+    left: auto;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.14;
+  }
+  .public-story h1 {
+    font-size: 47px;
+    max-width: none;
+  }
+  .story-copy {
+    padding: 38px 0 16px;
+  }
+  .story-copy > p:not(.eyebrow) {
+    margin-top: 18px;
+  }
+  .story-rule {
+    margin-top: 20px;
+  }
+  .public-card {
+    padding: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guild-seal {
+    animation: none;
+  }
+}
+.loot-icon-button {
+  background: var(--field);
+}
+.loot-icon-placeholder,
+.loot-icon-description > strong {
+  color: var(--text);
+}
+.loot-icon-description {
+  background: var(--panel);
+  color: var(--text);
+  border-color: var(--line);
+}
+.loot-icon-description .caption {
+  color: var(--muted);
+}
+
+.topbar-seal {
+  display: none;
+  object-fit: contain;
+  filter: grayscale(1);
+}
+:root[data-theme="light"] .topbar-seal {
+  filter: grayscale(1) invert(1);
+}
+@media (max-width: 767px) {
+  .topbar-seal {
+    display: block;
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 700px) {
+  .salary-payout-wrap {
+    border: 0;
+    border-radius: 0;
+  }
+}
