@@ -1,5 +1,7 @@
 # XD · silver seal identity
 
+Status: silver baseline, extended by [blood-accent.md](blood-accent.md). The owner approved black/scarlet controls and realistic dark-burgundy grin/divider drips with sparse dried corners. Current accent and delivery rules live in that brief and `docs/DESIGN.md`; silver financial roles, typography, layout and behavior below remain the baseline.
+
 Mode: Operate. User requests a redesign of all pages based on their supplied black/silver distressed XD emblem (2026-11-17). This supersedes the prior orange/purple reference identity. Pinned traits: near-black ground, aged silver circular XD grin seal, organic scratched ink. Keep real member names, data, attendance/payroll formulas, permission checks, account identities, archive and payment actions, responsive navigation and dark/light theme preference.
 
 Code-led implementation. The emblem is a brand asset, not a whole-page UI comp. Context launcher is unavailable; existing PRODUCT.md and docs/DESIGN.md read directly. The user's explicit reference settles the visual direction; no unrelated concept alternatives.
@@ -19,4 +21,4 @@ Recognize the guild, navigate a real task, read attendance/amounts, act through 
 ## FIRST VIEWPORT
 104px seal atop grouped desktop navigation; 38px serif route title; 28px content gutters; silver source values and primary controls. Mobile header retains a 30px seal and native menu; login puts the large seal behind its text on a quiet field. Both themes and 390/1440px have isolated route evidence.
 ## FORM
-User-pinned visual reference and code-led build. The context launcher and concept-seed executable are absent; no seed key was fabricated. Fallback was disclosed before edits. The supplied emblem settles visual authority; it is not an approved UI composition/comp. Quality bar is the paragraph above; source illustration is in public/brand with provenance. Finish review is pending, then docs/DESIGN.md and .impeccable/design.json will be replaced for this approved redesign.
+User-pinned visual reference and code-led build. The context launcher and concept-seed executable are absent; no seed key was fabricated. Fallback was disclosed before edits. The supplied emblem settles visual authority; it is not an approved UI composition/comp. Quality bar is the paragraph above; source illustration is in public/brand with provenance. The original silver implementation and its four finish-review fixes shipped as the baseline. The approved blood-accent extension has its own fresh ship review and matching updated docs/DESIGN.md and .impeccable/design.json.

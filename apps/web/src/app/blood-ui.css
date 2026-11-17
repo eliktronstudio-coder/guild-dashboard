@@ -1,68 +1,201 @@
 /* Approved scarlet variant with realistic decorative plates. UI only. */
 :root {
- --bg:#070809; --panel:#111315; --sidebar:#090a0b;
- --accent:#c71936; --accent-hover:#b41430; --accent-soft:#c7193614;
- --accent-text:#f05c70; --on-accent:#fff8f4;
+  --bg: #070809;
+  --panel: #111315;
+  --sidebar: #090a0b;
+  --accent: #c71936;
+  --accent-hover: #b41430;
+  --accent-soft: #c7193614;
+  --accent-text: #f05c70;
+  --on-accent: #fff8f4;
 }
 :root[data-theme="light"] {
- --bg:#eeece7; --panel:#faf9f5; --sidebar:#e7e5df;
- --accent:#a8132d; --accent-hover:#900d25; --accent-soft:#a8132d0d;
- --accent-text:#9f102a; --on-accent:#fff;
+  --bg: #eeece7;
+  --panel: #faf9f5;
+  --sidebar: #e7e5df;
+  --accent: #a8132d;
+  --accent-hover: #900d25;
+  --accent-soft: #a8132d0d;
+  --accent-text: #9f102a;
+  --on-accent: #fff;
 }
-::selection { background:var(--accent);color:var(--on-accent); }
-:focus-visible,button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {
- outline-color:var(--accent-text);
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
 }
-input,textarea { caret-color:var(--accent-text); }
-input[type="checkbox"],input[type="radio"] { accent-color:var(--accent); }
-input:focus,textarea:focus,select:focus { border-color:var(--accent); }
-.guild-seal,.topbar-seal { filter:none; }
-:root[data-theme="light"] .guild-seal,:root[data-theme="light"] .topbar-seal { filter:brightness(.32);animation:none; }
-@keyframes seal-resolve { from { filter:blur(1px); } to { filter:blur(0); } }
+:focus-visible,
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline-color: var(--accent-text);
+}
+input,
+textarea {
+  caret-color: var(--accent-text);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+}
+.guild-seal,
+.topbar-seal {
+  filter: none;
+}
+:root[data-theme="light"] .guild-seal,
+:root[data-theme="light"] .topbar-seal {
+  filter: brightness(0.32);
+  animation: none;
+}
+@keyframes seal-resolve {
+  from {
+    filter: blur(1px);
+  }
+  to {
+    filter: blur(0);
+  }
+}
 .sidebar nav a[aria-current="page"] {
- color:var(--on-accent);background:var(--accent);border-color:var(--accent);
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
 }
-.sidebar nav a[aria-current="page"] svg { color:var(--on-accent); }
-.sidebar nav a:hover:not([aria-current="page"]) { background:var(--accent-soft); }
-.button.primary,.activity-workspace .button.primary,.dashboard-layout-toggle[aria-pressed="true"] {
- color:var(--on-accent);background:var(--accent);border-color:var(--accent);
+.sidebar nav a[aria-current="page"] svg {
+  color: var(--on-accent);
 }
-.button.primary:hover,.activity-workspace .button.primary:hover { color:var(--on-accent);background:var(--accent-hover);border-color:var(--accent-hover); }
-.dashboard-layout-toggle { color:var(--on-accent);background:var(--accent);border-color:var(--accent); }
-.dashboard-layout-toggle:hover { background:var(--accent-hover); }
-.button.secondary:hover { background:var(--accent-soft);border-color:var(--accent); }
-.attendance-track > span { background:var(--accent); }
-.schedule-row time { color:var(--accent-text); }
-.activity-workspace,html[data-theme="light"] .activity-workspace { --aw-accent:var(--accent-text); }
-.activity-workspace .button.primary { background:var(--accent);color:var(--on-accent);border-color:var(--accent); }
-.player-class-options label:has(input:checked),.registry-picker-options button:is(:hover,.is-active,[aria-selected="true"]) { background:var(--accent-soft);border-color:var(--accent); }
-.registry-picker-popup { border-color:var(--accent); }
-.loot-icon-button:hover { border-color:var(--accent); }
-.guild-content { position:relative;isolation:isolate; }
-.topbar { border-bottom-color:var(--accent); }
+.sidebar nav a:hover:not([aria-current="page"]) {
+  background: var(--accent-soft);
+}
+.button.primary,
+.activity-workspace .button.primary,
+.dashboard-layout-toggle[aria-pressed="true"] {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.button.primary:hover,
+.activity-workspace .button.primary:hover {
+  color: var(--on-accent);
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+.dashboard-layout-toggle {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.dashboard-layout-toggle:hover {
+  background: var(--accent-hover);
+}
+.button.secondary:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.attendance-track > span {
+  background: var(--accent);
+}
+.schedule-row time {
+  color: var(--accent-text);
+}
+.activity-workspace,
+html[data-theme="light"] .activity-workspace {
+  --aw-accent: var(--accent-text);
+}
+.activity-workspace .button.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+.player-class-options label:has(input:checked),
+.registry-picker-options button:is(:hover, .is-active, [aria-selected="true"]) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.registry-picker-popup {
+  border-color: var(--accent);
+}
+.loot-icon-button:hover {
+  border-color: var(--accent);
+}
+.guild-content {
+  position: relative;
+  isolation: isolate;
+}
+.topbar {
+  border-bottom-color: var(--accent);
+}
 .guild-content::before {
- content:"";position:absolute;inset:94px 0 auto;height:44px;
- background:url("/brand/blood-divider.webp") center top / 100% 44px no-repeat;
- pointer-events:none;z-index:0;
+  content: "";
+  position: absolute;
+  inset: 94px 0 auto;
+  height: 64px;
+  background: url("/brand/blood-divider.webp") center top / 480px auto no-repeat;
+  pointer-events: none;
+  z-index: 0;
 }
-.page-content { position:relative;z-index:1;padding-top:60px; }
+.page-content {
+  position: relative;
+  z-index: 1;
+  padding-top: 68px;
+}
 .guild-content::after {
- content:"";position:absolute;right:0;bottom:0;width:150px;height:150px;
- background:url("/brand/blood-corner.webp") left top / contain no-repeat;
- transform:rotate(180deg);opacity:.45;pointer-events:none;z-index:0;
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 150px;
+  height: 150px;
+  background: url("/brand/blood-corner.webp") left top / contain no-repeat;
+  transform: rotate(180deg);
+  opacity: 0.45;
+  pointer-events: none;
+  z-index: 0;
 }
 .sidebar::before {
- content:"";position:absolute;top:0;left:0;width:90px;height:90px;
- background:url("/brand/blood-corner.webp") left top / contain no-repeat;
- opacity:.55;pointer-events:none;
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 90px;
+  height: 90px;
+  background: url("/brand/blood-corner.webp") left top / contain no-repeat;
+  opacity: 0.55;
+  pointer-events: none;
 }
-.public-card::before { background:var(--accent); }
-:root[data-theme="light"] .guild-content::before { opacity:.7; }
-@media(max-width:767px) {
- .guild-content::before { top:78px;height:28px;background-size:900px 38px; }
- .page-content { padding-top:44px; }
- .guild-content::after { width:90px;height:90px;opacity:.35; }
- .sidebar::before { width:64px;height:64px; }
+.public-card::before {
+  background: var(--accent);
+}
+:root[data-theme="light"] .guild-content::before {
+  opacity: 0.7;
+}
+@media (max-width: 767px) {
+  .guild-content::before {
+    top: 78px;
+    height: 44px;
+    background-size: 340px auto;
+  }
+  .page-content {
+    padding-top: 52px;
+  }
+  .guild-content::after {
+    width: 90px;
+    height: 90px;
+    opacity: 0.35;
+  }
+  .sidebar::before {
+    width: 64px;
+    height: 64px;
+  }
 }
 /* Keep money and success states semantically distinct from the brand accent. */
-.salary-payment-cell > strong,.salary-cell strong { color:var(--text); }
+.salary-payment-cell > strong,
+.salary-cell strong {
+  color: var(--text);
+}

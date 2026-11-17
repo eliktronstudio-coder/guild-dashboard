@@ -14,5 +14,17 @@
       "prompt": "Create ONE isolated production decorative website corner asset on a real transparent alpha background. A sparse organic diagonal brush scrape of dried dark blood/crimson paint occupying the TOP LEFT corner of a square canvas, strongest only along the top and left edges and fading naturally into transparency toward the middle. Oxidized brown-maroon roots, deep dry crimson ridges, rough distressed brush fibers, a few tiny irregular specks. The central 70% of the canvas must remain fully transparent and clear for a working interface. This is a restrained black-metal game-guild graphic corner ornament, not a gore illustration. No bodies, wounds, weapons, symbols, text, UI, background, neon, glow or huge red filled smear. Subtle realistic material, not cartoon red scratches. Leave a small transparent margin so the full artwork can be delivered uncropped."
     }
   ],
-  "note": "AI-produced raster decoration, not CSS imitation. Source PNGs kept outside public; WebP delivery generated in isolated GitHub Actions before deployment. No production data/finance mutation."
+  "note": "AI-produced raster decoration, not CSS imitation. Source PNGs kept outside public; WebP delivery generated in isolated GitHub Actions before deployment. No production data/finance mutation.",
+  "delivery": {
+    "format": "WebP",
+    "quality": 88,
+    "padding": "Visible-alpha bounding box (alpha >= 8) removes imperceptible generated padding without changing painted pixels. Resize preserves aspect ratio.",
+    "widths": {
+      "seal": 768,
+      "smallSeal": 192,
+      "divider": 1536,
+      "corner": 384
+    },
+    "placement": "Header ribbon rendered at 480px natural aspect ratio on desktop, 340px mobile; never stretched. Decorative layers do not receive pointer events."
+  }
 }
