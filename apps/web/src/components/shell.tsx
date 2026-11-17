@@ -13,7 +13,7 @@ export function Brand() {
     <Link href="/" className="brand" aria-label="XD — главная">
       <img
         className="guild-seal"
-        src="/brand/xd-seal-small.webp"
+        src="/brand/xd-seal-blood-small.webp"
         alt=""
         width={96}
         height={96}
@@ -179,7 +179,7 @@ export async function GuildShell({
           </div>
           <img
             className="topbar-seal"
-            src="/brand/xd-seal-small.webp"
+            src="/brand/xd-seal-blood-small.webp"
             alt=""
             width={32}
             height={32}

@@ -1,14 +1,19 @@
 ---
 name: XD Guild Command Center
-description: Distressed silver guild seal with precise working surfaces
+description: Distressed silver guild seal with restrained crimson actions and realistic blood accents
 colors:
-  bg: "#090a0b"
-  panel: "#131416"
-  sidebar: "#0c0d0e"
+  bg: "#070809"
+  panel: "#111315"
+  sidebar: "#090a0b"
   field: "#0b0c0d"
   line: "#323437"
   text: "#eeeae3"
   muted: "#aaa9a5"
+  accent: "#c71936"
+  accent-hover: "#b41430"
+  accent-soft: "#c7193614"
+  accent-text: "#f05c70"
+  on-accent: "#fff8f4"
   gold: "#ded9cf"
   gold-soft: "#ded9cf0d"
   red: "#ed9393"
@@ -23,6 +28,11 @@ colors:
   light-line: "#cbc8c0"
   light-text: "#252728"
   light-muted: "#66645f"
+  light-accent: "#a8132d"
+  light-accent-hover: "#900d25"
+  light-accent-soft: "#a8132d0d"
+  light-accent-text: "#9f102a"
+  light-on-accent: "#ffffff"
   light-gold: "#373b3c"
   light-gold-soft: "#373b3c0a"
   light-red: "#a72d37"
@@ -65,10 +75,13 @@ spacing:
   page: "28px"
 components:
   button-primary:
-    backgroundColor: "{colors.gold}"
-    textColor: "{colors.ink-on-silver}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
     rounded: "{rounded.control}"
     padding: "12px 20px"
+  button-primary-hover:
+    backgroundColor: "{colors.accent-hover}"
+    textColor: "{colors.on-accent}"
   button-secondary:
     backgroundColor: "{colors.panel}"
     textColor: "{colors.text}"
@@ -84,8 +97,8 @@ components:
     textColor: "{colors.text}"
     rounded: "{rounded.panel}"
   navigation-active:
-    backgroundColor: "{colors.gold-soft}"
-    textColor: "{colors.text}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
     rounded: "{rounded.control}"
 ---
 
@@ -93,13 +106,15 @@ components:
 
 ## Overview
 
-**Creative North Star: the guild’s distressed silver XD seal.** The user-approved near-black/silver circular grin emblem anchors all application pages. This is a code-led identity, not an approved whole-page UI composition. The pinned brief is [.impeccable/surfaces/silver-identity.md](../.impeccable/surfaces/silver-identity.md); it supersedes the former orange/purple reference and earlier fantasy concepts. The unavailable context launcher was disclosed; product and design sources were read directly.
+**Creative North Star: the guild’s distressed silver XD seal, extended with restrained crimson.** The owner approved the third black/scarlet preview, then realistic dark-burgundy drips along the XD grin and upper divider with sparse dried corner marks. The current authority is [.impeccable/surfaces/blood-accent.md](../.impeccable/surfaces/blood-accent.md), extending the [silver baseline](../.impeccable/surfaces/silver-identity.md). This refines the existing application world and layout. The unavailable final conversation mock prevents a pixel-level comparison; no pixel-perfect approval is claimed.
 
-The seal carries the scratched organic ink. Typography, numbers and working panels remain precise and readable. Auth, permissions, real member data, payroll calculations, saved layouts and protected actions retain their existing behavior.
+The seal carries scratched silver ink and realistic raster blood material. Typography, numbers and working panels remain precise and readable. Auth, permissions, real member data, payroll calculations, saved layouts and protected actions retain their existing behavior.
 
 ## Colors
 
-Frontmatter records the implemented dark and light primitives from `apps/web/src/app/silver-ui.css`, imported after the base and reference styles. That final layer owns the current identity. **The legacy `--gold` name now means silver** in dark mode and charcoal in light mode; never restore its historical orange/gold value. The neutral light theme uses ivory surfaces and charcoal text. Red, green and blue remain semantic error, success and information colors; retain textual status labels.
+Frontmatter records the implemented dark and light primitives. `apps/web/src/app/blood-ui.css`, imported after `silver-ui.css`, owns the crimson extension. Crimson drives primary actions, selected navigation, attendance tracks and the Prime chart series; Mini remains silver. Accent text and focus use the brighter readable accent, with darker equivalents in light mode. On-accent text is pale ivory in dark mode and white in light mode.
+
+**The Silver Money Rule.** The legacy `--gold` remains silver in dark mode and charcoal in light mode for financial and neutral roles; never redefine it as crimson or restore historical orange/gold. Red errors, green success and blue information retain semantic labels independently of brand crimson. Light surfaces remain neutral ivory/charcoal.
 
 ## Typography
 
@@ -107,7 +122,7 @@ Local `next/font/local` WOFF2 files `apps/web/src/app/fonts/cormorant.woff2` and
 
 ## Layout
 
-Desktop shell uses a 240px grouped sidebar, a minimum 94px route header and 28px page gutters. At max-width 1023px the inherited sidebar is 210px, seal 90px and page gutters 22px. At max-width 767px navigation becomes the labeled expandable drawer with Escape/outside dismissal; the header is minimum 78px, route title 29px, page padding 20px 14px and section padding 18px. A 30px seal remains visible in the mobile header while the drawer is closed. The drawer brand uses a 60px seal; desktop uses 104px. Public layouts collapse with a 24px gap and a 48px mobile brand seal. Preserve existing responsive tables/cards, source controls and saved panel layouts. Salary payout wrappers lose their border/radius below 700px for the existing mobile row layout.
+Desktop shell uses a 240px grouped sidebar, a minimum 94px route header and 28px page gutters. At max-width 1023px the inherited sidebar is 210px, seal 90px and page gutters 22px. At max-width 767px navigation becomes the labeled expandable drawer with Escape/outside dismissal; the header is minimum 78px, route title 29px, page padding 20px 14px and section padding 18px. A 30px seal remains visible in the mobile header while the drawer is closed. The drawer brand uses a 60px seal; desktop uses 104px. Public layouts collapse with a 24px gap and a 48px mobile brand seal. The header divider is a natural-aspect raster ribbon centered at 480px desktop / 340px mobile. Reserve page-content top padding of 68px / 52px; the divider scrolls with the document and never sticks over content. Preserve existing responsive tables/cards, source controls and saved panel layouts. Salary payout wrappers lose their border/radius below 700px for the existing mobile row layout.
 
 ## Elevation & Depth
 
@@ -115,21 +130,21 @@ Working panels and primary buttons are flat, with quiet 1px borders and tonal se
 
 ## Shapes
 
-Controls use 5px corners, repeated schedule/list rows 6px, notices 8px, table containers 9px and panels/member/character/public cards 12px. The seal supplies the irregular circular form; avoid distressed text, CSS fake metal or extra decorative grain.
+Controls use 5px corners, repeated schedule/list rows 6px, notices 8px, table containers 9px and panels/member/character/public cards 12px. The seal supplies the irregular circular form; dark burgundy drips and sparse dried corners use authored raster assets. Preserve their natural aspect ratios; avoid distressed text, CSS fake metal or geometric imitation blood.
 
 ## Components
 
-Primary buttons pair `--gold` with `--ink-on-silver`, minimum height 42px and inherited 12px 20px padding. Hover mixes silver 88% with text and changes the border to text. Secondary controls retain panel/text colors and use muted borders and silver-soft hover. Inputs use field/text tokens, 5px corners and silver focus borders. All keyboard focus uses a 2px `--gold` outline with 3px offset. Keep existing disabled/loading/error/empty/permission behavior; never replace unavailable data with decorative zeros.
+Primary buttons pair `--accent` with `--on-accent`, minimum height 42px and inherited 12px 20px padding. Hover uses `--accent-hover`. Secondary controls retain panel/text colors with accent-soft hover and accent borders. Inputs use field/text tokens, 5px corners and accent focus borders. Keyboard focus retains its 2px outline and 3px offset, colored `--accent-text`. Keep existing disabled/loading/error/empty/permission behavior; never replace unavailable data with decorative zeros.
 
-Active navigation uses silver-soft fill, a quiet line border, text-colored label and silver icon. Text badges retain status labels and semantic status colors. Attendance tracks are 4px, line-colored with silver fill; financial totals remain high contrast. Existing game countdown remains a Moscow-time static weekly rotation, independent of recorded activity and attendance.
+Active navigation uses accent fill/border with on-accent labels and icons. Text badges retain status labels and semantic colors. Attendance tracks are 4px with accent fill; financial totals remain high contrast. Prime charts use the accent, Mini silver; chart data and formulas are unchanged. Existing game countdown remains a Moscow-time static weekly rotation, independent of recorded activity and attendance.
 
-Brand assets are `apps/web/public/brand/xd-seal.webp` and `xd-seal-small.webp`; `provenance.json` records the user reference and image preparation. Use the small asset for shared brand/header images with explicit dimensions; larger asset for decorative backgrounds. Decorative images have empty alt text when their link already names XD. Light mode inverts the monochrome seal. The one-time 0.45s ease-out seal resolve goes from 1px soft focus to sharp; light mode and reduced-motion disable it. Existing short control transitions respect reduced motion. WebP assets and local fonts require no paid APIs or external media requests.
+Shared brand/header assets are `apps/web/public/brand/xd-seal-blood.webp` and `xd-seal-blood-small.webp`; `blood-divider.webp` and `blood-corner.webp` supply decoration. `blood-provenance.json` records source prompts and delivery. Source PNGs remain outside public in `.impeccable/assets/blood/`. Visible alpha bounds (alpha ≥ 8) remove invisible padding before quality-88 WebP encoding while preserving aspect ratio. Original monochrome silver assets remain available for baseline backgrounds. Decorative layers use `pointer-events: none`, sit behind content and have empty alternative text where the link already names XD. Light shared seals use `brightness(0.32)` rather than monochrome inversion. The one-time 0.45s ease-out seal resolve remains disabled in light mode and reduced motion; no canvas or looping decoration. WebP assets and local fonts require no paid APIs or external media requests.
 
 ## Do's and Don'ts
 
-- **Do** apply the shared silver layer across public, member, finance and administration surfaces in both themes.
+- **Do** apply the shared silver world and crimson extension across public, member, finance and administration surfaces in both themes.
 - **Do** preserve labels, exact financial values, source actions, Auth/ACL and all later business instructions in PRODUCT.md.
 - **Don't** revive the superseded orange/purple reference, historical concept palettes or fantasy banners as visual authority.
 - **Don't** infer a UI composition approval from the supplied emblem or turn fixture values into production data.
 
-Validation record supplied by the implementation handoff: 181 tests passed and production build passed; isolated synthetic Auth/DB fixtures exercised 11 routes at 390px/1440px in both themes. Evidence is in `.impeccable/review/silver/`, including `viewport-*.png` captures. No production data changes were made. The original finish review identified four defects; the confirmation verdict resolved those four and marked those fixes ship. This does not claim a separate whole-surface reviewer approval.
+Validation evidence supplied by the implementation handoff: Actions run `44161070065` passed 181 tests and production build, an 11-route browser matrix at 390px/1440px in both themes, and salary/archive fixture scripts. The later padding/aspect-only correction passed local typecheck/build and the same 11-route matrix. Screenshots are `.impeccable/review/blood/viewport-*.png`. A fresh independent finish review returned ship with no material fixes. The final conversation mock was unavailable for pixel-level comparison. All checks used isolated fixtures; no production mutations were made.

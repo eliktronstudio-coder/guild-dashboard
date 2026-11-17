@@ -125,7 +125,7 @@ export default function CustomizableGrid({ panels }: { panels: GridPanel[] }) {
           type="button"
           onClick={() => setEditing((v) => !v)}
           className={clsx(
-            "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+            "dashboard-layout-toggle flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
             editing
               ? "border-accent/40 bg-accent-soft text-accent"
               : "border-border text-muted hover:text-foreground",
