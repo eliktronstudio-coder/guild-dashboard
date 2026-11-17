@@ -3,7 +3,7 @@ on:
   push:
     branches: [codex/xd-timeweb-inspect-20261109]
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: xd-timeweb-operations
   cancel-in-progress: false
@@ -11,20 +11,70 @@ jobs:
   import:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of XD website and Discord services
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
-          KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
+        with:
+          ref: codex/xd-blood-accent
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install existing web dependencies
+        run: npm ci --prefix apps/web
+      - name: Encode approved blood decoration for delivery
         run: |
-          set -euo pipefail
-          test -n "$SSH_KEY" || { echo 'Missing TIMEWEB_SSH_PRIVATE_KEY'; exit 1; }
-          install -d -m 700 ~/.ssh
-          trap 'rm -f ~/.ssh/xd_operations' EXIT
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
+          node <<'JS'
+          const sharp=require('./apps/web/node_modules/sharp');
+          (async()=>{
+           const base='.impeccable/assets/blood/',out='apps/web/public/brand/';
+           await sharp(base+'seal.png').trim({threshold:0}).resize({width:768}).webp({quality:88}).toFile(out+'xd-seal-blood.webp');
+           await sharp(base+'seal.png').trim({threshold:0}).resize({width:192}).webp({quality:88}).toFile(out+'xd-seal-blood-small.webp');
+           await sharp(base+'divider.png').trim({threshold:0}).resize({width:1536}).webp({quality:90}).toFile(out+'blood-divider.webp');
+           await sharp(base+'corner.png').trim({threshold:0}).resize({width:384}).webp({quality:88}).toFile(out+'blood-corner.webp');
+           for(const f of ['xd-seal-blood.webp','xd-seal-blood-small.webp','blood-divider.webp','blood-corner.webp']) {
+            const m=await sharp(out+f).metadata();if(!m.hasAlpha)throw Error('Expected real alpha: '+f);
+            console.log('ENCODED',f,m.width,m.height,require('fs').statSync(out+f).size);
+           }
+          })().catch(e=>{console.error(e);process.exitCode=1;});
+          JS
+          git config user.name 'XD design checks'
+          git config user.email 'actions@users.noreply.github.com'
+          git add apps/web/public/brand/*blood*.webp
+          if ! git diff --cached --quiet; then
+            git commit -m 'Encode approved blood decoration as transparent WebP'
+            git push origin HEAD:codex/xd-blood-accent
+          fi
+      - name: Check types, SQL tests and production build
+        run: npm run check --prefix apps/web
+      - name: Install isolated browser runner
+        run: |
+          python3 -m pip install playwright
+          browser=$(command -v google-chrome || command -v chromium || true)
+          test -n "$browser"
+          mkdir -p "$RUNNER_TEMP/xd-browser"
+          ln -s "$browser" "$RUNNER_TEMP/xd-browser/chromium"
+          echo "$RUNNER_TEMP/xd-browser" >> "$GITHUB_PATH"
+      - name: Capture and check all shared surfaces
+        env:
+          AUTH_EMAIL_ENABLED: 'true'
+        run: XD_DESIGN_ARTIFACTS="$GITHUB_WORKSPACE/.impeccable/review/blood" python3 apps/web/scripts/check-blood-design.py
+      - name: Verify salary and activity archive controls on isolated fixtures
+        run: |
+          sudo mkdir -p /workspace
+          sudo chmod a+rwx /workspace
+          python3 apps/web/scripts/check-salary-payments.py
+          python3 apps/web/scripts/check-activity-archive.py
+      - name: Save synthetic visual evidence to a separate review branch
+        run: |
+          evidence="codex/xd-blood-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git switch -c "$evidence"
+          git add -f .impeccable/review/blood/viewport-*.png
+          git commit -m 'Store isolated blood-accent viewport evidence for review'
+          git push origin HEAD:"$evidence"
+          echo "VISUAL_EVIDENCE_REF=$evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xd-blood-design-evidence
+          path: .impeccable/review/blood/
