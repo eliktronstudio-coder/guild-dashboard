@@ -47,7 +47,11 @@ function SourcePayment({
             <NavIcon name="check" /> Выплачено
           </span>
         ) : (
-          <span className="caption">Нет начислений</span>
+          <span className="caption">
+            {row[`${source}_eligible`] === false
+              ? "Посещаемость ниже 20% или нет активностей"
+              : "Нет начислений"}
+          </span>
         )
       ) : (
         <>
@@ -87,7 +91,15 @@ export default async function Page() {
     .catch(() => ({ data: null, error: true }));
   const rows =
     result.data?.rows
-      .filter((r) => r.eligible)
+      .filter(
+        (r) =>
+          r.eligible ||
+          BigInt(r.prime_fixed) +
+            BigInt(r.mini_fixed) +
+            BigInt(r.prime_paid) +
+            BigInt(r.mini_paid) >
+            0n,
+      )
       .sort((a, b) => a.nickname.localeCompare(b.nickname, "ru")) ?? [];
   return (
     <GuildShell current="/payments">
@@ -97,14 +109,15 @@ export default async function Page() {
         </Link>
         <h1>Выплата ЗП</h1>
         <p className="muted">
-          Участники с общей посещаемостью от 20% по текущим неархивированным
-          активностям.
+          Прайм и Мини РБ рассчитываются отдельно: от 20% посещаемости
+          соответствующей категории по неархивированным активностям.
         </p>
       </div>
       <p className="notice salary-payout-notice">
         Нажимайте кнопку после передачи золота игроку в игре. На сайте будет
-        записана выплата и уменьшен остаток казны. Первая выплата фиксирует
-        текущие начисления; новые продажи образуют доплату.
+        записана выплата и уменьшен остаток казны. Невыплаченная зарплата
+        пересчитывается при изменении продаж и состава. Проведённые выплаты
+        сохраняются.
       </p>
       {result.error ? (
         <p className="notice error" role="alert">

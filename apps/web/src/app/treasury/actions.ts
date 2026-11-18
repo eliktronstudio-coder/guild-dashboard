@@ -60,10 +60,7 @@ export async function addLoot(
     ...values,
   });
   if (error) return { error: treasuryError(error.message) };
-  revalidatePath("/treasury");
-  revalidatePath("/members", "layout");
-  revalidatePath("/dashboard");
-  revalidatePath("/events", "layout");
+  revalidatePath("/", "layout");
   const { data: item } = await client
     .from("treasury_inventory")
     .select("source,event_starts_at")
@@ -101,9 +98,7 @@ export async function reviseLoot(
     p_reason: field(form, "reason"),
   });
   if (error) return { error: treasuryError(error.message) };
-  revalidatePath("/treasury");
-  revalidatePath("/members", "layout");
-  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
   return {
     success: "Партия исправлена. Предыдущее состояние сохранено в журнале.",
   };
@@ -144,9 +139,7 @@ export async function sellLoot(
     p_note: field(form, "note"),
   });
   if (error) return { error: treasuryError(error.message) };
-  revalidatePath("/treasury");
-  revalidatePath("/members", "layout");
-  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
   return { success: "Продажа записана, остаток и казны обновлены." };
 }
 export async function voidSale(
@@ -166,9 +159,7 @@ export async function voidSale(
     return {
       error: settlementError(error.message) ?? treasuryError(error.message),
     };
-  revalidatePath("/treasury");
-  revalidatePath("/members", "layout");
-  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
   return {
     success:
       "Продажа отменена. Предметы возвращены, поступления сняты; история сохранена.",
@@ -214,9 +205,6 @@ export async function addRegistryInventory(
     p_note: note,
   });
   if (error) return { error: treasuryError(error.message) };
-  revalidatePath("/treasury");
-  revalidatePath("/members", "layout");
-  revalidatePath("/dashboard");
-  revalidatePath("/events", "layout");
+  revalidatePath("/", "layout");
   return { success: "Предмет добавлен." };
 }

@@ -107,12 +107,6 @@ export default async function Page({
                         <div className="personal-attendance-grid">
                           {[
                             [
-                              "Общая",
-                              own?.percentage ?? 0,
-                              own?.present ?? 0,
-                              own?.available ?? 0,
-                            ],
-                            [
                               "Прайм",
                               own?.prime ?? 0,
                               own?.primePresent ?? 0,
@@ -391,18 +385,16 @@ export default async function Page({
               </>
             )}
             <StatCard
-              title="Посещаемость"
-              value={
-                data.attendance === null ? "Нет данных" : data.attendance + "%"
-              }
+              title="Активности"
+              value={String(data.completed_events)}
               note={`${data.completed_events} проведённых учитываемых активностей`}
               href="/statistics"
               art="/command/art/kpi-attendance.webp"
             />
             <StatCard
               title="Вам начислено"
-              value={money(data.own_earned_units)}
-              note="Сохранённые начисления за всю историю"
+              value={money(data.own_finance.allocated_units)}
+              note="Текущая зарплата с учётом проведённых выплат"
               href="/payments"
               art="/command/art/kpi-payout.webp"
             />

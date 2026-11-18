@@ -19,12 +19,6 @@ export function AttendanceLines({ row }: { row?: AttendanceSummary }) {
       present: row?.mini_present,
       total: row?.mini_total,
     },
-    {
-      label: "Общая",
-      value: row?.percentage,
-      present: row?.attendance_present,
-      total: row?.attendance_total,
-    },
   ];
   return (
     <div className="attendance-cell">
@@ -97,7 +91,7 @@ export function SalaryLines({ row }: { row?: PayrollRow }) {
       <small className="caption">
         {row.eligible
           ? `Коэффициент: ${row.payout_weight / 100}`
-          : "Общая посещаемость ниже 20% или нет данных"}
+          : "Посещаемость Прайма и Мини РБ ниже 20% или нет данных"}
       </small>
       {BigInt(row.prime_fixed) + BigInt(row.mini_fixed) > 0n && (
         <small className="caption">Включая зафиксированные начисления</small>
