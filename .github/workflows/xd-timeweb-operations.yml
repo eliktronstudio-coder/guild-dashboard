@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of XD website and Discord services
+      - name: Read-only TLS and network diagnostics for affected connectivity
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,3 +28,31 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -eu
+          sysctl net.ipv4.tcp_mtu_probing net.ipv4.tcp_base_mss
+          command -v dig || true
+          if command -v dig >/dev/null; then
+            for ns in ns1.reg.ru ns2.reg.ru; do
+              dig +time=3 +tries=1 +short @"$ns" xd-guild.ru A
+              dig +time=3 +tries=1 +short @"$ns" xd-guild.ru AAAA
+            done
+          fi
+          nstat -az 2>/dev/null | grep -E 'TcpExtTCPMTUP|TcpExtListenOverflows|TcpExtListenDrops|TcpExtTCPTimeouts' || true
+          for version in 1.2 1.3; do
+            curl --silent --show-error --fail --max-time 15 --tlsv"$version" --tls-max "$version" -o /dev/null -w "TLS_$version HTTP=%{http_code} TIME=%{time_total}\n" https://xd-guild.ru/login
+          done
+          python3 - <<'PYLOG'
+          from pathlib import Path
+          import collections,re,datetime
+          counts=collections.Counter()
+          for log in Path('/var/log/nginx').glob('*error.log'):
+            for line in log.read_text(errors='replace').splitlines()[-3000:]:
+              m=re.match(r'(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2})',line)
+              if not m:continue
+              if datetime.datetime.strptime(m[1],'%Y/%m/%d %H:%M:%S')<datetime.datetime.utcnow()-datetime.timedelta(hours=1):continue
+              for pattern in ['SSL_do_handshake','upstream timed out','connect() failed','no space left','too many open files','client timed out']:
+                if pattern.lower() in line.lower():counts[pattern]+=1
+          print('RECENT_CONNECTION_ERROR_COUNTS',dict(counts))
+          PYLOG
+          REMOTE
