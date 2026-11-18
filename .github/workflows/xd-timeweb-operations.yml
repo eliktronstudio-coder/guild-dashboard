@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only verification of Telegram cabinet menu and Mini App address
+      - name: Read-only inspection of geographic and VPN network restrictions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,27 +28,15 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'app=$(systemctl show xd-guild --property=WorkingDirectory --value); cd "$app"; node' <<'NODE'
-          require('@next/env').loadEnvConfig(process.cwd());
-          (async()=>{
-            const e=process.env;
-            console.log('MINI_APP_SETTINGS',JSON.stringify({origin:e.APP_ORIGIN,enabled:e.TELEGRAM_MINI_APP_ENABLED,botEnabled:e.TELEGRAM_BOT_ENABLED,username:e.TELEGRAM_BOT_USERNAME}));
-            const token=e.TELEGRAM_BOT_TOKEN;
-            if(!token)throw Error('BOT_TOKEN_MISSING');
-            for(const method of ['getMe','getChatMenuButton','getWebhookInfo']){
-              const r=await fetch('https://api.telegram.org/bot'+token+'/'+method,{signal:AbortSignal.timeout(15000)});
-              const b=await r.json();
-              if(!r.ok||!b.ok){console.log(method,'TELEGRAM_API_FAILED',r.status,b.error_code);continue;}
-              const v=b.result;
-              if(method==='getMe')console.log('TELEGRAM_BOT_IDENTITY',JSON.stringify({username:v.username,name:v.first_name}));
-              else if(method==='getChatMenuButton'){
-                const raw=v.web_app?.url;let target=null;
-                if(raw){const u=new URL(raw);target=u.origin+u.pathname;}
-                console.log('TELEGRAM_CABINET_MENU',JSON.stringify({type:v.type,text:v.text,url:target}));
-              }else{
-                const u=v.url?new URL(v.url):null;
-                console.log('TELEGRAM_WEBHOOK_HEALTH',JSON.stringify({url:u?u.origin+u.pathname:null,pending:v.pending_update_count,lastErrorAt:v.last_error_date,lastError:v.last_error_message}));
-              }
-            }
-          })().catch(()=>{console.error('TELEGRAM_MENU_CHECK_FAILED_NO_SECRETS_LOGGED');process.exitCode=1;});
-          NODE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
+          set -eu
+          if nginx -T 2>/dev/null | grep -Ei 'geoip|geoip2|allow[[:space:]]|deny[[:space:]]|ssl_reject_handshake|limit_req|limit_conn'; then
+            echo MATCHING_NGINX_RESTRICTION_LINES_ABOVE
+          else
+            echo NO_NGINX_GEO_OR_SOURCE_RESTRICTIONS_CONFIGURED
+          fi
+          ufw status 2>/dev/null | grep -E '^(Status|Nginx|80|443)' || true
+          sysctl net.ipv4.tcp_mtu_probing
+          systemctl is-active xd-guild
+          curl --silent --show-error --fail --max-time 15 -o /dev/null -w 'SITE_HTTP=%{http_code} TIME=%{time_total}\n' https://xd-guild.ru/login
+          REMOTE
