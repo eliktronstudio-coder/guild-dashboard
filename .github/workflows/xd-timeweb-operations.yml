@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only diagnosis of WiFi access and mobile request arrival
+      - name: Read-only verification of XD website and Discord services
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,29 +28,3 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -eu
-          ufw status 2>/dev/null | grep -E '^(Status|80|443|Nginx)' || true
-          if command -v fail2ban-client >/dev/null; then
-            fail2ban-client status 2>/dev/null | grep -E 'Jail list|Number of jail' || true
-          fi
-          ss -lnt '( sport = :443 or sport = :80 )'
-          python3 - <<'PYLOG'
-          from pathlib import Path
-          import re,collections,datetime
-          counts=collections.Counter();cutoff=datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=12)
-          for log in Path('/var/log/nginx').glob('*access.log'):
-            for line in log.read_text(errors='replace').splitlines()[-3000:]:
-              m=re.search(r'\[([^]]+)\] "\S+ ([^ ]+) [^"]+" (\d{3}).*"([^"]+)"$',line)
-              if not m:continue
-              try: dt=datetime.datetime.strptime(m[1],'%d/%b/%Y:%H:%M:%S %z')
-              except ValueError:continue
-              if dt<cutoff:continue
-              agent=m[4]
-              device='iPhone/iPad' if re.search('iPhone|iPad',agent) else 'Android' if 'Android' in agent else 'Other'
-              path=m[2].split('?')[0]
-              route=path if path in ['/','/login','/dashboard','/mini-app','/auth/telegram','/auth/callback'] else '/other'
-              counts[(device,route,m[3])]+=1
-          print('RECENT_DEVICE_REQUEST_COUNTS_NO_CLIENT_IDENTIFIERS',sorted(counts.items()))
-          PYLOG
-          REMOTE
