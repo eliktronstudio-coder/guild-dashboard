@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Read-only inspection of geographic and VPN network restrictions
+      - name: Trace public diagnostic probe packet arrival without payload or client identifiers
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -28,15 +28,31 @@ jobs:
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -eu
-          if nginx -T 2>/dev/null | grep -Ei 'geoip|geoip2|allow[[:space:]]|deny[[:space:]]|ssl_reject_handshake|limit_req|limit_conn'; then
-            echo MATCHING_NGINX_RESTRICTION_LINES_ABOVE
-          else
-            echo NO_NGINX_GEO_OR_SOURCE_RESTRICTIONS_CONFIGURED
-          fi
-          ufw status 2>/dev/null | grep -E '^(Status|Nginx|80|443)' || true
-          sysctl net.ipv4.tcp_mtu_probing
-          systemctl is-active xd-guild
-          curl --silent --show-error --fail --max-time 15 -o /dev/null -w 'SITE_HTTP=%{http_code} TIME=%{time_total}\n' https://xd-guild.ru/login
-          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 python3 - <<'PYPROBE'
+          import subprocess,urllib.request,json,time,signal,collections,re,shutil
+          prefixes=['195.137.245.0/24','193.107.109.0/24','195.137.244.0/24','185.126.255.0/24','141.105.130.0/24','91.231.182.0/24','46.183.21.0/24','178.250.189.0/24','109.65.55.0/24']
+          if not shutil.which('tcpdump'):
+           print('TCPDUMP_UNAVAILABLE_NO_CAPTURE_PERFORMED');raise SystemExit(0)
+          rule='('+' or '.join('net '+p for p in prefixes)+') and (tcp port 80 or tcp port 443)'
+          capture=subprocess.Popen(['tcpdump','-i','any','-nn','-l','-s','96',rule],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+          jobs=[]
+          try:
+           time.sleep(1)
+           for proto in ['HTTP','HTTPS']:
+            payload={'type':'http','target':'xd-guild.ru','limit':1,'locations':[{'asn':214379}],'measurementOptions':{'request':{'method':'GET','path':'/login'},'protocol':proto}}
+            req=urllib.request.Request('https://api.globalping.io/v1/measurements',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json'})
+            result=json.load(urllib.request.urlopen(req,timeout=10));jobs.append((proto,result['id']))
+           time.sleep(20)
+          finally:
+           capture.send_signal(signal.SIGINT)
+           output,_=capture.communicate(timeout=5)
+           counts=collections.Counter()
+           for line in output.splitlines():
+            m=re.search(r'IP (\S+) > (\S+):.*Flags \[([^]]*)\].*length (\d+)',line)
+            if m:counts[('outbound' if m[1].startswith('200.165.236.194.') else 'inbound',m[3],int(m[4]))]+=1
+           print('PUBLIC_PROBE_PACKET_HEADER_COUNTS_NO_PAYLOAD_OR_CLIENT_IDENTIFIERS',json.dumps([{'direction':d,'flags':f,'bytes':n,'count':c} for (d,f,n),c in sorted(counts.items())]),flush=True)
+          for proto,mid in jobs:
+           result=json.load(urllib.request.urlopen('https://api.globalping.io/v1/measurements/'+mid,timeout=10))
+           for x in result.get('results',[]):
+            r=x['result'];print('CONTROLLED_NETWORK_CHECK',json.dumps({'protocol':proto,'asn':x['probe'].get('asn'),'status':r.get('status'),'http':r.get('statusCode'),'timings':r.get('timings'),'failure':r.get('rawOutput','')[:180] if not r.get('statusCode') else None}),flush=True)
+          PYPROBE
