@@ -14,8 +14,9 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy weighted Prime and Mini RB attendance and verify services
+      - name: Read-only verification of XD website and Discord services
         env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
           KNOWN_HOSTS: "200.165.236.194 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHI/yS3feBcn44XW5y4JDKep+SmRZlR2VxGcL6Rl8KDf"
         run: |
@@ -26,32 +27,4 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -euo pipefail
-          exec 9>/var/lib/xd-guild-deploy/lock
-          flock -w 180 9
-          cd /var/www/xd-guild-command-center
-          test "$(git branch --show-current)" = codex/xd-foundation-20261031
-          test -z "$(git status --porcelain)"
-          git fetch origin codex/xd-foundation-20261031
-          expected=cf687965801a219db05abc0a1d89b97400ff9ad2
-          test "$(git rev-parse origin/codex/xd-foundation-20261031)" = "$expected"
-          df -h /
-          git merge --ff-only "$expected"
-          if [ "$(cat /var/lib/xd-guild-deploy/deployed)" != "$expected" ]; then
-            test "$(df -Pk / | awk 'NR==2 { print $4 }')" -gt 2097152
-            bash scripts/deploy-timeweb.sh
-            git rev-parse HEAD > /var/lib/xd-guild-deploy/deployed
-          fi
-          test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$expected"
-          app=$(systemctl show xd-guild --property=WorkingDirectory --value)
-          grep -q 'export const PERIOD_CLOSING_ENABLED = false;' "$app/src/lib/config.ts"
-          grep -q 'miniWeight' "$app/src/lib/command-analytics.ts"
-          test -f "$app/supabase/migrations/202611180051_weighted_mini_attendance.sql"
-          grep -q 'Прайм и Мини РБ рассчитываются отдельно' "$app/src/app/members/page.tsx"
-          test "$(cat /var/lib/xd-discord-bot/deployed)" = "$expected"
-          systemctl is-active xd-guild
-          systemctl is-active xd-discord-bot
-          curl --fail --silent --show-error --max-time 20 -o /dev/null https://xd-guild.ru/login
-          echo WEIGHTED_ATTENDANCE_RELEASE_AND_SERVICES_VERIFIED
-          REMOTE
+          ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
