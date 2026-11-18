@@ -77,10 +77,20 @@ export function summarizeAttendance(
   const primeWeight = [...events.values()]
     .filter((e) => fundOf(e) === "Прайм")
     .reduce((sum, e) => sum + weightOf(e), 0);
+  const miniWeight = [...events.values()]
+    .filter((e) => fundOf(e) === "Мини-РБ")
+    .reduce((sum, e) => sum + weightOf(e), 0);
   const totals = new Map(
     members.map((m) => [
       m.id,
-      { present: 0, primePresent: 0, miniPresent: 0, pvp: 0, primeWeight: 0 },
+      {
+        present: 0,
+        primePresent: 0,
+        miniPresent: 0,
+        pvp: 0,
+        primeWeight: 0,
+        miniWeight: 0,
+      },
     ]),
   );
   const seen = new Set<string>(),
@@ -101,7 +111,10 @@ export function summarizeAttendance(
     if (prime) {
       row.primePresent++;
       row.primeWeight += weightOf(e);
-    } else row.miniPresent++;
+    } else {
+      row.miniPresent++;
+      row.miniWeight += weightOf(e);
+    }
     if (e.kind === "pvp") row.pvp++;
     const day = e.starts_at.slice(0, 10),
       d = daily.get(day) ?? { label: day, prime: 0, mini: 0, pvp: 0 };
@@ -120,7 +133,7 @@ export function summarizeAttendance(
       available: events.size,
       percentage: pct(t.present, events.size),
       prime: pct(t.primeWeight, primeWeight),
-      mini: pct(t.miniPresent, miniAvailable),
+      mini: pct(t.miniWeight, miniWeight),
       pvp: t.pvp,
       primePresent: t.primePresent,
       primeAvailable,

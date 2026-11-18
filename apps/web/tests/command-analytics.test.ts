@@ -48,7 +48,7 @@ test("saved analytics counts every completed event once, including missing marks
   assert.equal(summary.rows[0].percentage, 67);
   assert.equal(summary.rows[1].percentage, 0);
 });
-test("Prime uses saved coefficients; Mini uses event counts; PvP is included in Prime", () => {
+test("Prime and Mini use saved coefficients; PvP is included in Prime", () => {
   const summary = summarizeAttendance(
     [
       fact("a", "present"),
@@ -137,4 +137,31 @@ test("matches the Claude Code reference: weights 1.5 and 0.5 produce Prime 75/25
   assert.equal(summary.rows[1].percentage, 50);
   assert.equal(summary.rows[0].mini, 0);
   assert.equal(summary.rows[1].mini, 0);
+});
+
+test("Mini weights differ from event counts and deduplicate attendance", () => {
+  const catalog = [50, 100, 150].map((weight, i) => ({
+    ...event,
+    id: "mini-weight-" + i,
+    title: "АГЛ",
+    activity_weight: weight,
+  }));
+  const marks = [
+    { membership_id: "a", mark: "present", event: catalog[0] },
+    { membership_id: "a", mark: "present", event: catalog[0] },
+    { membership_id: "b", mark: "present", event: catalog[1] },
+    { membership_id: "b", mark: "present", event: catalog[2] },
+  ];
+  const rows = summarizeAttendance(
+    marks,
+    members,
+    "",
+    new Date(),
+    catalog,
+  ).rows;
+  assert.equal(rows[0].mini, 17);
+  assert.equal(rows[0].miniPresent, 1);
+  assert.equal(rows[0].miniAvailable, 3);
+  assert.equal(rows[1].mini, 83);
+  assert.equal(rows[1].miniPresent, 2);
 });
