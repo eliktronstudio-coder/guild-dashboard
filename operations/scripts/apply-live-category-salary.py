@@ -13,7 +13,10 @@ def query(sql):
  try:
   with urllib.request.urlopen(req,timeout=90) as response:return json.load(response)
  except urllib.error.HTTPError as e:
-  print('SUPABASE_SQL_HTTP_ERROR',e.code,flush=True);raise SystemExit(1)
+  print('SUPABASE_SQL_HTTP_ERROR',e.code,flush=True)
+  try: print('SQL_DIAGNOSTIC',json.loads(e.read()).get('message','')[:800],flush=True)
+  except Exception: pass
+  raise SystemExit(1)
 
 
 migration=ROOT/'operations/live-category-salary.sql'
