@@ -32,6 +32,8 @@ export type PayrollRow = AttendanceSummary & {
   mini_percentage: number | null;
   pvp_percentage: number | null;
   eligible: boolean;
+  prime_eligible?: boolean;
+  mini_eligible?: boolean;
   prime_projection: string;
   mini_projection: string;
   prime_fixed: string;

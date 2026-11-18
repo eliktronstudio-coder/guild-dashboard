@@ -13,9 +13,7 @@ const errorText = (s: string) => settlementError(s) ?? treasuryError(s);
 const confirmed = (f: FormData) => f.get("confirm") === "on";
 const refresh = () => {
   scheduleTelegram();
-  revalidatePath("/treasury");
-  revalidatePath("/payments");
-  revalidatePath("/account");
+  revalidatePath("/", "layout");
 };
 export async function allocateSale(
   _: FormState,

@@ -42,7 +42,7 @@ with tempfile.TemporaryFile() as log:
    for width in [390,1440]:
     page.set_viewport_size({'width':width,'height':1000})
     page.goto(origin+'/dashboard?period=current',wait_until='networkidle')
-    expect(page.locator('.personal-attendance').get_by_text('50%',exact=True)).to_have_count(2)
+    expect(page.locator('.personal-attendance').get_by_text('50%',exact=True)).to_have_count(1)
     expect(page.locator('.command-stat').filter(has_text='Казна Прайма').locator('strong')).to_contain_text('7\u202f000')
     for route in ['/members','/attendance','/statistics?period=current']:
      page.goto(origin+route,wait_until='networkidle')

@@ -33,6 +33,10 @@ export function TreasurySummary({ totals: t }: { totals: TreasuryTotals }) {
             ? "Текущий период · выручка после выплат"
             : "Вся история · выручка после выплат"}
         </p>
+        <p className="caption">
+          К выплате: {formatGold(t.mini_reserved_units)} · свободно:{" "}
+          {formatGold(t.mini_free_units)} зол.
+        </p>
       </article>
       <article className="panel treasury-total">
         <h2>Казна гильдии</h2>

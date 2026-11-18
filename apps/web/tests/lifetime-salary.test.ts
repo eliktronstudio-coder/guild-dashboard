@@ -18,16 +18,16 @@ async function setup() {
     [c.members[2]],
   );
   const date = dashboardPeriod({ period: "previous" }).from;
-  async function event(present: string[], weight = 100) {
+  async function event(present: string[], weight = 100, source = "prime") {
     await c.as(1);
     await c.db.query("select public.record_activity($1,$2::jsonb)", [
       randomUUID(),
       JSON.stringify({
-        title: "Анталлон",
+        title: source === "prime" ? "Анталлон" : "АГЛ",
         starts_at: date + "T12:00:00Z",
         status: "completed",
         kind: "raid",
-        source: "prime",
+        source,
         weight,
         reward_units: null,
         difficulty: "normal",
@@ -54,10 +54,12 @@ async function setup() {
       "select public.add_registry_inventory($1,null,$2,1,$3,10000,1,'')",
       [receipt, item, source],
     );
+    const saleId = randomUUID();
     await c.db.query(
       "select public.sell_treasury_loot($1,$2,1,1,$3,'Продажа для ЗП')",
-      [randomUUID(), receipt, amount],
+      [saleId, receipt, amount],
     );
+    return saleId;
   }
   const report = () =>
     c.scalar<LifetimePayrollReport>("select public.lifetime_payroll_report()");
@@ -82,12 +84,17 @@ async function setup() {
     return n;
   };
   async function seed() {
-    for (let i = 0; i < 10; i++)
-      await event([
-        ...(i < 2 ? [c.members[2]] : []),
-        ...(i < 5 ? [c.members[3]] : []),
-        ...(i < 1 ? [c.members[4]] : []),
-      ]);
+    for (const source of ["prime", "mini_rb"])
+      for (let i = 0; i < 10; i++)
+        await event(
+          [
+            ...(i < 2 ? [c.members[2]] : []),
+            ...(i < 5 ? [c.members[3]] : []),
+            ...(i < 1 ? [c.members[4]] : []),
+          ],
+          100,
+          source,
+        );
     await sale();
     await sale("mini_rb", 100007);
     // Historical receipts fixture only. No production guard is changed by the feature.
@@ -350,6 +357,178 @@ test("lifetime salary preserves payments recorded by the existing period workflo
       );
       assert.deepEqual(current.rows[0], originalRow);
     }
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("category salary: independent eligibility and automatic sale/void recalculation", async () => {
+  const c = await setup();
+  try {
+    for (let i = 0; i < 10; i++) {
+      await c.event([
+        ...(i < 1 ? [c.members[2]] : []),
+        ...(i < 5 ? [c.members[3]] : []),
+      ]);
+      await c.event(
+        [...(i < 5 ? [c.members[2]] : []), ...(i < 1 ? [c.members[3]] : [])],
+        100,
+        "mini_rb",
+      );
+    }
+    const prime = await c.sale("prime", 100000);
+    await c.sale("mini_rb", 100000);
+    let r = await c.report();
+    const a = r.rows.find((r) => r.id === c.members[2])!,
+      b = r.rows.find((r) => r.id === c.members[3])!;
+    assert.equal(a.prime_eligible, false);
+    assert.equal(a.mini_eligible, true);
+    assert.equal(b.prime_eligible, true);
+    assert.equal(b.mini_eligible, false);
+    assert.equal(payrollDue(a, "prime"), "0");
+    assert.equal(payrollDue(a, "mini"), "100000");
+    assert.equal(payrollDue(b, "prime"), "70000");
+    assert.equal(payrollDue(b, "mini"), "0");
+    await assert.rejects(
+      c.pay(randomUUID(), a.id, "prime", r.signature),
+      /NOT_ELIGIBLE/,
+    );
+    const extra = await c.sale("mini_rb", 50000);
+    r = await c.report();
+    assert.equal(
+      payrollDue(
+        r.rows.find((r) => r.id === a.id)!,
+        "mini",
+      ),
+      "150000",
+    );
+    await c.db.query(
+      "select public.void_treasury_sale($1,'Отмена ошибочной продажи')",
+      [extra],
+    );
+    r = await c.report();
+    assert.equal(
+      payrollDue(
+        r.rows.find((r) => r.id === a.id)!,
+        "mini",
+      ),
+      "100000",
+    );
+    await c.pay(randomUUID(), b.id, "prime", r.signature);
+    await assert.rejects(
+      c.db.query(
+        "select public.void_treasury_sale($1,'Уже выплаченная продажа')",
+        [prime],
+      ),
+      /FUNDS_SPENT/,
+    );
+    await c.as(2);
+    await assert.rejects(
+      c.db.query("select public.recalculate_category_salary()"),
+      /FORBIDDEN/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("category salary: repair frozen awards preserves payouts and recalculates attendance changes", async () => {
+  const c = await setup();
+  try {
+    await c.seed();
+    await c.db.exec("reset role");
+    await c.db.query(
+      "select private.freeze_lifetime_sales($1,private.lifetime_payroll_before_categories($1))",
+      [guild],
+    );
+    await c.as(1);
+    const w = (
+      await c.db.query<{ id: string; version: number }>(
+        "select id,version from public.treasury_awards where membership_id=$1 order by id limit 1",
+        [c.members[3]],
+      )
+    ).rows[0];
+    await c.db.query(
+      "select public.pay_treasury_award($1,$2,$3,10000,'Сохранённая выплата')",
+      [randomUUID(), w.id, w.version],
+    );
+    const before = (
+      await c.db.query("select * from public.treasury_payouts order by id")
+    ).rows;
+    await c.db.exec("reset role");
+    await c.db.query(
+      "update public.attendance set mark='present' where membership_id=$1",
+      [c.members[4]],
+    );
+    await c.as(1);
+    let r = await c.report();
+    let m = r.rows.find((r) => r.id === c.members[4])!;
+    assert.ok(BigInt(payrollDue(m, "prime")) > 0n);
+    assert.ok(BigInt(payrollDue(m, "mini")) > 0n);
+    const quote = r.rows.map((r) => [
+      r.id,
+      payrollDue(r, "prime"),
+      payrollDue(r, "mini"),
+    ]);
+    assert.ok(
+      (await c.scalar<number>("select public.recalculate_category_salary()")) >
+        0,
+    );
+    assert.equal(
+      await c.scalar<number>("select public.recalculate_category_salary()"),
+      0,
+    );
+    assert.deepEqual(
+      (await c.db.query("select * from public.treasury_payouts order by id"))
+        .rows,
+      before,
+    );
+    r = await c.report();
+    assert.deepEqual(
+      r.rows.map((r) => [r.id, payrollDue(r, "prime"), payrollDue(r, "mini")]),
+      quote,
+    );
+    assert.equal(
+      r.rows.reduce(
+        (n, r) => n + BigInt(payrollDue(r, "prime")) + BigInt(r.prime_paid),
+        0n,
+      ),
+      210003n,
+    );
+    assert.equal(
+      r.rows.reduce(
+        (n, r) => n + BigInt(payrollDue(r, "mini")) + BigInt(r.mini_paid),
+        0n,
+      ),
+      100007n,
+    );
+    await c.pay(randomUUID(), m.id, "prime", r.signature);
+    r = await c.report();
+    assert.equal(
+      payrollDue(
+        r.rows.find((r) => r.id === m.id)!,
+        "prime",
+      ),
+      "0",
+    );
+    await c.db.exec("reset role");
+    await c.db.query(
+      "update public.attendance set mark='absent' where membership_id=$1",
+      [m.id],
+    );
+    await c.as(1);
+    r = await c.report();
+    m = r.rows.find((r) => r.id === m.id)!;
+    assert.equal(m.prime_eligible, false);
+    assert.equal(payrollDue(m, "prime"), "0");
+    assert.ok(BigInt(m.prime_paid) > 0n);
+    assert.equal(
+      r.rows.reduce(
+        (n, r) => n + BigInt(payrollDue(r, "prime")) + BigInt(r.prime_paid),
+        0n,
+      ),
+      210003n,
+    );
   } finally {
     await c.db.close();
   }

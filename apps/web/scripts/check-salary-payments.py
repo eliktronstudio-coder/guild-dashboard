@@ -5,7 +5,7 @@ STAFF=True
 paid={'prime':False,'mini_rb':False};version=1;fail_once=True;empty=False
 OTHER='44444444-4444-4444-8444-444444444444';EXCLUDED='55555555-5555-4555-8555-555555555555'
 def salary_row(id,nickname,eligible=True):
- return {'id':id,'nickname':nickname,'status':'active','payout_weight':100,'percentage':50 if eligible else 20,'prime_percentage':75,'mini_percentage':25,'pvp_percentage':0,'attendance_present':5 if eligible else 10,'attendance_total':10 if eligible else 51,'prime_present':3,'prime_total':4,'mini_present':1,'mini_total':4,'available':'1000','present':'500','eligible':eligible and not empty,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}
+ return {'id':id,'nickname':nickname,'status':'active','payout_weight':100,'percentage':50 if eligible else 20,'prime_percentage':75,'mini_percentage':25,'pvp_percentage':0,'attendance_present':5 if eligible else 10,'attendance_total':10 if eligible else 51,'prime_present':3,'prime_total':4,'mini_present':1,'mini_total':4,'available':'1000','present':'500','eligible':eligible and not empty,'prime_eligible':eligible and not empty,'mini_eligible':eligible and not empty and id!=OTHER,'prime_projection':'0','mini_projection':'0','prime_fixed':'0','mini_fixed':'0','prime_paid':'0','mini_paid':'0'}
 class ArchiveFixture(Fixture):
  def do_POST(self):
   self.payload=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))) or '{}');self.reply()
@@ -15,7 +15,7 @@ class ArchiveFixture(Fixture):
   if path.endswith('/rpc/has_permission'):data=STAFF or p.get('permission') in ['members.read','treasury.read']
   elif path.endswith('/rpc/lifetime_payroll_report'):
    main=salary_row(MEMBER,member['nickname']);main.update({'prime_fixed':'0' if paid['prime'] else '140379294','mini_fixed':'0' if paid['mini_rb'] else '6337289','prime_paid':'140379294' if paid['prime'] else '0','mini_paid':'6337289' if paid['mini_rb'] else '0'})
-   data={'scope':'lifetime','signature':f'{version:032x}','prime_units':'0','mini_units':'0','rows':[main,salary_row(OTHER,'Без начислений'),salary_row(EXCLUDED,'Ниже порога',False)]}
+   data={'scope':'lifetime','signature':f'{version:032x}','prime_units':'0','mini_units':'0','rows':[] if empty else [main,salary_row(OTHER,'Без начислений'),salary_row(EXCLUDED,'Ниже порога',False)]}
   elif path.endswith('/rpc/pay_lifetime_salary'):
    if fail_once:fail_once=False;status=400;data={'code':'P0001','message':'INSUFFICIENT_FUNDS'}
    elif p['p_signature']!=f'{version:032x}':status=400;data={'code':'P0001','message':'CALCULATION_CHANGED'}
@@ -50,6 +50,7 @@ with tempfile.TemporaryFile() as log:
     mini=page.get_by_role('group',name=member['nickname']+' · Мини РБ',exact=True)
     expect(prime.get_by_text('14\u202f038 зол.',exact=True)).to_be_visible()
     zero=page.get_by_role('group',name='Без начислений · Прайм',exact=True);expect(zero.get_by_text('Нет начислений',exact=True)).to_be_visible();expect(zero.locator('.badge.green')).to_have_count(0)
+    only_prime=page.get_by_role('group',name='Без начислений · Мини РБ',exact=True);expect(only_prime.get_by_text('Посещаемость ниже 20% или нет активностей',exact=True)).to_be_visible();expect(only_prime.get_by_role('button')).to_have_count(0)
     prime.get_by_role('button',name='Выплата Прайм',exact=True).click();expect(prime.get_by_role('alert')).to_contain_text('недостаточно');expect(prime.locator('.badge.green')).to_have_count(0)
     prime.get_by_role('button',name='Выплата Прайм',exact=True).click();expect(prime.get_by_text('Выплачено',exact=True)).to_be_visible();expect(prime.get_by_text('14\u202f038 зол.',exact=True)).to_be_visible()
     expect(mini.get_by_role('button',name='Выплата Мини РБ',exact=True)).to_be_visible()

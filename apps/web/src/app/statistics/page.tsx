@@ -20,7 +20,7 @@ export default async function Page({
     typeof params[key] === "string" ? (params[key] as string) : "";
   const sort = ["prime", "mini", "pvp", "present"].includes(value("sort"))
     ? (value("sort") as "prime" | "mini" | "pvp" | "present")
-    : "percentage";
+    : "prime";
   const query = new URLSearchParams();
   for (const [key, item] of Object.entries(params))
     if (typeof item === "string") query.set(key, item);
@@ -54,8 +54,7 @@ export default async function Page({
         <p className="eyebrow">XD · АНАЛИТИЧЕСКИЙ ЦЕНТР</p>
         <h1>Статистика гильдии</h1>
         <p className="muted">
-          Общий процент — по количеству активностей. Прайм — с коэффициентами и
-          включает PvP, Мини РБ считается отдельно.
+          Прайм — с коэффициентами и включает PvP, Мини РБ считается отдельно.
         </p>
         <a
           className="button secondary inline"
@@ -133,7 +132,6 @@ export default async function Page({
               <label>
                 Сортировать по
                 <select name="sort" defaultValue={sort}>
-                  <option value="percentage">Общей посещаемости</option>
                   <option value="prime">Прайму</option>
                   <option value="mini">Мини-РБ</option>
                   <option value="pvp">PvP</option>
@@ -157,7 +155,6 @@ export default async function Page({
                         "Участник",
                         "Класс",
                         "Посещено / доступно",
-                        "Общая",
                         "Прайм",
                         "Мини-РБ",
                         "PvP · участий в Прайме",
@@ -180,7 +177,6 @@ export default async function Page({
                         <td>
                           {row.present} / {row.available}
                         </td>
-                        <td>{pct(row.percentage)}</td>
                         <td>
                           {pct(row.prime)} · {row.primePresent}/
                           {row.primeAvailable}
