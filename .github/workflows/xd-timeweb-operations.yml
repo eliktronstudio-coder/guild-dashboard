@@ -14,7 +14,7 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect release disk capacity before weighted attendance deployment
+      - name: Reclaim reproducible dependencies of two verified inactive releases
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SSH_KEY: ${{ secrets.TIMEWEB_SSH_PRIVATE_KEY }}
@@ -29,14 +29,22 @@ jobs:
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes root@200.165.236.194 'set -eu; systemctl is-active xd-guild; systemctl is-active xd-discord-bot; systemctl is-active xd-guild-deploy.timer; test "$(cat /var/lib/xd-guild-deploy/deployed)" = "$(cat /var/lib/xd-discord-bot/deployed)"; systemctl show xd-discord-bot --property=NRestarts; echo REFERENCE_UI_SERVICES_VERIFIED_NO_RECOGNITION'
           ssh -i ~/.ssh/xd_operations -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 root@200.165.236.194 'bash -se' <<'REMOTE'
-          set -eu
-          echo ACTIVE_WEB_RELEASE
-          systemctl show xd-guild --property=WorkingDirectory --value
-          echo ACTIVE_BOT_RELEASE
-          readlink -f /var/www/xd-discord-bot/current
-          df -h /
-          for release in /var/www/xd-guild-releases/*; do
-            test -d "$release/apps/web/node_modules" || continue
-            du -sh "$release/apps/web/node_modules"
+          set -euo pipefail
+          exec 9>/var/lib/xd-guild-deploy/lock
+          flock -w 180 9
+          active=$(systemctl show xd-guild --property=WorkingDirectory --value)
+          bot=$(readlink -f /var/www/xd-discord-bot/current)
+          for release in /var/www/xd-guild-releases/a902268-20261109124807 /var/www/xd-guild-releases/d9407dd-20261110071201; do
+            case "$active" in "$release"/*) exit 1 ;; esac
+            case "$bot" in "$release"/*) exit 1 ;; esac
+            test -f "$release/apps/web/package-lock.json"
+            if [ -d "$release/apps/web/node_modules" ]; then
+              du -sh "$release/apps/web/node_modules"
+              rm -rf -- "$release/apps/web/node_modules"
+            fi
           done
+          df -h /
+          systemctl is-active xd-guild
+          systemctl is-active xd-discord-bot
+          echo ONLY_REINSTALLABLE_DEPENDENCIES_OF_TWO_INACTIVE_RELEASES_REMOVED
           REMOTE
