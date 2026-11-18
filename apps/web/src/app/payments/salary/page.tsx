@@ -12,7 +12,7 @@ import {
   type PayrollRow,
 } from "@/lib/payroll";
 import { formatGold } from "@/lib/treasury";
-import { paySalary } from "./actions";
+import { paySalary, lockStatement, closeStatement } from "./actions";
 export const metadata = { title: "Выплата ЗП" };
 function SourcePayment({
   row,
@@ -113,11 +113,121 @@ export default async function Page() {
           соответствующей категории по неархивированным активностям.
         </p>
       </div>
+      <section className="panel section-panel">
+        <h2>
+          {result.data?.statement ? "Ведомость зафиксирована" : "Расчёт открыт"}
+        </h2>
+        {result.data?.statement ? (
+          <>
+            <p>
+              Суммы и состав сохранены на{" "}
+              {new Date(result.data.statement.created_at).toLocaleString(
+                "ru-RU",
+                { timeZone: "UTC" },
+              )}{" "}
+              UTC. Новые продажи и исправления попадут в следующий открытый
+              расчёт.
+            </p>
+            <p className="caption">
+              Выплата одному игроку уменьшает его остаток и казну. Начисления
+              остальных остаются прежними.
+            </p>
+            <Link
+              className="text-button"
+              href={`/payments/statements/${result.data.statement.id}`}
+            >
+              Сохранённая ведомость →
+            </Link>
+            <ActionForm action={closeStatement} label="Завершить ведомость">
+              <input
+                type="hidden"
+                name="statementId"
+                value={result.data.statement.id}
+              />
+              <input type="hidden" name="action" value="completed" />
+              <label className="check">
+                <input type="checkbox" name="confirm" required />
+                <span>
+                  Все суммы по ведомости выданы в игре и записаны на сайте
+                </span>
+              </label>
+            </ActionForm>
+            <details>
+              <summary>Снять фиксацию для исправления</summary>
+              <p>
+                Выплаты сохранятся. Оставшиеся суммы снова будут зависеть от
+                продаж, состава и коэффициентов.
+              </p>
+              <ActionForm action={closeStatement} label="Снять фиксацию">
+                <input
+                  type="hidden"
+                  name="statementId"
+                  value={result.data.statement.id}
+                />
+                <input type="hidden" name="action" value="cancelled" />
+                <label>
+                  Причина
+                  <textarea
+                    name="reason"
+                    minLength={3}
+                    maxLength={500}
+                    required
+                  />
+                </label>
+                <label className="check">
+                  <input name="confirm" type="checkbox" required />
+                  <span>Подтверждаю пересчёт невыплаченных сумм</span>
+                </label>
+              </ActionForm>
+            </details>
+          </>
+        ) : (
+          <>
+            <p>
+              Продажи, состав, дата вступления и коэффициенты обновляют
+              невыплаченную зарплату. Перед выдачей можно зафиксировать текущие
+              суммы.
+            </p>
+            {result.data?.signature &&
+              rows.some(
+                (r) =>
+                  BigInt(payrollDue(r, "prime")) +
+                    BigInt(payrollDue(r, "mini")) >
+                  0n,
+              ) && (
+                <ActionForm
+                  action={lockStatement}
+                  label="Зафиксировать ведомость"
+                  revision={result.data.signature}
+                >
+                  <input type="hidden" name="requestId" value={randomUUID()} />
+                  <input
+                    type="hidden"
+                    name="signature"
+                    value={result.data.signature}
+                  />
+                  <label className="check">
+                    <input name="confirm" type="checkbox" required />
+                    <span>
+                      Я проверил состав и суммы. Фиксация не записывает выплату
+                      золота
+                    </span>
+                  </label>
+                </ActionForm>
+              )}
+          </>
+        )}
+        <Link href="/payments/history" className="text-button">
+          История изменений →
+        </Link>
+      </section>
       <p className="notice salary-payout-notice">
         Нажимайте кнопку после передачи золота игроку в игре. На сайте будет
-        записана выплата и уменьшен остаток казны. Невыплаченная зарплата
-        пересчитывается при изменении продаж и состава. Проведённые выплаты
-        сохраняются.
+        записана выплата и уменьшен остаток казны.{" "}
+        {result.data?.statement
+          ? "Суммы зафиксированной ведомости сохраняются; новые продажи и исправления учитываются в следующем открытом расчёте."
+          : "В открытом расчёте невыплаченная зарплата обновляется при изменении продаж и состава."}{" "}
+        Проведённые выплаты сохраняются.
       </p>
       {result.error ? (
         <p className="notice error" role="alert">
@@ -154,7 +264,11 @@ export default async function Page() {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id}>
-                      <th scope="row">{row.nickname}</th>
+                      <th scope="row">
+                        <Link href={`/payments/salary/${row.id}`}>
+                          {row.nickname}
+                        </Link>
+                      </th>
                       <td>
                         <div>
                           Прайм:{" "}

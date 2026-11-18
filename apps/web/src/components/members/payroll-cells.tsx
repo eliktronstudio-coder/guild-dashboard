@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   attendanceLabel,
   formatSalaryGold,
@@ -93,6 +94,9 @@ export function SalaryLines({ row }: { row?: PayrollRow }) {
           ? `Коэффициент: ${row.payout_weight / 100}`
           : "Посещаемость Прайма и Мини РБ ниже 20% или нет данных"}
       </small>
+      <Link href={`/payments/salary/${row.id}`} className="text-button">
+        Расшифровка →
+      </Link>
       {BigInt(row.prime_fixed) + BigInt(row.mini_fixed) > 0n && (
         <small className="caption">Включая зафиксированные начисления</small>
       )}

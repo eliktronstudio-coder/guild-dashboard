@@ -13,7 +13,7 @@ import {
   CharacterArchiveForm,
 } from "@/components/members/character-editor";
 import { AccessEditor } from "@/components/members/access-editor";
-import { updateProfile, changeNickname } from "../actions";
+import { updateProfile, changeNickname, setGuildJoinDate } from "../actions";
 export const metadata = { title: "Профиль участника" };
 export default async function Page({
   params,
@@ -28,7 +28,7 @@ export default async function Page({
   const { data: member, error } = await a.client
     .from("memberships")
     .select(
-      "id,user_id,nickname,joined_at,status,about,avatar_style,profile_version,payout_weight,weight_version,player_class,membership_roles(roles(code,name))",
+      "id,user_id,nickname,joined_at,guild_joined_on,guild_join_version,status,about,avatar_style,profile_version,payout_weight,weight_version,player_class,membership_roles(roles(code,name))",
     )
     .eq("guild_id", GUILD_ID)
     .eq("id", id)
@@ -130,11 +130,51 @@ export default async function Page({
           </ActionForm>
         )}
       </section>
+      <section className="panel section-panel">
+        <h2>Дата вступления в гильдию</h2>
+        <p>
+          {member.guild_joined_on ||
+            "Не указана — учитывается вся история активностей"}
+        </p>
+        <p className="caption">
+          В открытом расчёте учитываются только активности с этой даты, начиная
+          с 00:00 UTC. Дата регистрации на сайте не влияет на посещаемость.
+          Зафиксированная ведомость сохраняет прежний расчёт.
+        </p>
+        {manage && (!owner || own) && (
+          <ActionForm
+            action={setGuildJoinDate}
+            label="Сохранить дату вступления"
+            revision={member.guild_join_version}
+          >
+            <input type="hidden" name="memberId" value={id} />
+            <input
+              type="hidden"
+              name="version"
+              value={member.guild_join_version}
+            />
+            <label>
+              Дата вступления
+              <input
+                name="guildJoinedOn"
+                type="date"
+                min="2020-01-01"
+                max={new Date().toISOString().slice(0, 10)}
+                defaultValue={member.guild_joined_on || ""}
+              />
+            </label>
+            <label>
+              Причина изменения
+              <textarea name="reason" required minLength={3} maxLength={500} />
+            </label>
+          </ActionForm>
+        )}
+      </section>
       <nav className="form-links">
         <Link href={"/statistics?q=" + encodeURIComponent(member.nickname)}>
           Посещаемость и статистика →
         </Link>
-        <Link href="/payments">Начисления и выплаты →</Link>
+        <Link href={`/payments/salary/${id}`}>Расшифровка зарплаты →</Link>
       </nav>
       <Link href="/members" className="text-button">
         ← Состав гильдии
@@ -164,7 +204,7 @@ export default async function Page({
               <span className="badge red">Доступ заблокирован</span>
             )}
             <span className="caption">
-              В гильдии с{" "}
+              Зарегистрирован:{" "}
               {new Date(member.joined_at).toLocaleDateString("ru-RU", {
                 timeZone: "UTC",
               })}
@@ -185,8 +225,10 @@ export default async function Page({
             <>
               <h3>{activeMain.name}</h3>
               <p className="muted">
-                {member.player_class || activeMain.character_class || "Класс не указан"} ·{" "}
-                {activeMain.game_server || "Сервер не указан"}
+                {member.player_class ||
+                  activeMain.character_class ||
+                  "Класс не указан"}{" "}
+                · {activeMain.game_server || "Сервер не указан"}
               </p>
               <p className="caption">
                 {activeMain.specialization || "Специализация не указана"}

@@ -1,23 +1,31 @@
 import { NavIcon } from "@/components/navigation/nav-icon";
 import { AttendanceLines, SalaryLines } from "./payroll-cells";
-import type { PayrollRow } from "@/lib/payroll";
+import type { PayrollRow, AttendanceSummary } from "@/lib/payroll";
 import type { FormState } from "@/lib/identity";
 type WeightAction = (state: FormState, form: FormData) => Promise<FormState>;
 import Link from "next/link";
 import type { DirectoryMember } from "@/lib/members";
 import { MemberAvatar } from "./avatar";
-const joined = (value: string) =>
-  new Date(value).toLocaleDateString("ru-RU", { timeZone: "UTC" });
+const joined = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleDateString("ru-RU", { timeZone: "UTC" })
+    : "Не указана";
 export function MemberDirectory({
   members,
   weightAction,
   payroll,
+  attendance,
 }: {
   members: DirectoryMember[];
   weightAction?: WeightAction;
   payroll?: PayrollRow[];
+  attendance?: (AttendanceSummary & { id: string })[];
 }) {
   const byMember = new Map(payroll?.map((row) => [row.id, row]));
+  const byAttendance =
+    attendance === undefined
+      ? byMember
+      : new Map(attendance.map((row) => [row.id, row]));
   return (
     <>
       <div className="table-wrap directory-desktop">
@@ -65,9 +73,9 @@ export function MemberDirectory({
                     {m.game_server || "Сервер не указан"}
                   </p>
                 </td>
-                <td>{joined(m.joined_at)}</td>
+                <td>{joined(m.guild_joined_on)}</td>
                 <td>
-                  <AttendanceLines row={byMember.get(m.id)} />
+                  <AttendanceLines row={byAttendance.get(m.id)} />
                 </td>
                 <td>
                   <SalaryLines row={byMember.get(m.id)} />
@@ -109,9 +117,9 @@ export function MemberDirectory({
               <dt>Сервер</dt>
               <dd>{m.game_server || "Не указан"}</dd>
               <dt>В гильдии с</dt>
-              <dd>{joined(m.joined_at)}</dd>
+              <dd>{joined(m.guild_joined_on)}</dd>
             </dl>
-            <AttendanceLines row={byMember.get(m.id)} />
+            <AttendanceLines row={byAttendance.get(m.id)} />
             <SalaryLines row={byMember.get(m.id)} />
             {weightAction && (
               <Link
