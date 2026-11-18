@@ -49,12 +49,14 @@ export function summarizeAttendance(
     e.activity_banner_name || e.boss_name || e.title;
   const fundOf = (e: AttendanceFact["event"]) =>
     resolveAttendanceFund(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE");
+  // Keep coefficient hundredths as integers, matching PostgreSQL numeric sums.
   const weightOf = (e: AttendanceFact["event"]) =>
-    e.activity_weight != null
-      ? e.activity_weight / 100
-      : e.boss_weight != null
-        ? e.boss_weight / 100
-        : activityAttendanceWeight(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE");
+    e.activity_weight ??
+    e.boss_weight ??
+    Math.round(
+      activityAttendanceWeight(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE") *
+        100,
+    );
   const events = new Map(
     catalog
       .filter(
@@ -122,7 +124,8 @@ export function summarizeAttendance(
     if (e.kind === "pvp") d.pvp++;
     daily.set(day, d);
   }
-  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  const pct = (a: number, b: number) =>
+    b ? Math.floor((200 * a + b) / (2 * b)) : 0;
   const rows: AnalyticsRow[] = members.map((m) => {
     const t = totals.get(m.id)!;
     return {

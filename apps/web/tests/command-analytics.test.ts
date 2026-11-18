@@ -165,3 +165,20 @@ test("Mini weights differ from event counts and deduplicate attendance", () => {
   assert.equal(rows[1].mini, 83);
   assert.equal(rows[1].miniPresent, 2);
 });
+
+test("weighted display rounds exact half-percent like PostgreSQL", () => {
+  const catalog = [29, 171].map((weight, i) => ({
+    ...event,
+    id: "round-" + i,
+    title: "АГЛ",
+    activity_weight: weight,
+  }));
+  const row = summarizeAttendance(
+    [{ membership_id: "a", mark: "present", event: catalog[0] }],
+    members,
+    "",
+    new Date(),
+    catalog,
+  ).rows[0];
+  assert.equal(row.mini, 15);
+});
