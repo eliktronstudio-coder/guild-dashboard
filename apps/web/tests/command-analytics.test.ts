@@ -182,3 +182,48 @@ test("weighted display rounds exact half-percent like PostgreSQL", () => {
   ).rows[0];
   assert.equal(row.mini, 15);
 });
+
+test("guild join calendar date supplies each player's own weighted denominator", () => {
+  const catalog = [
+    {
+      ...event,
+      id: "before",
+      starts_at: "2026-01-01T12:00:00Z",
+      title: "АГЛ",
+      activity_weight: 150,
+    },
+    {
+      ...event,
+      id: "joined",
+      starts_at: "2026-01-02T00:00:00Z",
+      title: "АГЛ",
+      activity_weight: 50,
+    },
+    {
+      ...event,
+      id: "after",
+      starts_at: "2026-01-02T12:00:00Z",
+      title: "АГЛ",
+      activity_weight: 100,
+    },
+  ];
+  const facts = catalog.map((e) => ({
+    membership_id: "a",
+    mark: "present",
+    event: e,
+  }));
+  const rows = summarizeAttendance(
+    facts,
+    [
+      { id: "a", nickname: "A", guild_joined_on: "2026-01-02" },
+      { id: "b", nickname: "B" },
+    ],
+    "",
+    new Date("2026-01-03"),
+    catalog,
+  ).rows;
+  assert.equal(rows[0].mini, 100);
+  assert.equal(rows[0].miniPresent, 2);
+  assert.equal(rows[0].miniAvailable, 2);
+  assert.equal(rows[1].miniAvailable, 3);
+});

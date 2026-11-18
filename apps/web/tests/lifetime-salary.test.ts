@@ -18,13 +18,18 @@ async function setup() {
     [c.members[2]],
   );
   const date = dashboardPeriod({ period: "previous" }).from;
-  async function event(present: string[], weight = 100, source = "prime") {
+  async function event(
+    present: string[],
+    weight = 100,
+    source = "prime",
+    when = date + "T12:00:00Z",
+  ) {
     await c.as(1);
     await c.db.query("select public.record_activity($1,$2::jsonb)", [
       randomUUID(),
       JSON.stringify({
         title: source === "prime" ? "Анталлон" : "АГЛ",
-        starts_at: date + "T12:00:00Z",
+        starts_at: when,
         status: "completed",
         kind: "raid",
         source,
@@ -594,6 +599,361 @@ test("weighted Mini RB uses exact 20% threshold rather than rounded display or e
     await assert.rejects(
       c.pay(randomUUID(), m.id, "mini_rb", r.signature),
       /NOT_ELIGIBLE/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("guild join date independently excludes pre-join raids from weighted attendance and salary", async () => {
+  const c = await setup();
+  try {
+    for (const source of ["prime", "mini_rb"])
+      for (let i = 0; i < 4; i++) await c.event([], 100, source);
+    const late = new Date(Date.now() - 86400000).toISOString(),
+      date = late.slice(0, 10);
+    for (const source of ["prime", "mini_rb"])
+      for (let i = 0; i < 2; i++)
+        await c.event([c.members[2]], 100, source, late);
+    const before = await c.scalar<number>(
+      "select count(*)::int from public.attendance",
+    );
+    await c.db.query(
+      "select public.set_guild_join_date($1,1,$2,'Вступил позже старых рейдов')",
+      [c.members[2], date],
+    );
+    let r = await c.report(),
+      m = r.rows.find((r) => r.id === c.members[2])!;
+    assert.equal(m.prime_percentage, 100);
+    assert.equal(m.mini_percentage, 100);
+    assert.equal(m.prime_total, 2);
+    assert.equal(m.mini_total, 2);
+    assert.equal(
+      await c.scalar<number>("select count(*)::int from public.attendance"),
+      before,
+    );
+    const d = await c.scalar<any>("select public.salary_breakdown($1)", [m.id]);
+    assert.equal(d.guild_joined_on, date);
+    assert.equal(d.activities.length, 4);
+    const newcomer = r.rows.find((r) => r.id === c.members[3])!;
+    assert.equal(newcomer.prime_total, 6);
+    await c.as(2);
+    await assert.rejects(
+      c.db.query(
+        "select public.set_guild_join_date($1,2,null,'Сам меняю дату')",
+        [m.id],
+      ),
+      /FORBIDDEN/,
+    );
+    await c.as(1);
+    await assert.rejects(
+      c.db.query(
+        "select public.set_guild_join_date($1,1,null,'Старая версия')",
+        [m.id],
+      ),
+      /STALE_VERSION/,
+    );
+    await assert.rejects(
+      c.db.query(
+        "select public.set_guild_join_date($1,2,'2099-01-01','Дата из будущего')",
+        [m.id],
+      ),
+      /INVALID_INPUT/,
+    );
+    await c.db.query(
+      "select public.set_guild_join_date($1,2,null,'Дата пока не подтверждена')",
+      [m.id],
+    );
+    r = await c.report();
+    assert.equal(r.rows.find((r) => r.id === m.id)!.prime_percentage, 33);
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("salary statement freezes quote without paying, keeps other salaries stable and defers new sales/attendance changes", async () => {
+  const c = await setup();
+  try {
+    await c.seed();
+    let r = await c.report();
+    const id = randomUUID(),
+      signature = r.signature!,
+      other = c.members[3];
+    const first = r.rows.find((r) => r.id === c.members[2])!,
+      oldOther = r.rows.find((r) => r.id === other)!;
+    await c.db.query("select public.lock_salary_statement($1,$2)", [
+      id,
+      signature,
+    ]);
+    await c.db.query("select public.lock_salary_statement($1,$2)", [
+      id,
+      signature,
+    ]);
+    assert.equal(await c.count("salary_statements"), 1);
+    assert.equal(await c.count("treasury_payouts"), 0);
+    assert.equal(await c.count("treasury_awards"), 0);
+    r = await c.report();
+    assert.equal(r.statement?.id, id);
+    await assert.rejects(
+      c.db.query("select public.lock_salary_statement($1,$2)", [
+        randomUUID(),
+        r.signature,
+      ]),
+      /STATEMENT_ALREADY_LOCKED/,
+    );
+    await c.pay(randomUUID(), first.id, "prime", r.signature);
+    r = await c.report();
+    assert.equal(
+      payrollDue(
+        r.rows.find((r) => r.id === other)!,
+        "prime",
+      ),
+      payrollDue(oldOther, "prime"),
+    );
+    const payouts = (
+      await c.db.query("select * from public.treasury_payouts order by id")
+    ).rows;
+    const fixedSignature = r.signature;
+    await c.sale("prime", 300000);
+    await c.sale("mini_rb", 100000);
+    await c.db.query("select public.set_member_weight($1,1,20)", [other]);
+    await c.db.query(
+      "select public.set_guild_join_date($1,1,$2,'Уточнение даты вступления')",
+      [other, new Date().toISOString().slice(0, 10)],
+    );
+    r = await c.report();
+    assert.equal(
+      r.signature,
+      fixedSignature,
+      "unrelated changes cannot invalidate a fixed quote",
+    );
+    const frozen = r.rows.find((r) => r.id === other)!;
+    assert.equal(frozen.prime_percentage, oldOther.prime_percentage);
+    assert.equal(frozen.payout_weight, oldOther.payout_weight);
+    assert.equal(payrollDue(frozen, "mini"), payrollDue(oldOther, "mini"));
+    const explanation = await c.scalar<any>(
+      "select public.salary_breakdown($1)",
+      [other],
+    );
+    assert.equal(explanation.statement.id, id);
+    assert.equal(explanation.guild_joined_on, null);
+    assert.equal(explanation.activities.length, 20);
+    const originalSale = await c.scalar<string>(
+      "select id from public.treasury_sales where source='mini_rb' order by created_at,id limit 1",
+    );
+    await assert.rejects(
+      c.db.query(
+        "select public.void_treasury_sale($1,'Отмена исходной продажи')",
+        [originalSale],
+      ),
+      /SALARY_FUNDS_LOCKED/,
+    );
+    await assert.rejects(
+      c.db.query("select public.close_salary_statement($1,'completed','')", [
+        id,
+      ]),
+      /STATEMENT_UNPAID/,
+    );
+    const history = await c.scalar<any>(
+      "select public.salary_change_history()",
+    );
+    assert.ok(
+      history.entries.some((e: any) => e.action === "member.guild_join_date"),
+    );
+    assert.ok(
+      history.entries.some(
+        (e: any) =>
+          e.action === "salary.calculation_changed" &&
+          e.deferred === true &&
+          e.changes.length > 0,
+      ),
+    );
+    await c.db.query(
+      "select public.close_salary_statement($1,'cancelled','Исправление открытого расчёта')",
+      [id],
+    );
+    r = await c.report();
+    assert.equal(r.statement, null);
+    assert.equal(r.rows.find((r) => r.id === other)!.mini_eligible, false);
+    assert.deepEqual(
+      (await c.db.query("select * from public.treasury_payouts order by id"))
+        .rows,
+      payouts,
+    );
+    await c.db.exec("reset role");
+    await assert.rejects(
+      c.db.query(
+        "update public.salary_statements set snapshot='{}' where id=$1",
+        [id],
+      ),
+      /IMMUTABLE_STATEMENT/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("salary statement completes only after separate source payments and new revenue becomes a new calculation", async () => {
+  const c = await setup();
+  try {
+    await c.seed();
+    let r = await c.report();
+    const id = randomUUID();
+    await c.db.query("select public.lock_salary_statement($1,$2)", [
+      id,
+      r.signature,
+    ]);
+    r = await c.report();
+    for (const m of r.rows)
+      for (const source of ["prime", "mini"] as const) {
+        const current = await c.report(),
+          row = current.rows.find((r) => r.id === m.id)!;
+        if (BigInt(payrollDue(row, source)) > 0n)
+          await c.pay(
+            randomUUID(),
+            m.id,
+            source === "prime" ? "prime" : "mini_rb",
+            current.signature,
+          );
+      }
+    r = await c.report();
+    assert.ok(
+      r.rows.every(
+        (m) =>
+          BigInt(payrollDue(m, "prime")) + BigInt(payrollDue(m, "mini")) === 0n,
+      ),
+    );
+    await c.db.query(
+      "select public.close_salary_statement($1,'completed','')",
+      [id],
+    );
+    await c.db.query(
+      "select public.close_salary_statement($1,'completed','')",
+      [id],
+    );
+    r = await c.report();
+    assert.equal(r.statement, null);
+    await c.sale("mini_rb", 100000);
+    r = await c.report();
+    assert.equal(
+      r.rows.reduce((n, m) => n + BigInt(payrollDue(m, "mini")), 0n),
+      100000n,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("statement and explanation APIs enforce current permissions, stale signatures and private immutable storage", async () => {
+  const c = await setup();
+  try {
+    await c.seed();
+    let r = await c.report(),
+      old = r.signature;
+    await c.sale();
+    await assert.rejects(
+      c.db.query("select public.lock_salary_statement($1,$2)", [
+        randomUUID(),
+        old,
+      ]),
+      /CALCULATION_CHANGED/,
+    );
+    assert.equal(await c.count("salary_statements"), 0);
+    r = await c.report();
+    await c.as(2);
+    await assert.rejects(
+      c.db.query("select public.lock_salary_statement($1,$2)", [
+        randomUUID(),
+        r.signature,
+      ]),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      c.db.query("select public.salary_change_history()"),
+      /FORBIDDEN/,
+    );
+    await assert.rejects(
+      c.db.query("select * from public.salary_statements"),
+      /permission denied/,
+    );
+    assert.equal(
+      (
+        await c.scalar<any>("select public.salary_breakdown($1)", [
+          c.members[2],
+        ])
+      ).row.id,
+      c.members[2],
+    );
+    await c.db.exec(
+      "reset role;delete from public.role_permissions where permission='members.read' and role_id in(select id from public.roles where code='member')",
+    );
+    await c.as(2);
+    await assert.rejects(
+      c.db.query("select public.salary_breakdown($1)", [c.members[3]]),
+      /FORBIDDEN/,
+    );
+    await c.db.exec("reset role;set role anon");
+    await assert.rejects(
+      c.db.query("select public.salary_breakdown($1)", [c.members[2]]),
+      /permission denied/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+
+test("failed frozen payout rolls back its ledger writes and retains the same locked quote for retry", async () => {
+  const c = await setup();
+  try {
+    await c.seed();
+    const initial = await c.report(),
+      id = randomUUID();
+    await c.db.query("select public.lock_salary_statement($1,$2)", [
+      id,
+      initial.signature,
+    ]);
+    const quoted = await c.report(),
+      request = randomUUID();
+    await c.db.exec(
+      "reset role;create function private.fixture_reject_frozen() returns trigger language plpgsql as $$begin raise exception 'FROZEN_PAYOUT_FAILURE';end$$;create trigger fixture_reject_frozen before insert on public.treasury_payouts for each row execute function private.fixture_reject_frozen()",
+    );
+    await c.as(1);
+    await assert.rejects(
+      c.pay(request, c.members[2], "prime", quoted.signature),
+      /FROZEN_PAYOUT_FAILURE/,
+    );
+    for (const t of [
+      "treasury_payouts",
+      "treasury_awards",
+      "treasury_allocations",
+      "salary_payment_requests",
+    ])
+      assert.equal(await c.count(t), 0, t);
+    const after = await c.report();
+    assert.equal(after.statement?.id, id);
+    assert.equal(after.signature, quoted.signature);
+    await c.db.exec(
+      "reset role;drop trigger fixture_reject_frozen on public.treasury_payouts",
+    );
+    await c.as(1);
+    await c.pay(request, c.members[2], "prime", quoted.signature);
+    assert.equal(await c.count("treasury_payouts"), 1);
+    const archive = await c.scalar<any>(
+      "select public.salary_statement_report($1)",
+      [id],
+    );
+    assert.equal(
+      archive.rows.find((r: any) => r.id === c.members[2]).prime_paid,
+      "0",
+    );
+    assert.equal(
+      archive.rows.find((r: any) => r.id === c.members[2]).prime_projection,
+      "70001",
+    );
+    await c.as(2);
+    await assert.rejects(
+      c.db.query("select public.salary_statement_report($1)", [id]),
+      /FORBIDDEN/,
     );
   } finally {
     await c.db.close();

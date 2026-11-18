@@ -30,6 +30,7 @@ export type DirectoryMember = {
   id: string;
   nickname: string;
   joined_at: string;
+  guild_joined_on?: string | null;
   status: string;
   avatar_style: string;
   main_character: string | null;

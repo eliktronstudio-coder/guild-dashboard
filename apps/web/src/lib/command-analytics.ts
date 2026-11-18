@@ -40,7 +40,12 @@ export type AnalyticsRow = {
 
 export function summarizeAttendance(
   facts: AttendanceFact[],
-  members: { id: string; nickname: string; character_class?: string | null }[],
+  members: {
+    id: string;
+    nickname: string;
+    character_class?: string | null;
+    guild_joined_on?: string | null;
+  }[],
   category = "",
   now = new Date(),
   catalog: AttendanceFact["event"][] = facts.map((f) => f.event),
@@ -72,28 +77,35 @@ export function summarizeAttendance(
       )
       .map((e) => [e.id, e]),
   );
-  const primeAvailable = [...events.values()].filter(
-      (e) => fundOf(e) === "Прайм",
-    ).length,
-    miniAvailable = events.size - primeAvailable;
-  const primeWeight = [...events.values()]
-    .filter((e) => fundOf(e) === "Прайм")
-    .reduce((sum, e) => sum + weightOf(e), 0);
-  const miniWeight = [...events.values()]
-    .filter((e) => fundOf(e) === "Мини-РБ")
-    .reduce((sum, e) => sum + weightOf(e), 0);
   const totals = new Map(
-    members.map((m) => [
-      m.id,
-      {
-        present: 0,
-        primePresent: 0,
-        miniPresent: 0,
-        pvp: 0,
-        primeWeight: 0,
-        miniWeight: 0,
-      },
-    ]),
+    members.map((m) => {
+      const eligible = [...events.values()].filter(
+        (e) =>
+          !m.guild_joined_on ||
+          new Date(e.starts_at) >= new Date(m.guild_joined_on + "T00:00:00Z"),
+      );
+      return [
+        m.id,
+        {
+          present: 0,
+          primePresent: 0,
+          miniPresent: 0,
+          pvp: 0,
+          primeWeight: 0,
+          miniWeight: 0,
+          events: new Set(eligible.map((e) => e.id)),
+          available: eligible.length,
+          primeAvailable: eligible.filter((e) => fundOf(e) === "Прайм").length,
+          miniAvailable: eligible.filter((e) => fundOf(e) === "Мини-РБ").length,
+          primeAvailableWeight: eligible
+            .filter((e) => fundOf(e) === "Прайм")
+            .reduce((n, e) => n + weightOf(e), 0),
+          miniAvailableWeight: eligible
+            .filter((e) => fundOf(e) === "Мини-РБ")
+            .reduce((n, e) => n + weightOf(e), 0),
+        },
+      ];
+    }),
   );
   const seen = new Set<string>(),
     unique = new Set<string>();
@@ -105,7 +117,14 @@ export function summarizeAttendance(
     const e = events.get(fact.event.id),
       row = totals.get(fact.membership_id),
       key = fact.event.id + ":" + fact.membership_id;
-    if (!e || !row || fact.mark !== "present" || seen.has(key)) continue;
+    if (
+      !e ||
+      !row ||
+      !row.events.has(e.id) ||
+      fact.mark !== "present" ||
+      seen.has(key)
+    )
+      continue;
     seen.add(key);
     row.present++;
     unique.add(fact.membership_id);
@@ -133,15 +152,15 @@ export function summarizeAttendance(
       nickname: m.nickname,
       characterClass: m.character_class || "Без роли",
       present: t.present,
-      available: events.size,
-      percentage: pct(t.present, events.size),
-      prime: pct(t.primeWeight, primeWeight),
-      mini: pct(t.miniWeight, miniWeight),
+      available: t.available,
+      percentage: pct(t.present, t.available),
+      prime: pct(t.primeWeight, t.primeAvailableWeight),
+      mini: pct(t.miniWeight, t.miniAvailableWeight),
       pvp: t.pvp,
       primePresent: t.primePresent,
-      primeAvailable,
+      primeAvailable: t.primeAvailable,
       miniPresent: t.miniPresent,
-      miniAvailable,
+      miniAvailable: t.miniAvailable,
     };
   });
   const participations = rows.reduce((sum, r) => sum + r.present, 0);

@@ -66,7 +66,12 @@ export async function loadCommandReport(
     };
   const payload = snapshot.data as {
     events: AttendanceFact["event"][];
-    members: { id: string; nickname: string; character_class: string | null }[];
+    members: {
+      id: string;
+      nickname: string;
+      character_class: string | null;
+      guild_joined_on?: string | null;
+    }[];
     marks: { event_id: string; membership_id: string; mark: string }[];
   };
   const catalog = payload.events.map((e) => ({

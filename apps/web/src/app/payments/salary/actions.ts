@@ -56,3 +56,79 @@ export async function paySalary(
   revalidatePath("/", "layout");
   return { success: "Выплата записана." };
 }
+
+const statementErrors: Record<string, string> = {
+  CALCULATION_CHANGED: "Расчёт изменился. Обновите страницу и проверьте суммы.",
+  STATEMENT_ALREADY_LOCKED:
+    "Уже есть зафиксированная ведомость. Обновите страницу.",
+  STATEMENT_UNPAID: "В ведомости ещё есть невыплаченные суммы.",
+  STATEMENT_CLOSED: "Ведомость уже закрыта. Обновите страницу.",
+  NOTHING_TO_PAY: "Нет начислений для фиксации.",
+  INSUFFICIENT_FUNDS: "В казне недостаточно золота для этой ведомости.",
+};
+export async function lockStatement(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.allocate");
+  if (!(await a.permission("treasury.pay")))
+    return { error: "Недостаточно прав." };
+  const id = field(form, "requestId"),
+    signature = field(form, "signature");
+  if (
+    !isUuid(id) ||
+    !/^[a-f0-9]{32}$/.test(signature) ||
+    form.get("confirm") !== "on"
+  )
+    return { error: "Проверьте подтверждение и обновите страницу." };
+  const { error } = await a.client.rpc("lock_salary_statement", {
+    p_request: id,
+    p_signature: signature,
+  });
+  if (error)
+    return {
+      error:
+        statementErrors[error.message] ??
+        "Не удалось зафиксировать ведомость. Обновите страницу.",
+    };
+  revalidatePath("/", "layout");
+  return { success: "Суммы зафиксированы. Выплаты ещё не записаны." };
+}
+export async function closeStatement(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requirePermission("treasury.allocate");
+  if (!(await a.permission("treasury.pay")))
+    return { error: "Недостаточно прав." };
+  const id = field(form, "statementId"),
+    action = field(form, "action"),
+    reason = field(form, "reason");
+  if (
+    !isUuid(id) ||
+    !["completed", "cancelled"].includes(action) ||
+    form.get("confirm") !== "on" ||
+    (action === "cancelled" && (reason.length < 3 || reason.length > 500))
+  )
+    return { error: "Проверьте подтверждение и причину изменения." };
+  const { error } = await a.client.rpc("close_salary_statement", {
+    p_id: id,
+    p_action: action,
+    p_reason: reason,
+  });
+  if (error)
+    return {
+      error:
+        statementErrors[error.message] ??
+        "Не удалось изменить ведомость. Обновите страницу.",
+    };
+  revalidatePath("/", "layout");
+  return {
+    success:
+      action === "completed"
+        ? "Ведомость завершена. Новые начисления рассчитываются отдельно."
+        : "Фиксация снята. Проведённые выплаты сохранены, невыплаченные суммы пересчитаны.",
+  };
+}

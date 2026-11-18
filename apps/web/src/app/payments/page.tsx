@@ -28,6 +28,11 @@ export default async function Page({
           Выплата ЗП
         </Link>
       )}
+      {allocate && (
+        <Link className="text-button" href="/payments/history">
+          История изменений →
+        </Link>
+      )}
       <SettlementPanel
         client={a.client}
         permissions={{ allocate: false, pay, spend }}

@@ -143,3 +143,43 @@ export async function archiveCharacter(
   refreshMember(memberId);
   return { success: "Персонаж перенесён в архив." };
 }
+
+export async function setGuildJoinDate(
+  _: FormState,
+  form: FormData,
+): Promise<FormState> {
+  await checkOrigin();
+  const a = await requireMember();
+  if (!(await a.permission("members.manage")))
+    return { error: "Недостаточно прав." };
+  const id = field(form, "memberId"),
+    version = parseVersion(field(form, "version")),
+    date = field(form, "guildJoinedOn"),
+    reason = field(form, "reason");
+  if (
+    !isUuid(id) ||
+    version === null ||
+    (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) ||
+    reason.length < 3 ||
+    reason.length > 500
+  )
+    return { error: "Проверьте дату и укажите причину." };
+  const { error } = await a.client.rpc("set_guild_join_date", {
+    p_member: id,
+    p_version: version,
+    p_date: date || null,
+    p_reason: reason,
+  });
+  if (error)
+    return {
+      error:
+        error.message === "STALE_VERSION"
+          ? "Данные изменились. Обновите страницу."
+          : "Не удалось сохранить дату. Проверьте дату, права и обновите страницу.",
+    };
+  revalidatePath("/", "layout");
+  return {
+    success:
+      "Дата вступления сохранена. Открытый расчёт обновлён; зафиксированная ведомость не изменена.",
+  };
+}

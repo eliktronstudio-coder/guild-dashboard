@@ -1,6 +1,6 @@
-import { historyPayroll } from "@/lib/history-report";
+import { historyPayroll, historyAttendance } from "@/lib/history-report";
 import { dashboardPeriod } from "@/lib/dashboard";
-import type { PayrollReport } from "@/lib/payroll";
+import type { PayrollReport, LifetimePayrollReport } from "@/lib/payroll";
 import { setMemberWeight } from "@/app/admin/catalog/actions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -40,7 +40,10 @@ export default async function Page({
   query =
     filters.sort === "nickname"
       ? query.order("nickname")
-      : query.order("joined_at", { ascending: filters.sort === "joined_old" });
+      : query.order("guild_joined_on", {
+          ascending: filters.sort === "joined_old",
+          nullsFirst: false,
+        });
   const { data, error, count } = await query
     .order("id")
     .range((filters.page - 1) * 25, filters.page * 25 - 1);
@@ -53,6 +56,12 @@ export default async function Page({
     : await historyPayroll()
         .then((data) => ({ data, error: null }))
         .catch(() => ({ data: null, error: true }));
+  const statement = (payroll.data as LifetimePayrollReport | null)?.statement;
+  const liveAttendance = statement
+    ? await historyAttendance()
+        .then((data) => ({ data, error: false }))
+        .catch(() => ({ data: [], error: true }))
+    : null;
   return (
     <GuildShell current="/members">
       <Link href="/exports" className="text-button">
@@ -127,11 +136,21 @@ export default async function Page({
           посещаемости. Зарплата обновляется при изменении продаж и состава;
           проведённые выплаты сохраняются.
         </p>
+        {statement && (
+          <p className="notice">
+            Посещаемость показана по текущим активностям. Зарплата и личный
+            коэффициент для неё — из зафиксированной ведомости.
+          </p>
+        )}
+        {liveAttendance?.error && (
+          <p role="alert">Текущая посещаемость временно недоступна.</p>
+        )}
         {payroll.error && (
           <p role="alert">Посещаемость и зарплата временно недоступны.</p>
         )}
         <MemberDirectory
           payroll={(payroll.data as PayrollReport | null)?.rows}
+          attendance={liveAttendance?.data}
           weightAction={
             (await a.permission("members.coefficient"))
               ? setMemberWeight

@@ -58,6 +58,7 @@ export const attendancePercent = (value: number | null) =>
 
 export type LifetimePayrollReport = Omit<PayrollReport, "from" | "until"> & {
   scope: "lifetime";
+  statement?: { id: string; status: "locked"; created_at: string } | null;
 };
 export const formatSalaryGold = (units: string) => {
   const n = BigInt(units),
