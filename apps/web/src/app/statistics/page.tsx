@@ -54,7 +54,8 @@ export default async function Page({
         <p className="eyebrow">XD · АНАЛИТИЧЕСКИЙ ЦЕНТР</p>
         <h1>Статистика гильдии</h1>
         <p className="muted">
-          Прайм — с коэффициентами и включает PvP, Мини РБ считается отдельно.
+          Прайм и Мини РБ — с коэффициентами сложности, отдельно друг от друга.
+          PvP входит в Прайм.
         </p>
         <a
           className="button secondary inline"

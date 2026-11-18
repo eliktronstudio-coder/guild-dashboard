@@ -533,3 +533,69 @@ test("category salary: repair frozen awards preserves payouts and recalculates a
     await c.db.close();
   }
 });
+
+test("weighted Prime and Mini RB use 0.5/1/1.5 difficulty consistently and preserve payouts", async () => {
+  const c = await setup();
+  try {
+    for (const source of ["prime", "mini_rb"]) {
+      await c.event([c.members[2]], 50, source);
+      await c.event([c.members[2]], 100, source);
+      await c.event([c.members[3]], 150, source);
+    }
+    await c.sale("mini_rb", 100000);
+    let r = await c.report();
+    const a = r.rows.find((r) => r.id === c.members[2])!,
+      b = r.rows.find((r) => r.id === c.members[3])!;
+    assert.equal(a.prime_percentage, 50);
+    assert.equal(a.mini_percentage, 50);
+    assert.equal(a.mini_present, 2);
+    assert.equal(a.mini_total, 3);
+    assert.equal(a.mini_eligible, true);
+    assert.equal(a.mini_projection, "55556");
+    assert.equal(b.mini_projection, "44444");
+    const lifetime = await c.db.query<any>(
+      "select * from public.all_time_attendance_report() where id=$1",
+      [a.id],
+    );
+    assert.equal(Number(lifetime.rows[0].mini_percentage), 50);
+    const when = dashboardPeriod({ period: "previous" });
+    const category = await c.db.query<any>(
+      "select * from public.attendance_category_report($1,$2) where membership_id=$3",
+      [when.from + "T00:00:00Z", when.until, a.id],
+    );
+    assert.equal(Number(category.rows[0].mini_percentage), 50);
+    await c.pay(randomUUID(), a.id, "mini_rb", r.signature);
+    const paid = (
+      await c.db.query("select * from public.treasury_payouts order by id")
+    ).rows;
+    await c.event([], 150, "mini_rb");
+    r = await c.report();
+    assert.equal(r.rows.find((r) => r.id === a.id)!.mini_percentage, 33);
+    assert.deepEqual(
+      (await c.db.query("select * from public.treasury_payouts order by id"))
+        .rows,
+      paid,
+    );
+  } finally {
+    await c.db.close();
+  }
+});
+test("weighted Mini RB uses exact 20% threshold rather than rounded display or event count", async () => {
+  const c = await setup();
+  try {
+    await c.event([c.members[2]], 100, "mini_rb");
+    await c.event([], 410, "mini_rb");
+    await c.sale("mini_rb");
+    const r = await c.report(),
+      m = r.rows.find((r) => r.id === c.members[2])!;
+    assert.equal(m.mini_percentage, 20);
+    assert.equal(m.mini_eligible, false);
+    assert.equal(m.mini_projection, "0");
+    await assert.rejects(
+      c.pay(randomUUID(), m.id, "mini_rb", r.signature),
+      /NOT_ELIGIBLE/,
+    );
+  } finally {
+    await c.db.close();
+  }
+});

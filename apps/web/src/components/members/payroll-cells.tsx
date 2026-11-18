@@ -55,7 +55,7 @@ export function AttendanceLines({ row }: { row?: AttendanceSummary }) {
         </div>
       ))}
       <small className="caption">
-        Прайм — с коэффициентами · PvP:{" "}
+        Прайм и Мини РБ — с коэффициентами · PvP:{" "}
         {row
           ? attendanceLabel(row.pvp_percentage, row.pvp_present, row.pvp_total)
           : "—"}

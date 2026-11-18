@@ -49,12 +49,14 @@ export function summarizeAttendance(
     e.activity_banner_name || e.boss_name || e.title;
   const fundOf = (e: AttendanceFact["event"]) =>
     resolveAttendanceFund(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE");
+  // Keep coefficient hundredths as integers, matching PostgreSQL numeric sums.
   const weightOf = (e: AttendanceFact["event"]) =>
-    e.activity_weight != null
-      ? e.activity_weight / 100
-      : e.boss_weight != null
-        ? e.boss_weight / 100
-        : activityAttendanceWeight(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE");
+    e.activity_weight ??
+    e.boss_weight ??
+    Math.round(
+      activityAttendanceWeight(nameOf(e), e.kind === "pvp" ? "PvP" : "PvE") *
+        100,
+    );
   const events = new Map(
     catalog
       .filter(
@@ -77,10 +79,20 @@ export function summarizeAttendance(
   const primeWeight = [...events.values()]
     .filter((e) => fundOf(e) === "Прайм")
     .reduce((sum, e) => sum + weightOf(e), 0);
+  const miniWeight = [...events.values()]
+    .filter((e) => fundOf(e) === "Мини-РБ")
+    .reduce((sum, e) => sum + weightOf(e), 0);
   const totals = new Map(
     members.map((m) => [
       m.id,
-      { present: 0, primePresent: 0, miniPresent: 0, pvp: 0, primeWeight: 0 },
+      {
+        present: 0,
+        primePresent: 0,
+        miniPresent: 0,
+        pvp: 0,
+        primeWeight: 0,
+        miniWeight: 0,
+      },
     ]),
   );
   const seen = new Set<string>(),
@@ -101,7 +113,10 @@ export function summarizeAttendance(
     if (prime) {
       row.primePresent++;
       row.primeWeight += weightOf(e);
-    } else row.miniPresent++;
+    } else {
+      row.miniPresent++;
+      row.miniWeight += weightOf(e);
+    }
     if (e.kind === "pvp") row.pvp++;
     const day = e.starts_at.slice(0, 10),
       d = daily.get(day) ?? { label: day, prime: 0, mini: 0, pvp: 0 };
@@ -109,7 +124,8 @@ export function summarizeAttendance(
     if (e.kind === "pvp") d.pvp++;
     daily.set(day, d);
   }
-  const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
+  const pct = (a: number, b: number) =>
+    b ? Math.floor((200 * a + b) / (2 * b)) : 0;
   const rows: AnalyticsRow[] = members.map((m) => {
     const t = totals.get(m.id)!;
     return {
@@ -120,7 +136,7 @@ export function summarizeAttendance(
       available: events.size,
       percentage: pct(t.present, events.size),
       prime: pct(t.primeWeight, primeWeight),
-      mini: pct(t.miniPresent, miniAvailable),
+      mini: pct(t.miniWeight, miniWeight),
       pvp: t.pvp,
       primePresent: t.primePresent,
       primeAvailable,
