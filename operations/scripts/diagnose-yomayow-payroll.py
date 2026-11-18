@@ -20,3 +20,6 @@ statements=["with g as(select id from public.guilds where slug='xd'),calc as(sel
 for label,statement in zip(["CURRENT","ATTENDANCE","ALLOCATIONS","FROZEN"],statements):
  rows=query("begin read only;set local statement_timeout='15s';"+statement+";rollback;")
  print("YOMAYOW_"+label,json.dumps(rows,ensure_ascii=False),flush=True)
+
+rows=query("begin read only;set local statement_timeout='15s';with g as(select id from public.guilds where slug='xd') select src,private.fund_balance(g.id,src)::text as cash_units,private.fund_reserved(g.id,src)::text as reserved_units from g cross join unnest(array['prime','mini_rb']) src;rollback;")
+print("YOMAYOW_AVAILABLE_FUNDS",json.dumps(rows),flush=True)
