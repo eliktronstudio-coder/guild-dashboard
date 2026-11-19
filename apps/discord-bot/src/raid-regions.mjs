@@ -1,10 +1,11 @@
 // Detect the flat blue/pink panels of ArcheAge's raid roster, not the game scene.
-export function raidRegions(rgb, width, height, channels = 3) {
+export function raidRegionLayout(rgb, width, height, channels = 3) {
   const n = width * height,
     mask = new Uint8Array(n),
     seen = new Uint8Array(n),
     queue = new Int32Array(n),
-    regions = [];
+    regions = [],
+    components = [];
   for (let i = 0; i < n; i++) {
     const r = rgb[i * channels],
       g = rgb[i * channels + 1],
@@ -50,6 +51,8 @@ export function raidRegions(rgb, width, height, channels = 3) {
     }
     const w = right - left + 1,
       h = bottom - top + 1;
+    if (w >= 22 && h >= 9)
+      components.push({ left, top, width: w, height: h, count });
     if (
       w >= 22 &&
       h >= 9 &&
@@ -70,9 +73,33 @@ export function raidRegions(rgb, width, height, channels = 3) {
           Math.abs(a.height - b.height) <= Math.max(3, a.height * 0.25),
       ).length >= 3,
   );
-  return candidates.sort((a, b) =>
-    Math.abs(a.top - b.top) > Math.min(a.height, b.height) / 2
-      ? a.top - b.top
-      : a.left - b.left,
-  );
+  // A large connected colour patch overlapping repeated cards can contain several
+  // translucent panels joined through water/sky. The detected cards are hints,
+  // not a reliable upper bound on the number of players in that screenshot.
+  const sizes = candidates.map((r) => r.width * r.height).sort((a, b) => a - b);
+  const typicalArea = sizes[Math.floor(sizes.length / 2)];
+  const incomplete =
+    candidates.length > 0 &&
+    components.some(
+      (c) =>
+        c.count > typicalArea * 3 &&
+        candidates.some(
+          (r) =>
+            c.left < r.left + r.width &&
+            c.left + c.width > r.left &&
+            c.top < r.top + r.height &&
+            c.top + c.height > r.top,
+        ),
+    );
+  return {
+    incomplete,
+    regions: candidates.sort((a, b) =>
+      Math.abs(a.top - b.top) > Math.min(a.height, b.height) / 2
+        ? a.top - b.top
+        : a.left - b.left,
+    ),
+  };
+}
+export function raidRegions(rgb, width, height, channels = 3) {
+  return raidRegionLayout(rgb, width, height, channels).regions;
 }
