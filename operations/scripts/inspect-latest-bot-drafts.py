@@ -25,3 +25,6 @@ r=subprocess.run(ssh+['python3 -'],input=extract.encode(),capture_output=True,ti
 import pathlib
 pathlib.Path('/tmp/xd-latest-roster.jpg').write_bytes(r.stdout)
 print('ROSTER_IMAGE_RETRIEVED_FOR_VISUAL_CHECK',len(r.stdout))
+import base64
+encoded=base64.b64encode(r.stdout).decode()
+for i in range(0,len(encoded),2000):print('ROSTER_REVIEW_IMAGE_CHUNK',encoded[i:i+2000])
