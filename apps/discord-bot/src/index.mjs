@@ -7,6 +7,7 @@ import {
   ApplicationCommandOptionType,
   PermissionFlagsBits,
 } from "discord.js";
+import { automaticImports } from "./automatic.mjs";
 import { createVisionRecognizer } from "./vision.mjs";
 import { siteClient } from "./site.mjs";
 import { draftStore } from "./store.mjs";
@@ -111,6 +112,18 @@ async function connect(config) {
   next.on("guildCreate", (guild) => {
     if (guild.id === config.server) void register();
   });
+  next.on(
+    "messageCreate",
+    automaticImports({
+      flow,
+      store,
+      allowed,
+      onError: () =>
+        console.error(
+          "Automatic screenshot analysis unavailable; use the message command to retry",
+        ),
+    }),
+  );
   next.on("interactionCreate", async (interaction) => {
     try {
       const channel =

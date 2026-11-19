@@ -18,6 +18,7 @@ export function draftStore(directory) {
   );
   db.exec(`PRAGMA foreign_keys=ON;
     PRAGMA busy_timeout=5000;
+    CREATE TABLE IF NOT EXISTS automatic_messages(scope TEXT NOT NULL,message TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(scope,message));
     CREATE TABLE IF NOT EXISTS vision_usage(id TEXT PRIMARY KEY,scope TEXT NOT NULL,cache_key TEXT NOT NULL,day TEXT NOT NULL,month TEXT NOT NULL,started INTEGER NOT NULL,status TEXT NOT NULL,cost_micros INTEGER NOT NULL,input_tokens INTEGER,output_tokens INTEGER,error TEXT);
     CREATE TABLE IF NOT EXISTS vision_cache(scope TEXT NOT NULL,cache_key TEXT NOT NULL,payload TEXT NOT NULL,updated INTEGER NOT NULL,PRIMARY KEY(scope,cache_key));
     CREATE TABLE IF NOT EXISTS nickname_names(scope TEXT NOT NULL,name_key TEXT NOT NULL,nickname TEXT NOT NULL,confirmed INTEGER NOT NULL DEFAULT 1,updated INTEGER NOT NULL,PRIMARY KEY(scope,name_key));
@@ -27,6 +28,16 @@ export function draftStore(directory) {
     CREATE INDEX IF NOT EXISTS nickname_examples_alias ON nickname_examples(scope,alias);
   `);
   return {
+    claimAutomaticMessage(scope, message) {
+      db.prepare("DELETE FROM automatic_messages WHERE created<?").run(
+        Date.now() - 30 * 86400000,
+      );
+      return (
+        db
+          .prepare("INSERT OR IGNORE INTO automatic_messages VALUES(?,?,?)")
+          .run(scope, message, Date.now()).changes === 1
+      );
+    },
     visionCached(scope, key, now, ttl) {
       const row = db
         .prepare(

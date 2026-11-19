@@ -128,7 +128,7 @@ function controls(d) {
           : []),
         button(
           id("images"),
-          "Далее: скриншоты",
+          d.analyzed ? "К проверке состава и дропа" : "Далее: скриншоты",
           1,
           !d.activity || !d.mode || !d.source,
         ),
@@ -304,7 +304,7 @@ function controls(d) {
 }
 export function reviewText(d) {
   return [
-    `Активность: ${d.activity.name}; ${d.mode === "pvp" ? "PvP" : "PvE"}; ${d.source === "prime" ? "Прайм" : "Мини-РБ"}; коэффициент ${(d.activity.weight / 100).toFixed(2)}`,
+    `Активность: ${d.activity?.name ?? "ещё не выбрана"}; тип: ${d.mode ?? "не выбран"}; категория: ${d.source ?? "не выбрана"}; коэффициент ${d.activity ? (d.activity.weight / 100).toFixed(2) : "не выбран"}`,
     `Дата сообщения: ${d.startsAt} UTC`,
     "",
     ...(d.recognitionNotices ?? []),
@@ -337,6 +337,7 @@ export function renderDraft(d) {
     };
   if (d.step === "choose")
     content =
+      (d.analyzed ? "Скриншоты распознаны — состав и дроп ниже. " : "") +
       "Выберите активность из реестра сайта, тип и источник. Данные пока не сохраняются на сайт.";
   else if (d.step === "images")
     content = `Первый скрин — состав, остальные — дроп. Скрин состава: ${d.attachments[0]?.name ?? "не прикреплён"}. Скриншотов дропа: ${d.lootImages.length}. Нажмите «Распознать скрины»; если дропа нет, сохранится только состав. Ещё скрины дропа можно добавлять партиями до 10 файлов. Уже прочитанные скрины повторно не анализируются. На сайт прикрепляются состав и первые 7 скринов дропа; предметы учитываются из всех скринов. Текст сообщения как дроп не используется.`;
@@ -370,40 +371,44 @@ export function renderDraft(d) {
     ),
     allowedMentions: { parse: [] },
     components: controls(d),
-    embeds: ["review", "names"].includes(d.step)
-      ? [
-          {
-            title: "Распознанные ники",
-            description: truncate(
-              [
-                ...d.roster.members.map((m) => m.nickname),
-                ...d.roster.guests.map((n) => "Гость: " + n),
-              ].join("\n") || "Нет подтверждённых ников",
-              2000,
-            ),
-          },
-          {
-            title: "Нераспознанные / требуют проверки",
-            description: truncate(
-              d.roster.unresolved.join("\n") ||
-                "Нет — все прочитанные ники проверены",
-              1000,
-            ),
-          },
-          {
-            title: "Распознанный дроп",
-            description: truncate(
-              [
-                ...d.loot.items.map((i) => `${i.name} × ${i.quantity}`),
-                ...d.loot.unresolved.map((n) => "? " + n),
-              ].join("\n") || "Дроп не найден — можно сохранить только состав",
-              2000,
-            ),
-          },
-        ]
-      : [],
+    embeds:
+      ["review", "names"].includes(d.step) ||
+      (d.step === "choose" && d.analyzed)
+        ? [
+            {
+              title: "Распознанные ники",
+              description: truncate(
+                [
+                  ...d.roster.members.map((m) => m.nickname),
+                  ...d.roster.guests.map((n) => "Гость: " + n),
+                ].join("\n") || "Нет подтверждённых ников",
+                2000,
+              ),
+            },
+            {
+              title: "Нераспознанные / требуют проверки",
+              description: truncate(
+                d.roster.unresolved.join("\n") ||
+                  "Нет — все прочитанные ники проверены",
+                1000,
+              ),
+            },
+            {
+              title: "Распознанный дроп",
+              description: truncate(
+                [
+                  ...d.loot.items.map((i) => `${i.name} × ${i.quantity}`),
+                  ...d.loot.unresolved.map((n) => "? " + n),
+                ].join("\n") ||
+                  "Дроп не найден — можно сохранить только состав",
+                2000,
+              ),
+            },
+          ]
+        : [],
     attachments: [],
-    ...(["review", "names"].includes(d.step)
+    ...(["review", "names"].includes(d.step) ||
+    (d.step === "choose" && d.analyzed)
       ? {
           files: [
             {
@@ -427,7 +432,7 @@ export class ImportWorkflow {
     });
     this.locks = new Set();
   }
-  async start(interaction, message) {
+  async start(interaction, message, { automatic = false } = {}) {
     if (!interaction.deferred) await interaction.deferReply({ flags: 64 });
     try {
       const context = contextFor(message, interaction.user.id),
@@ -450,6 +455,7 @@ export class ImportWorkflow {
         startsAt: new Date(message.createdTimestamp).toISOString().slice(0, 19),
         content: "",
         screensOnly: true,
+        automaticNeedsChoice: automatic,
         processedImages: {},
         lootImageResults: {},
         attachments: attachments.map((a) => ({
@@ -467,7 +473,9 @@ export class ImportWorkflow {
         lootRequests: {},
       };
       this.store.put(d);
-      await interaction.editReply(renderDraft(d));
+      if (automatic)
+        await this.handle({ ...interaction, customId: `xd:${d.id}:analyze` });
+      else await interaction.editReply(renderDraft(d));
     } catch (e) {
       await interaction.editReply({ content: safeError(e), components: [] });
     }
@@ -706,7 +714,8 @@ export class ImportWorkflow {
           !["prime", "mini_rb"].includes(d.source)
         )
           throw Error("INVALID_INPUT");
-        d.step = "images";
+        d.automaticNeedsChoice = false;
+        d.step = d.analyzed ? "review" : "images";
       } else if (action === "backchoose") d.step = "choose";
       else if (action === "extratext") {
         const target = interaction.fields.getTextInputValue("value").trim();
@@ -839,7 +848,7 @@ export class ImportWorkflow {
         d.rosterFocus = 0;
         d.loot = lootText(lootLines.join("\n"), d.catalog.drops);
         d.analyzed = true;
-        d.step = "review";
+        d.step = d.automaticNeedsChoice ? "choose" : "review";
       } else if (action === "retryVision") {
         const pending = d.roster.readings.filter(
           (r) => r.pending && r.engine === "gpt" && r.box,
@@ -1060,6 +1069,12 @@ export class ImportWorkflow {
         d.nicknameRemembered = true;
         d.step = "review";
       } else if (action === "confirm" || action === "confirmRosterOnly") {
+        if (
+          !d.activity ||
+          !["raid", "pvp"].includes(d.mode) ||
+          !["prime", "mini_rb"].includes(d.source)
+        )
+          throw Error("INVALID_INPUT");
         if (action === "confirmRosterOnly") d.rosterOnly = true;
         if (!reviewReady(d, { rosterOnly: d.rosterOnly === true }))
           throw Error("ROSTER_CONFIRMATION_REQUIRED");
