@@ -14,17 +14,3 @@ c.close()
 '''
 r=subprocess.run(ssh+['python3 -'],input=script,text=True,timeout=60)
 if r.returncode:raise SystemExit('READ_ONLY_DRAFT_CHECK_FAILED')
-extract=r'''
-import sqlite3,json,base64,sys
-c=sqlite3.connect('file:/var/lib/xd-discord-bot/drafts.sqlite?mode=ro',uri=True)
-payload=c.execute('select payload from drafts order by updated desc limit 1').fetchone()[0]
-e=next(x for x in json.loads(payload)['evidence'] if x['kind']=='roster')
-sys.stdout.buffer.write(base64.b64decode(e['image'].split(',',1)[1]))
-'''
-r=subprocess.run(ssh+['python3 -'],input=extract.encode(),capture_output=True,timeout=45,check=True)
-import pathlib
-pathlib.Path('/tmp/xd-latest-roster.jpg').write_bytes(r.stdout)
-print('ROSTER_IMAGE_RETRIEVED_FOR_VISUAL_CHECK',len(r.stdout))
-import base64
-encoded=base64.b64encode(r.stdout).decode()
-for i in range(0,len(encoded),2000):print('ROSTER_REVIEW_IMAGE_CHUNK',encoded[i:i+2000])
