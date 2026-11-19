@@ -53,3 +53,16 @@ test("identical pixels with different PNG encodings retain one training-image id
     (await raidLabelSheets(b)).imageKey,
   );
 });
+
+test("translucent roster panels connected to blue scenery are flagged as incomplete instead of declaring a three-player raid", async () => {
+  const input = await sharp(
+    Buffer.from(
+      '<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="300" height="200" fill="#2896d2"/><rect x="10" y="10" width="55" height="25" fill="#d250aa"/><rect x="70" y="40" width="55" height="25" fill="#d250aa"/><rect x="130" y="70" width="55" height="25" fill="#d250aa"/></svg>',
+    ),
+  )
+    .png()
+    .toBuffer();
+  const layout = await raidLabelSheets(input);
+  assert.equal(layout.boxes.length, 3);
+  assert.equal(layout.incomplete, true);
+});

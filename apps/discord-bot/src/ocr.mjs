@@ -5,7 +5,7 @@ import sharp from "sharp";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { raidRegions } from "./raid-regions.mjs";
+import { raidRegionLayout } from "./raid-regions.mjs";
 import { recognizeIndependentRoster } from "./recognition.mjs";
 let busy = 0;
 export async function downloadImage(url) {
@@ -169,12 +169,13 @@ export async function raidLabelSheets(buffer) {
     .digest("hex");
   const scaleX = meta.width / analysis.info.width,
     scaleY = meta.height / analysis.info.height;
-  const boxes = raidRegions(
+  const layout = raidRegionLayout(
     analysis.data,
     analysis.info.width,
     analysis.info.height,
     analysis.info.channels,
-  )
+  );
+  const boxes = layout.regions
     .map((b) => ({
       left: Math.max(0, Math.floor(b.left * scaleX)),
       top: Math.max(0, Math.floor(b.top * scaleY)),
@@ -182,7 +183,8 @@ export async function raidLabelSheets(buffer) {
       height: Math.round(b.height * scaleY),
     }))
     .slice(0, 150);
-  if (boxes.length < 3) return { boxes: [], sheets: [], imageKey };
+  if (boxes.length < 3)
+    return { boxes: [], sheets: [], imageKey, incomplete: layout.incomplete };
   const sheets = [];
   for (let start = 0; start < boxes.length; start += 35) {
     const batch = boxes.slice(start, start + 35);
@@ -263,7 +265,7 @@ export async function raidLabelSheets(buffer) {
       sheets.push({ image, start, count: batch.length, variant });
     }
   }
-  return { boxes, sheets, imageKey };
+  return { boxes, sheets, imageKey, incomplete: layout.incomplete };
 }
 export async function ocr(buffer, options = {}) {
   if (busy >= 1) throw Error("OCR_BUSY");

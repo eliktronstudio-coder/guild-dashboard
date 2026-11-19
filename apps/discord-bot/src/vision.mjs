@@ -129,7 +129,7 @@ export function createVisionRecognizer({
       const layout = await regions(source),
         imageKey = createHash("sha256").update(source).digest("hex");
       // A retry accepts only previously detected disputed cells, never the full screenshot.
-      const cells = options.retryCells?.length
+      let cells = options.retryCells?.length
         ? options.retryCells.map((c) => ({ slotKey: c.slotKey, box: c.box }))
         : layout.boxes.map((box, i) => ({
             box,
@@ -137,13 +137,15 @@ export function createVisionRecognizer({
               .update(imageKey + ":" + i)
               .digest("hex"),
           }));
-      const wholeImage = !cells.length && !options.retryCells;
+      const wholeImage =
+        (!cells.length || layout.incomplete === true) && !options.retryCells;
+      if (wholeImage) cells = [];
       if (!cells.length && !wholeImage) throw Error("GPT_ROSTER_NOT_FOUND");
       if (cells.length > 150) throw Error("GPT_ROSTER_TOO_LARGE");
       const key = createHash("sha256")
           .update(
             JSON.stringify([
-              wholeImage ? "vision-whole-v2" : "vision-v2",
+              wholeImage ? "vision-whole-v3" : "vision-v2",
               config.model,
               imageKey,
               cells,
@@ -160,7 +162,17 @@ export function createVisionRecognizer({
           const meta = await sharp(source).metadata();
           if (Math.max(meta.width, meta.height) < 800) {
             const scale = Math.min(4, 1600 / Math.max(meta.width, meta.height));
-            images.push(await sharp(source).resize({ width: Math.round(meta.width * scale), height: Math.round(meta.height * scale), fit: "inside", kernel: "lanczos3" }).png().toBuffer());
+            images.push(
+              await sharp(source)
+                .resize({
+                  width: Math.round(meta.width * scale),
+                  height: Math.round(meta.height * scale),
+                  fit: "inside",
+                  kernel: "lanczos3",
+                })
+                .png()
+                .toBuffer(),
+            );
           }
         }
         // Original-color enlarged crops preserve mixed alphabets and colored-panel strokes.
@@ -231,7 +243,11 @@ export function createVisionRecognizer({
               maxRetries: 0,
             });
           }
-          players = parseVision(response, wholeImage ? 150 : cells.length, wholeImage);
+          players = parseVision(
+            response,
+            wholeImage ? 150 : cells.length,
+            wholeImage,
+          );
           const usage = response.usage,
             input = usage?.input_tokens,
             output = usage?.output_tokens;
@@ -275,7 +291,11 @@ export function createVisionRecognizer({
         uncertain: p.uncertain || wholeImage,
         clipped: p.truncated || cells[p.slot]?.box.clipped === true,
         imageKey,
-        slotKey: cells[p.slot]?.slotKey ?? createHash("sha256").update(imageKey + ":whole:" + p.slot).digest("hex"),
+        slotKey:
+          cells[p.slot]?.slotKey ??
+          createHash("sha256")
+            .update(imageKey + ":whole:" + p.slot)
+            .digest("hex"),
         box: cells[p.slot]?.box,
         group: p.group,
       }));
@@ -287,10 +307,11 @@ export function createVisionRecognizer({
         text: loot.text,
         regionCount: words.length,
         engine: "gpt",
-        notice:
-          wholeImage
-            ? (words.length ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения." : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную.")
-            : "Состав прочитан GPT; похожие и обрезанные ники требуют проверки.",
+        notice: wholeImage
+          ? words.length
+            ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения."
+            : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную."
+          : "Состав прочитан GPT; похожие и обрезанные ники требуют проверки.",
       };
     } catch (error) {
       const code = visionFailure(error);
