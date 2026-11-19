@@ -773,3 +773,213 @@ test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and
   const rendered = renderDraft(saved);
   assert.ok(rendered.components.length <= 5);
 });
+
+test("one screenshot action handles roster plus successive loot batches without rereading or losing edits", async () => {
+  const member = { id: randomUUID(), nickname: "Ронин" },
+    drop = {
+      id: randomUUID(),
+      name: "Коготь",
+      version: 1,
+      price_units: "10000",
+    };
+  const catalog = {
+    members: [member],
+    activities: [{ id: randomUUID(), name: "Рейд", weight: 100, version: 1 }],
+    drops: [drop],
+  };
+  let saved,
+    calls = [];
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+    site: async () => catalog,
+    download: async (url) => Buffer.from(url),
+    prepareEvidence: async () => "data:image/jpeg;base64,/9j/2Q==",
+    ocr: async (buf, options) => {
+      calls.push(buf.toString());
+      return {
+        words: options.roster
+          ? [{ text: "Ронин", confidence: 95, line: "1" }]
+          : [],
+        text: options.loot ? "Коготь x1" : "",
+      };
+    },
+  });
+  const files = Array.from({ length: 10 }, (_, i) => ({
+    id: "first" + i,
+    name: i + ".png",
+    url: "first" + i,
+    size: 100,
+    contentType: "image/png",
+  }));
+  const start = {
+    user: { id: "staff" },
+    async deferReply() {
+      this.deferred = true;
+    },
+    async editReply(v) {
+      this.payload = v;
+    },
+  };
+  await flow.start(start, {
+    guildId: "s",
+    channelId: "c",
+    channel: { isThread: () => false },
+    id: "message",
+    createdTimestamp: Date.now(),
+    content: "Коготь x999",
+    attachments: new Map(files.map((f) => [f.id, f])),
+  });
+  assert.equal(saved.screensOnly, true);
+  assert.deepEqual(saved.rosterImages, ["first0"]);
+  assert.equal(saved.lootImages.length, 9);
+  saved.activity = catalog.activities[0];
+  saved.mode = "raid";
+  saved.source = "prime";
+  saved.step = "images";
+  let labels = renderDraft(saved)
+    .components.flatMap((r) => r.components)
+    .map((c) => c.label);
+  assert.ok(labels.includes("Распознать скрины"));
+  assert.ok(!labels.includes("Только состав — без дропа"));
+  assert.ok(!labels.includes("Tesseract бесплатно"));
+  assert.ok(!labels.includes("Дроп из сообщения"));
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(saved.loot.items[0].quantity, 9);
+  assert.equal(saved.roster.members[0].id, member.id);
+  assert.equal(saved.evidence.length, 8);
+  const upload = interaction(saved.id, "uploadLoot");
+  upload.showModal = async (modal) => {
+    upload.modal = modal.toJSON();
+  };
+  await flow.handle(upload);
+  assert.equal(upload.modal.components[0].component.type, 19);
+  assert.equal(upload.modal.components[0].component.max_values, 10);
+  await flow.handle(interaction(saved.id, "loottext", [], "Коготь x7"));
+  const added = Array.from({ length: 10 }, (_, i) => ({
+    id: "next" + i,
+    name: i + ".png",
+    url: "next" + i,
+    size: 100,
+    contentType: "image/png",
+  }));
+  const more = interaction(saved.id, "lootFiles");
+  more.fields.getUploadedFiles = () => new Map(added.map((f) => [f.id, f]));
+  await flow.handle(more);
+  assert.equal(more.errorPayload, undefined);
+  assert.equal(saved.attachments.length, 20);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(calls.length, 20);
+  assert.equal(saved.loot.items[0].quantity, 17);
+  assert.equal(saved.roster.members[0].id, member.id);
+  assert.equal(saved.evidence.length, 8);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(calls.length, 20);
+  assert.equal(saved.loot.items[0].quantity, 17);
+  const duplicate = interaction(saved.id, "lootFiles");
+  duplicate.fields.getUploadedFiles = () =>
+    new Map([
+      [
+        "duplicate",
+        {
+          id: "duplicate",
+          name: "duplicate.png",
+          url: "first1",
+          size: 100,
+          contentType: "image/png",
+        },
+      ],
+    ]);
+  await flow.handle(duplicate);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(calls.length, 20);
+  assert.equal(saved.loot.items[0].quantity, 17);
+  const rendered = renderDraft(saved);
+  assert.deepEqual(
+    rendered.embeds.map((e) => e.title),
+    [
+      "Распознанные ники",
+      "Нераспознанные / требуют проверки",
+      "Распознанный дроп",
+    ],
+  );
+  assert.match(rendered.embeds[0].description, /Ронин/);
+  assert.match(rendered.embeds[2].description, /Коготь × 17/);
+});
+
+test("full site roster search supports all members, pagination and a stable unresolved reading", async () => {
+  const members = Array.from({ length: 60 }, (_, i) => ({
+    id: randomUUID(),
+    nickname: "Player" + String(i).padStart(2, "0"),
+  }));
+  let saved = {
+    id: randomUUID(),
+    owner: "staff",
+    catalog: { members },
+    activity: { name: "Рейд", weight: 100 },
+    mode: "raid",
+    source: "prime",
+    step: "review",
+    roster: { members: [], guests: [], unresolved: ["WrongName"] },
+    loot: { items: [], unresolved: [] },
+  };
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+  });
+  const pick = interaction(saved.id, "rosterPick", ["roster"]);
+  pick.showModal = async (modal) => {
+    pick.modal = modal.toJSON();
+  };
+  await flow.handle(pick);
+  assert.match(pick.modal.title, /составе/);
+  await flow.handle(interaction(saved.id, "memberQuery", [], ""));
+  assert.equal(saved.step, "memberSearch");
+  assert.equal(
+    renderDraft(saved).components[0].components[0].options.length,
+    25,
+  );
+  await flow.handle(interaction(saved.id, "memberNext"));
+  assert.equal(saved.memberSearchPage, 1);
+  await flow.handle(interaction(saved.id, "memberQuery", [], "player59"));
+  const options = renderDraft(saved).components[0].components[0].options;
+  assert.equal(options.length, 1);
+  assert.equal(options[0].value, members[59].id);
+  await flow.handle(interaction(saved.id, "memberPick", [members[59].id]));
+  assert.equal(saved.roster.members[0].id, members[59].id);
+  assert.equal(saved.roster.unresolved.length, 0);
+});
+
+test("a bad additional upload leaves existing attachment selection intact", async () => {
+  let saved = {
+    id: randomUUID(),
+    owner: "staff",
+    context: {},
+    step: "images",
+    attachments: [{ id: "roster", name: "r.png" }],
+    rosterImages: ["roster"],
+    lootImages: [],
+  };
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+  });
+  const input = interaction(saved.id, "lootFiles");
+  input.fields.getUploadedFiles = () =>
+    new Map([["bad", { id: "bad", contentType: "application/pdf", size: 1 }]]);
+  await flow.handle(input);
+  assert.ok(input.errorPayload);
+  assert.equal(saved.attachments.length, 1);
+});
