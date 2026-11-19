@@ -111,36 +111,6 @@ async function connect(config) {
   next.on("guildCreate", (guild) => {
     if (guild.id === config.server) void register();
   });
-  next.on("messageCreate", async (message) => {
-    if (
-      !allowed(message.channel) ||
-      message.author.bot ||
-      (!message.attachments.size && !message.content.trim())
-    )
-      return;
-    try {
-      await message.reply({
-        content:
-          "Добавить состав рейда и дроп на xd-guild.ru? Любой участник этого канала может начать разбор.",
-        allowedMentions: { parse: [], repliedUser: false },
-        components: [
-          {
-            type: 1,
-            components: [
-              {
-                type: 2,
-                style: 1,
-                custom_id: "xdstart:" + message.id,
-                label: "Разобрать активность",
-              },
-            ],
-          },
-        ],
-      });
-    } catch {
-      console.error("Cannot reply in configured activity channel");
-    }
-  });
   next.on("interactionCreate", async (interaction) => {
     try {
       const channel =

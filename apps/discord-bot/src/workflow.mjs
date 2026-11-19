@@ -4,13 +4,10 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  LabelBuilder,
+  FileUploadBuilder,
 } from "discord.js";
-import {
-  lootText,
-  reviewReady,
-  suggestion,
-  readingSuggestions,
-} from "./matching.mjs";
+import { lootText, reviewReady, readingSuggestions } from "./matching.mjs";
 import { safeError } from "./site.mjs";
 import {
   recognizeIndependentRoster,
@@ -138,38 +135,41 @@ function controls(d) {
       ),
     ];
   }
-  if (d.step === "images") {
-    const options = d.attachments.map((a, i) => ({
-      label: truncate(`${i + 1}. ${a.name}`, 100),
-      value: a.id,
-    }));
+  if (d.step === "images")
     return [
-      ...(options.length
+      row(
+        button(id("analyze"), "Распознать скрины", 1, !d.attachments.length),
+        button(id("uploadLoot"), "Добавить скрины дропа"),
+        button(id("backchoose"), "Назад"),
+      ),
+    ];
+  if (d.step === "memberSearch") {
+    const query = nicknameKey(d.memberSearchQuery ?? "");
+    const members = d.catalog.members
+      .filter((m) => !query || nicknameKey(m.nickname).includes(query))
+      .sort((a, b) => a.nickname.localeCompare(b.nickname, "ru"));
+    const page = Math.max(
+      0,
+      Math.min(d.memberSearchPage ?? 0, Math.ceil(members.length / 25) - 1),
+    );
+    return [
+      ...(members.length
         ? [
             select(
-              id("rosterImages"),
-              "Скрины состава",
-              options,
-              d.rosterImages,
-              Math.min(4, options.length),
-              0,
-            ),
-            select(
-              id("lootImages"),
-              "Скрины дропа",
-              options,
-              d.lootImages,
-              Math.min(4, options.length),
-              0,
+              id("memberPick"),
+              "Игрок из состава сайта",
+              members.slice(page * 25, (page + 1) * 25).map((m) => ({
+                label: truncate(m.nickname, 100),
+                value: m.id,
+              })),
             ),
           ]
         : []),
       row(
-        button(id("analyze"), "Распознать состав и дроп", 1),
-        button(id("analyzeRoster"), "Только состав — без дропа", 2),
-        button(id("extra"), "Дроп из сообщения"),
-        button(id("backchoose"), "Назад"),
-        button(id("analyzeTesseract"), "Tesseract бесплатно"),
+        button(id("memberPrev"), "←", 2, page === 0),
+        button(id("memberNext"), "→", 2, (page + 1) * 25 >= members.length),
+        button(id("memberSearch"), "Быстрый поиск ника"),
+        button(id("backreview"), "Назад"),
       ),
     ];
   }
@@ -256,6 +256,7 @@ function controls(d) {
           ...(unknown.length <= 80 && !/^Ячейка /u.test(unknown)
             ? [{ label: truncate("Гость: " + unknown, 100), value: "guest" }]
             : []),
+          { label: "Из состава — поиск по нику", value: "roster" },
           { label: "Не участник / убрать шум", value: "skip" },
         ]),
       ]
@@ -297,13 +298,7 @@ function controls(d) {
           (r) => r.pending && r.engine === "gpt" && r.box,
         ),
       ),
-      button(id("analyzeTesseract"), "Tesseract бесплатно"),
-      button(
-        id("confirmRosterOnly"),
-        "Сохранить состав без дропа",
-        3,
-        !reviewReady(d, { rosterOnly: true }),
-      ),
+      button(id("uploadLoot"), "Добавить скрины дропа"),
     ),
   ];
 }
@@ -344,19 +339,16 @@ export function renderDraft(d) {
     content =
       "Выберите активность из реестра сайта, тип и источник. Данные пока не сохраняются на сайт.";
   else if (d.step === "images")
-    content =
-      "Укажите, где состав, а где дроп. Первое изображение предварительно выбрано как состав; проверьте выбор. Для сохранения без дропа нажмите «Только состав — без дропа». В полном разборе текст исходного сообщения будет разобран как список дропа. Если скринов нет, состав можно будет ввести вручную.";
+    content = `Первый скрин — состав, остальные — дроп. Скрин состава: ${d.attachments[0]?.name ?? "не прикреплён"}. Скриншотов дропа: ${d.lootImages.length}. Нажмите «Распознать скрины»; если дропа нет, сохранится только состав. Ещё скрины дропа можно добавлять партиями до 10 файлов. Уже прочитанные скрины повторно не анализируются. На сайт прикрепляются состав и первые 7 скринов дропа; предметы учитываются из всех скринов. Текст сообщения как дроп не используется.`;
+  else if (d.step === "memberSearch")
+    content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». Выберите игрока для «${d.memberSearchRaw}». Страница ${(d.memberSearchPage ?? 0) + 1}.`;
   else if (d.step === "names")
     content =
       "Выберите любой прочитанный ник, даже уже распознанный. «Исправить и запомнить» сохраняет полный игровой ник и пример чтения. Наличие аккаунта на сайте не требуется.";
   else if (d.step === "confirm")
     content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " позиций."} Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
   else {
-    const tips = d.roster.unresolved.slice(0, 8).map((n) => {
-      const match = suggestion(n, d.catalog.members);
-      return match ? `${n} → возможно, ${match.nickname}` : n;
-    });
-    content = `${d.nicknameRemembered ? "Подтверждённые ники сохранены в памяти. Активность ещё не создана.\n" : ""}${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини-РБ"}\n${d.roster.detectedSlots ? "Ячеек рейда: " + d.roster.detectedSlots + ". " : ""}Сопоставлено с сайтом: ${d.roster.members.length}; гостей: ${d.roster.guests.length}. Дроп: ${d.loot.items.length} позиций.\nНе разобрано: ${d.roster.unresolved.length} ников, ${d.loot.unresolved.length} строк дропа.\n${tips.length ? "Проверьте: " + tips.join("; ") : ""}\nПолный список — в файле. Спорные ники выберите из подсказок ниже. Ники читаются независимо от сайта; игроки вне состава сохраняются гостями. «Исправить и запомнить ник» сохраняет ваше подтверждённое исправление для следующих скринов. Длинные ники на скрине могут быть обрезаны. Проверьте, что ни один участник не пропущен.`;
+    content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини РБ"}\nПроверьте состав и дроп ниже. Полный список — в файле. Обрезанные ники требуют подтверждения; «Из состава» позволяет найти любого зарегистрированного игрока. Если дропа нет, активность сохранится без него.`;
   }
   return {
     content: truncate(
@@ -378,6 +370,38 @@ export function renderDraft(d) {
     ),
     allowedMentions: { parse: [] },
     components: controls(d),
+    embeds: ["review", "names"].includes(d.step)
+      ? [
+          {
+            title: "Распознанные ники",
+            description: truncate(
+              [
+                ...d.roster.members.map((m) => m.nickname),
+                ...d.roster.guests.map((n) => "Гость: " + n),
+              ].join("\n") || "Нет подтверждённых ников",
+              2000,
+            ),
+          },
+          {
+            title: "Нераспознанные / требуют проверки",
+            description: truncate(
+              d.roster.unresolved.join("\n") ||
+                "Нет — все прочитанные ники проверены",
+              1000,
+            ),
+          },
+          {
+            title: "Распознанный дроп",
+            description: truncate(
+              [
+                ...d.loot.items.map((i) => `${i.name} × ${i.quantity}`),
+                ...d.loot.unresolved.map((n) => "? " + n),
+              ].join("\n") || "Дроп не найден — можно сохранить только состав",
+              2000,
+            ),
+          },
+        ]
+      : [],
     attachments: [],
     ...(["review", "names"].includes(d.step)
       ? {
@@ -414,7 +438,7 @@ export class ImportWorkflow {
           /^image\/(png|jpe?g|webp)$/i.test(a.contentType ?? "") ||
           /\.(png|jpe?g|webp)$/i.test(a.name ?? ""),
       );
-      if (attachments.length > 4) throw Error("TOO_MANY_IMAGES");
+      if (attachments.length > 10) throw Error("TOO_MANY_IMAGES");
       if (attachments.some((a) => a.size > 12 * 1024 * 1024))
         throw Error("IMAGE_TOO_LARGE");
       const d = {
@@ -424,7 +448,10 @@ export class ImportWorkflow {
         context,
         message: message.id,
         startsAt: new Date(message.createdTimestamp).toISOString().slice(0, 19),
-        content: message.content,
+        content: "",
+        screensOnly: true,
+        processedImages: {},
+        lootImageResults: {},
         attachments: attachments.map((a) => ({
           id: a.id,
           name: a.name,
@@ -462,6 +489,56 @@ export class ImportWorkflow {
           content: "Операция уже выполняется. Дождитесь завершения.",
           flags: 64,
         });
+      if (d.event) {
+        if (!interaction.deferred && !interaction.replied)
+          await interaction.deferUpdate();
+        return interaction.editReply(renderDraft(d));
+      }
+      if (action === "uploadLoot") {
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId(`xd:${id}:lootFiles`)
+            .setTitle("Добавить скрины дропа")
+            .addLabelComponents(
+              new LabelBuilder()
+                .setLabel("Скриншоты дропа — до 10 за раз")
+                .setFileUploadComponent(
+                  new FileUploadBuilder()
+                    .setCustomId("files")
+                    .setMinValues(1)
+                    .setMaxValues(10)
+                    .setRequired(true),
+                ),
+            ),
+        );
+      }
+      if (
+        action === "memberSearch" ||
+        (action === "rosterPick" && interaction.values[0] === "roster")
+      ) {
+        if (action === "rosterPick") {
+          const reading = focusedReading(d, d.rosterFocus ?? 0);
+          d.memberSearchReadingKey = reading?.key;
+          d.memberSearchRaw = d.roster.unresolved[d.rosterFocus ?? 0];
+          if (!d.memberSearchRaw) throw Error("DRAFT_CHANGED");
+          this.store.put(d);
+        }
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId(`xd:${id}:memberQuery`)
+            .setTitle("Найти игрока в составе сайта")
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel("Начните вводить ник; пусто — весь состав")
+                  .setStyle(TextInputStyle.Short)
+                  .setMaxLength(32)
+                  .setRequired(false),
+              ),
+            ),
+        );
+      }
       if (action === "extra") {
         const modal = new ModalBuilder()
           .setCustomId(`xd:${id}:extratext`)
@@ -555,7 +632,47 @@ export class ImportWorkflow {
         await interaction.editReply(renderDraft(d));
         return;
       }
-      if (
+      if (action === "lootFiles") {
+        const files = [
+          ...interaction.fields.getUploadedFiles("files", true).values(),
+        ];
+        if (
+          !files.length ||
+          files.length > 10 ||
+          files.some(
+            (a) =>
+              !/^image\/(png|jpe?g|webp)$/i.test(a.contentType ?? "") ||
+              a.size > 12 * 1024 * 1024,
+          )
+        )
+          throw Error("INVALID_IMAGE");
+        for (const a of files) {
+          if (d.attachments.some((old) => old.id === a.id)) continue;
+          d.attachments.push({ id: a.id, name: a.name, url: a.url });
+          d.lootImages.push(a.id);
+        }
+        d.rosterOnly = false;
+        d.analyzed = false;
+        d.step = "images";
+      } else if (action === "memberQuery") {
+        d.memberSearchQuery = interaction.fields
+          .getTextInputValue("value")
+          .trim();
+        d.memberSearchPage = 0;
+        d.step = "memberSearch";
+      } else if (action === "memberPrev" || action === "memberNext") {
+        const query = nicknameKey(d.memberSearchQuery ?? "");
+        const count = d.catalog.members.filter(
+          (m) => !query || nicknameKey(m.nickname).includes(query),
+        ).length;
+        d.memberSearchPage = Math.max(
+          0,
+          Math.min(
+            Math.ceil(count / 25) - 1,
+            (d.memberSearchPage ?? 0) + (action === "memberPrev" ? -1 : 1),
+          ),
+        );
+      } else if (
         ["activity", "mode", "source", "rosterImages", "lootImages"].includes(
           action,
         )
@@ -631,17 +748,22 @@ export class ImportWorkflow {
             : action === "analyzeRoster";
         await interaction.editReply({
           content:
-            "Читаю подписи ячеек рейда и сверяю с составом сайта… Это может занять до минуты.",
+            "Распознаю состав и скриншоты дропа… При нескольких скринах это может занять несколько минут.",
+          embeds: [],
           components: [],
           attachments: [],
         });
         const fresh = await this.site("context", { context: d.context });
         if (Array.isArray(fresh?.members)) d.catalog.members = fresh.members;
-        d.recognitionNotices = [];
+        d.recognitionNotices =
+          d.screensOnly && d.rosterAnalyzed ? (d.recognitionNotices ?? []) : [];
         const knownNames = this.store.knownNicknames?.(d.context.server) ?? [];
         d.knownNicknameChoices = memoryChoices(knownNames);
         const words = [],
-          lootLines = d.rosterOnly ? [] : [d.content];
+          lootLines = d.rosterOnly || d.screensOnly ? [] : [d.content];
+        const cached = d.screensOnly ? (d.processedImages ??= {}) : {};
+        const previousEvidence = d.evidence ?? [];
+        const reuseRoster = d.screensOnly && d.rosterAnalyzed === true;
         d.evidence = [];
         for (const attachment of d.attachments) {
           if (
@@ -649,8 +771,17 @@ export class ImportWorkflow {
             (d.rosterOnly || !d.lootImages.includes(attachment.id))
           )
             continue;
-          const buffer = await this.download(attachment.url),
-            result = await this.ocr(buffer, {
+          if (cached[attachment.id]) continue;
+          const buffer = await this.download(attachment.url);
+          const imageHash = createHash("sha256").update(buffer).digest("hex");
+          if (
+            d.screensOnly &&
+            (d.processedImageHashes ?? []).includes(imageHash)
+          ) {
+            cached[attachment.id] = true;
+            continue;
+          }
+          const result = await this.ocr(buffer, {
               scope: d.context.server,
               forceTesseract: action === "analyzeTesseract",
               roster: d.rosterImages.includes(attachment.id),
@@ -676,15 +807,35 @@ export class ImportWorkflow {
             d.evidence.push({ id: randomUUID(), kind: "roster", image });
           }
           if (!d.rosterOnly && d.lootImages.includes(attachment.id)) {
-            lootLines.push(result.text);
+            if (d.screensOnly)
+              (d.lootImageResults ??= {})[attachment.id] = result.text;
+            else lootLines.push(result.text);
             d.evidence.push({ id: randomUUID(), kind: "loot", image });
           }
+          cached[attachment.id] = true;
+          if (d.screensOnly) (d.processedImageHashes ??= []).push(imageHash);
         }
-        d.recognitionWords = words;
-        d.roster = recognizeIndependentRoster(words, d.catalog.members, {
-          recall: (reading) =>
-            this.store.recallNickname?.(d.context.server, reading) ?? {},
-        });
+        if (d.screensOnly) {
+          if (d.lootOverride !== undefined) lootLines.push(d.lootOverride);
+          lootLines.push(
+            ...Object.entries(d.lootImageResults ?? {})
+              .filter(([id]) => !(d.lootOverrideImages ?? []).includes(id))
+              .map(([, text]) => text),
+          );
+          d.evidence = [...previousEvidence, ...d.evidence]
+            .sort(
+              (a, b) =>
+                (a.kind === "roster" ? 0 : 1) - (b.kind === "roster" ? 0 : 1),
+            )
+            .slice(0, 8);
+        }
+        d.recognitionWords = reuseRoster ? d.recognitionWords : words;
+        if (!reuseRoster)
+          d.roster = recognizeIndependentRoster(words, d.catalog.members, {
+            recall: (reading) =>
+              this.store.recallNickname?.(d.context.server, reading) ?? {},
+          });
+        d.rosterAnalyzed = true;
         d.rosterFocus = 0;
         d.loot = lootText(lootLines.join("\n"), d.catalog.drops);
         d.analyzed = true;
@@ -788,7 +939,14 @@ export class ImportWorkflow {
           throw Error("INVALID_INPUT");
         d.rosterFocus = focus;
         d.step = "review";
-      } else if (action === "rosterPick") {
+      } else if (action === "rosterPick" || action === "memberPick") {
+        if (action === "memberPick") {
+          const index = d.memberSearchReadingKey
+            ? d.roster.unresolvedKeys?.indexOf(d.memberSearchReadingKey)
+            : d.roster.unresolved.indexOf(d.memberSearchRaw);
+          if (index === undefined || index < 0) throw Error("DRAFT_CHANGED");
+          d.rosterFocus = index;
+        }
         const focus = Math.max(
             0,
             Math.min(d.roster.unresolved.length - 1, d.rosterFocus ?? 0),
@@ -872,10 +1030,12 @@ export class ImportWorkflow {
         d.step = "review";
       } else if (action === "loottext") {
         d.rosterOnly = false;
-        d.loot = lootText(
-          interaction.fields.getTextInputValue("value"),
-          d.catalog.drops,
-        );
+        const text = interaction.fields.getTextInputValue("value");
+        if (d.screensOnly) {
+          d.lootOverride = text;
+          d.lootOverrideImages = Object.keys(d.lootImageResults ?? {});
+        }
+        d.loot = lootText(text, d.catalog.drops);
         d.step = "review";
       } else if (action === "remember") {
         if (
