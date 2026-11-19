@@ -11,7 +11,7 @@ assert url.scheme=='https' and url.hostname.endswith('.supabase.co') and re.full
 def query(sql):
  req=urllib.request.Request('https://api.supabase.com/v1/projects/'+ref+'/database/query',data=json.dumps({'query':sql}).encode(),headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'},method='POST')
  try:
-  with urllib.request.urlopen(req,timeout=90) as response:return json.load(response)
+  with urllib.request.urlopen(req,timeout=180) as response:return json.load(response)
  except urllib.error.HTTPError as e:
   print('SUPABASE_SQL_HTTP_ERROR',e.code,flush=True)
   try: print('SQL_DIAGNOSTIC',json.loads(e.read()).get('message','')[:800],flush=True)

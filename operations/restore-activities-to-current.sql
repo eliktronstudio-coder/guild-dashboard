@@ -1,5 +1,5 @@
 begin;
-set local statement_timeout='45s';
+set local statement_timeout='120s';
 set local lock_timeout='10s';
 create temporary table archive_clear_guards(name text primary key,digest text) on commit drop;
 create temporary table archive_clear_result(removed integer,remaining integer) on commit drop;
