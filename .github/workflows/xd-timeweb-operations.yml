@@ -27,4 +27,6 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python operations/scripts/inspect-release-disk.py
+          python operations/scripts/prune-unused-releases.py
+          python operations/scripts/verify-partial-roster-release.py
+          python operations/scripts/audit-discord-runtime.py
