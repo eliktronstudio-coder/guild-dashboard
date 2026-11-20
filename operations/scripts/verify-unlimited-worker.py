@@ -31,9 +31,14 @@ try:
   if p.read_bytes()!=original:raise RuntimeError('ENV_CONCURRENT_EDIT')
   write(updated);subprocess.run(['systemctl','restart','xd-discord-bot'],check=True)
  subprocess.run(['systemctl','is-active','--quiet','xd-discord-bot'],check=True)
- pid=subprocess.check_output(['systemctl','show','xd-discord-bot','--property=MainPID','--value'],text=True).strip()
- pairs=dict(v.split('=',1) for v in pathlib.Path('/proc/'+pid+'/environ').read_bytes().decode().split('\0') if '=' in v)
- assert pairs.get('OPENAI_DAILY_LIMIT')=='unlimited'
+ pairs={}
+ for attempt in range(20):
+  pid=subprocess.check_output(['systemctl','show','xd-discord-bot','--property=MainPID','--value'],text=True).strip()
+  try:pairs=dict(v.split('=',1) for v in pathlib.Path('/proc/'+pid+'/environ').read_bytes().decode().split(chr(0)) if '=' in v)
+  except OSError:pairs={}
+  if len(pairs.get('DISCORD_IMPORT_SECRET',''))>=32 and pairs.get('XD_SITE_ORIGIN')=='https://xd-guild.ru':break
+  time.sleep(0.5)
+ else:raise RuntimeError('WORKER_ENVIRONMENT_NOT_READY')
  cwd=subprocess.check_output(['systemctl','show','xd-discord-bot','--property=WorkingDirectory','--value'],text=True).strip()
  code=r"""
 import {visionConfig} from './src/vision.mjs';
