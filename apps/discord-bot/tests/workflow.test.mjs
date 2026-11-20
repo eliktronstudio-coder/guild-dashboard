@@ -993,3 +993,71 @@ test("a bad additional upload leaves existing attachment selection intact", asyn
   assert.ok(input.errorPayload);
   assert.equal(saved.attachments.length, 1);
 });
+
+test("fourth coefficient row uses site default, accepts a comma override and submits the actual chosen weight", async () => {
+  const first = { id: randomUUID(), name: "Рейд", weight: 100, version: 1 },
+    second = { id: randomUUID(), name: "АГЛ", weight: 50, version: 1 },
+    member = { id: randomUUID(), nickname: "Ронин" };
+  let saved = {
+    id: randomUUID(),
+    request: randomUUID(),
+    owner: "staff",
+    context: {},
+    message: "message",
+    startsAt: "2026-11-01T00:00:00",
+    catalog: { activities: [first, second], members: [member], drops: [] },
+    step: "choose",
+    analyzed: true,
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: { items: [], unresolved: [] },
+    evidence: [],
+    lootRequests: {},
+  };
+  const publications = [];
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+    site: async (op, p) => {
+      publications.push(p);
+      return { event_id: randomUUID(), url: "https://xd-guild.ru/events/test" };
+    },
+  });
+  await flow.handle(interaction(saved.id, "activity", [first.id]));
+  assert.equal(saved.coefficientWeight, 100);
+  const controls = renderDraft(saved).components;
+  assert.equal(controls.length, 5);
+  assert.match(controls[3].components[0].label, /Коэффициент: ×1/);
+  const edit = interaction(saved.id, "editCoefficient");
+  edit.showModal = async (modal) => {
+    edit.modal = modal.toJSON();
+  };
+  await flow.handle(edit);
+  assert.equal(edit.modal.components[0].components[0].value, "1.00");
+  await flow.handle(interaction(saved.id, "coefficientValue", [], "1,50"));
+  assert.equal(saved.coefficientWeight, 150);
+  assert.equal(saved.activity.weight, 100);
+  await flow.handle(interaction(saved.id, "activity", [first.id]));
+  assert.equal(saved.coefficientWeight, 150);
+  for (const invalid of ["0", "-1", "1.001", "1000.01", "NaN"]) {
+    const attempt = interaction(saved.id, "coefficientValue", [], invalid);
+    await flow.handle(attempt);
+    assert.ok(attempt.errorPayload);
+    assert.equal(saved.coefficientWeight, 150);
+  }
+  await flow.handle(interaction(saved.id, "mode", ["raid"]));
+  await flow.handle(interaction(saved.id, "source", ["prime"]));
+  await flow.handle(interaction(saved.id, "images"));
+  assert.equal(saved.step, "review");
+  assert.match(renderDraft(saved).content, /коэффициент ×1,5/);
+  await flow.handle(interaction(saved.id, "confirm"));
+  await flow.handle(interaction(saved.id, "publish"));
+  assert.equal(publications[0].activity.coefficient, "1.50");
+  assert.match(renderDraft(saved).content, /Коэффициент: ×1,5/);
+  saved = { ...saved, event: undefined, step: "choose" };
+  await flow.handle(interaction(saved.id, "activity", [second.id]));
+  assert.equal(saved.coefficientWeight, 50);
+});

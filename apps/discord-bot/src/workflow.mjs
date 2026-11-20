@@ -84,6 +84,16 @@ const contextFor = (message, user) => ({
   user,
 });
 const truncate = (v, length) => String(v).slice(0, length);
+function activityWeight(d) {
+  return d.coefficientWeight ?? d.activity?.weight;
+}
+function parseCoefficient(value) {
+  const text = value.trim().replace(",", ".");
+  if (!/^\d{1,4}(\.\d{1,2})?$/.test(text)) return null;
+  const [whole, fraction = ""] = text.split(".");
+  const weight = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
+  return weight >= 1 && weight <= 100000 ? weight : null;
+}
 function controls(d) {
   const id = (action) => `xd:${d.id}:${action}`;
   if (d.step === "choose") {
@@ -113,6 +123,16 @@ function controls(d) {
           { label: "Мини-РБ", value: "mini_rb" },
         ],
         [d.source],
+      ),
+      row(
+        button(
+          id("editCoefficient"),
+          d.activity
+            ? `Коэффициент: ×${(activityWeight(d) / 100).toLocaleString("ru-RU")} · базовый ×${(d.activity.weight / 100).toLocaleString("ru-RU")} · изменить`
+            : "Коэффициент — выберите активность",
+          2,
+          !d.activity,
+        ),
       ),
       row(
         ...(d.catalog.activities.length > 25
@@ -299,12 +319,13 @@ function controls(d) {
         ),
       ),
       button(id("uploadLoot"), "Добавить скрины дропа"),
+      button(id("backchoose"), "Параметры активности"),
     ),
   ];
 }
 export function reviewText(d) {
   return [
-    `Активность: ${d.activity?.name ?? "ещё не выбрана"}; тип: ${d.mode ?? "не выбран"}; категория: ${d.source ?? "не выбрана"}; коэффициент ${d.activity ? (d.activity.weight / 100).toFixed(2) : "не выбран"}`,
+    `Активность: ${d.activity?.name ?? "ещё не выбрана"}; тип: ${d.mode ?? "не выбран"}; категория: ${d.source ?? "не выбрана"}; коэффициент ${d.activity ? (activityWeight(d) / 100).toFixed(2) : "не выбран"}`,
     `Дата сообщения: ${d.startsAt} UTC`,
     "",
     ...(d.recognitionNotices ?? []),
@@ -365,9 +386,9 @@ export function renderDraft(d) {
     content =
       "Выберите любой прочитанный ник, даже уже распознанный. «Исправить и запомнить» сохраняет полный игровой ник и пример чтения. Наличие аккаунта на сайте не требуется.";
   else if (d.step === "confirm")
-    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " позиций."} Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
+    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " позиций."} Коэффициент: ×${(activityWeight(d) / 100).toLocaleString("ru-RU")}. Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
   else {
-    content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини РБ"}\nПроверьте состав и дроп ниже. Полный список — в файле. Обрезанные ники требуют подтверждения; «Из состава» позволяет найти любого зарегистрированного игрока. Если дропа нет, активность сохранится без него.`;
+    content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини РБ"} · коэффициент ×${(activityWeight(d) / 100).toLocaleString("ru-RU")}\nПроверьте состав и дроп ниже. Полный список — в файле. Обрезанные ники требуют подтверждения; «Из состава» позволяет найти любого зарегистрированного игрока. Если дропа нет, активность сохранится без него.`;
   }
   return {
     content: truncate(
@@ -520,6 +541,25 @@ export class ImportWorkflow {
           await interaction.deferUpdate();
         return interaction.editReply(renderDraft(d));
       }
+      if (action === "editCoefficient") {
+        if (!d.activity) throw Error("INVALID_INPUT");
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId(`xd:${id}:coefficientValue`)
+            .setTitle("Коэффициент активности")
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel("Коэффициент: 0,01–1000; до 2 знаков")
+                  .setStyle(TextInputStyle.Short)
+                  .setValue((activityWeight(d) / 100).toFixed(2))
+                  .setMaxLength(7)
+                  .setRequired(true),
+              ),
+            ),
+        );
+      }
       if (action === "uploadLoot") {
         return interaction.showModal(
           new ModalBuilder()
@@ -658,7 +698,14 @@ export class ImportWorkflow {
         await interaction.editReply(renderDraft(d));
         return;
       }
-      if (action === "lootFiles") {
+      if (action === "coefficientValue") {
+        if (!d.activity) throw Error("INVALID_INPUT");
+        const weight = parseCoefficient(
+          interaction.fields.getTextInputValue("value"),
+        );
+        if (weight === null) throw Error("INVALID_COEFFICIENT");
+        d.coefficientWeight = weight;
+      } else if (action === "lootFiles") {
         const files = [
           ...interaction.fields.getUploadedFiles("files", true).values(),
         ];
@@ -703,11 +750,15 @@ export class ImportWorkflow {
           action,
         )
       ) {
-        if (action === "activity")
+        if (action === "activity") {
+          const previous = d.activity?.id;
           d.activity = d.catalog.activities.find(
             (a) => a.id === interaction.values[0],
           );
-        else if (action === "rosterImages" || action === "lootImages") {
+          if (!d.activity) throw Error("INVALID_INPUT");
+          if (previous !== d.activity.id || d.coefficientWeight === undefined)
+            d.coefficientWeight = d.activity.weight;
+        } else if (action === "rosterImages" || action === "lootImages") {
           if (
             interaction.values.some(
               (v) => !d.attachments.some((a) => a.id === v),
@@ -1120,7 +1171,7 @@ export class ImportWorkflow {
               source: d.source,
               banner: d.activity.id,
               bannerVersion: d.activity.version,
-              coefficient: (d.activity.weight / 100).toFixed(2),
+              coefficient: (activityWeight(d) / 100).toFixed(2),
               reward: "0",
               difficulty: "normal",
               night: false,
