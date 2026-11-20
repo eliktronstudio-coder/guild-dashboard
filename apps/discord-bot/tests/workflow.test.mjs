@@ -664,7 +664,7 @@ test("roster-only analysis ignores caption text and loot-only attachments; unrev
   await flow.handle(interaction(id, "analyzeRoster"));
   assert.deepEqual(downloads, ["roster-url"]);
   assert.equal(saved.roster.members.length, 1);
-  assert.deepEqual(saved.loot, { items: [], unresolved: [] });
+  assert.deepEqual(saved.loot, { items: [], unresolved: [], readings: [] });
   assert.deepEqual(
     saved.evidence.map((e) => e.kind),
     ["roster"],
@@ -933,6 +933,7 @@ test("one screenshot action handles roster plus successive loot batches without 
       "Распознанные ники",
       "Нераспознанные / требуют проверки",
       "Распознанный дроп",
+      "Дроп — требуется проверка",
     ],
   );
   assert.match(rendered.embeds[0].description, /Ронин/);
