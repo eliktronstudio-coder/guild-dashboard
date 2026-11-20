@@ -282,3 +282,122 @@ test("Channel import never grants website permissions; disabled connections and 
     await db.close();
   }
 });
+
+test("Discord event coefficient overrides persist as real weights and drive separate Prime/Mini attendance", async () => {
+  const c = await setup();
+  try {
+    await c.as(1);
+    await c.db.query("select public.save_discord_settings($1,$2,true)", [
+      server,
+      channel,
+    ]);
+    await c.db.exec("reset role");
+    const banners = [
+      { id: randomUUID(), name: "Левиафан", source: "prime" },
+      { id: randomUUID(), name: "АГЛ", source: "mini_rb" },
+    ];
+    for (const b of banners)
+      await c.db.query(
+        "insert into public.guild_activity_banners(id,guild_id,name,weight) values($1,$2,$3,100)",
+        [b.id, guild, b.name],
+      );
+    await c.db.query("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ role: "service_role" }),
+    ]);
+    await c.db.exec("set role service_role");
+    const rpc = "select public.record_discord_activity($1,$2,null,$3,$4,$5,$6)";
+    let seq = 0;
+    const payload = (
+      b: (typeof banners)[number],
+      weight: number | null,
+      member = c.members[2],
+    ) => ({
+      title: b.name,
+      status: "completed",
+      starts_at: new Date(Date.now() - 86400000).toISOString(),
+      kind: "raid",
+      source: b.source,
+      banner: b.id,
+      banner_version: 1,
+      weight,
+      reward_units: "0",
+      difficulty: "normal",
+      night: false,
+      counts: true,
+      confirm_roster: true,
+      members: [member],
+      guests: [],
+      evidence: [],
+      loot: [],
+      facts: {},
+    });
+    for (const b of banners) {
+      for (const [weight, member] of [
+        [150, c.members[2]],
+        [50, c.members[3]],
+      ] as const) {
+        await c.db.query(rpc, [
+          server,
+          channel,
+          user,
+          String(423456789012345670n + BigInt(seq++)),
+          randomUUID(),
+          payload(b, weight, member),
+        ]);
+      }
+    }
+    for (const weight of [0, null, 100001])
+      await assert.rejects(
+        c.db.query(rpc, [
+          server,
+          channel,
+          user,
+          "523456789012345678",
+          randomUUID(),
+          payload(banners[0], weight),
+        ]),
+        /INVALID_INPUT/,
+      );
+    await assert.rejects(
+      c.db.query(rpc, [
+        server,
+        channel,
+        user,
+        "523456789012345678",
+        randomUUID(),
+        { ...payload(banners[0], 150), banner_version: 2 },
+      ]),
+      /CATALOG_STALE/,
+    );
+    await c.db.exec("reset role");
+    assert.deepEqual(
+      (
+        await c.db.query<{ activity_weight: number }>(
+          "select activity_weight from public.events order by activity_weight",
+        )
+      ).rows.map((r) => r.activity_weight),
+      [50, 50, 150, 150],
+    );
+    assert.equal(
+      await c.scalar(
+        "select count(*)::int from public.guild_activity_banners where weight=100",
+      ),
+      2,
+    );
+    assert.equal(
+      await c.scalar(
+        "select count(*)::int from public.audit_log where action='discord.activity_imported' and detail->>'base_weight'='100' and detail->>'activity_weight' in ('50','150')",
+      ),
+      4,
+    );
+    await c.as(1);
+    const report = await c.scalar<{
+      rows: { id: string; prime_percentage: number; mini_percentage: number }[];
+    }>("select public.lifetime_payroll_report()");
+    const member = report.rows.find((r) => r.id === c.members[2])!;
+    assert.equal(member.prime_percentage, 75);
+    assert.equal(member.mini_percentage, 75);
+  } finally {
+    await c.db.close();
+  }
+});
