@@ -93,7 +93,10 @@ test("health is free; readiness requires authentication and uses model metadata 
   try {
     const health = await fetch(f.url + "/health");
     assert.equal(health.status, 200);
-    assert.deepEqual((await health.json()).capabilities, ["whole-image-roster", "whole-image-enlarged"]);
+    assert.deepEqual((await health.json()).capabilities, [
+      "whole-image-roster",
+      "whole-image-enlarged",
+    ]);
     assert.equal((await fetch(f.url + "/ready")).status, 401);
     assert.equal(
       (
@@ -188,14 +191,17 @@ test("concurrent duplicate shares one inference and third concurrent request is 
     await f.close();
   }
 });
-test("server secondary daily cap stops a twenty-first inference", async () => {
+test("service permits more than twenty recognitions while retaining monthly and concurrency protection", async () => {
   const f = await setup();
   try {
-    for (let i = 0; i < 20; i++) assert.equal((await f.post()).status, 200);
-    const r = await f.post();
-    assert.equal(r.status, 429);
-    assert.equal((await r.json()).error.code, "GPT_DAILY_LIMIT");
-    assert.equal(f.calls(), 20);
+    for (let i = 0; i < 25; i++) assert.equal((await f.post()).status, 200);
+    assert.equal(f.calls(), 25);
+    const health = await (await fetch(f.url + "/health")).json();
+    assert.deepEqual(health.limits, {
+      daily: null,
+      concurrent: 2,
+      monthlyBudgetUSD: 5,
+    });
   } finally {
     await f.close();
   }
@@ -285,20 +291,51 @@ test("signed whole-image mode finds variable roster length without numbered crop
     assert.equal(r.status, 200);
     assert.equal(f.calls(), 1);
     assert.equal((await r.json()).output_text, reply.output_text);
-    assert.equal((await f.post({ ...input, slots: 150, wholeImage: true, retry: true })).status, 400);
+    assert.equal(
+      (await f.post({ ...input, slots: 150, wholeImage: true, retry: true }))
+        .status,
+      400,
+    );
     assert.equal(f.calls(), 1);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test("whole-image mode accepts one enlarged copy but rejects extra images before inference", async () => {
   const f = await setup(async (body) => {
-    assert.equal(body.input[0].content.filter(v=>v.type==='input_image').length, 2);
+    assert.equal(
+      body.input[0].content.filter((v) => v.type === "input_image").length,
+      2,
+    );
     assert.match(body.input[0].content[0].text, /not another raid/);
     return reply;
   });
   try {
-    assert.equal((await f.post({ ...input, slots: 150, wholeImage: true, images: [input.images[0], input.images[0]] })).status, 200);
-    assert.equal((await f.post({ ...input, slots: 150, wholeImage: true, images: [input.images[0], input.images[0], input.images[0]] })).status, 400);
+    assert.equal(
+      (
+        await f.post({
+          ...input,
+          slots: 150,
+          wholeImage: true,
+          images: [input.images[0], input.images[0]],
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await f.post({
+          ...input,
+          slots: 150,
+          wholeImage: true,
+          images: [input.images[0], input.images[0], input.images[0]],
+        })
+      ).status,
+      400,
+    );
     assert.equal(f.calls(), 1);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });

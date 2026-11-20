@@ -76,7 +76,8 @@ export function draftStore(directory) {
         const day = db
           .prepare("SELECT count(*) n FROM vision_usage WHERE day=?")
           .get(limits.day).n;
-        if (day >= limits.daily) throw Error("GPT_DAILY_LIMIT");
+        if (limits.daily !== null && day >= limits.daily)
+          throw Error("GPT_DAILY_LIMIT");
         const cost = db
           .prepare(
             "SELECT coalesce(sum(cost_micros),0) n FROM vision_usage WHERE month=?",

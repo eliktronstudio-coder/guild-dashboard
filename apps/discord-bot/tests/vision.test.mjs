@@ -552,3 +552,31 @@ test("five locally isolated panels never cap a larger roster when the detector f
     f.close();
   }
 });
+
+test("unlimited daily mode accepts a twenty-fifth request and still enforces the persistent monthly budget", async () => {
+  const f = await fixture();
+  try {
+    const limits = visionConfig(env, now);
+    assert.equal(limits.daily, null);
+    assert.equal(
+      visionConfig({ ...env, OPENAI_DAILY_LIMIT: "unlimited" }, now).daily,
+      null,
+    );
+    for (let i = 0; i < 25; i++) {
+      const r = f.store.visionReserve("unlimited", "image" + i, limits, now);
+      f.store.visionFinish(r.id, { result: players, costMicros: 100 }, now);
+    }
+    assert.throws(
+      () =>
+        f.store.visionReserve(
+          "unlimited",
+          "too-expensive",
+          { ...limits, monthlyMicros: 2500 },
+          now,
+        ),
+      /GPT_MONTHLY_LIMIT/,
+    );
+  } finally {
+    f.close();
+  }
+});
