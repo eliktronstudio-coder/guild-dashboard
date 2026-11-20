@@ -20,14 +20,12 @@ def query(sql):
 
 
 
-# Never export production log text. Request only fixed categories and counts.
-categories={'STATEMENT_TIMEOUT':'statement timeout','DEADLOCK':'deadlock','ARCHIVE_GUARD':'ACTIVITY_ARCHIVED','PERIOD_GUARD':'PERIOD_CLOSED','AMBIGUOUS_COLUMN':'column reference','FOREIGN_KEY':'foreign key constraint','UNIQUE_CONSTRAINT':'unique constraint','CHECK_CONSTRAINT':'check constraint','PERMISSION_DENIED':'permission denied','MISSING_COLUMN':'does not exist','RECORD_FIELD':'has no field'}
-cases=' '.join("when regexp_contains(event_message, '"+pattern+"') then '"+name+"'" for name,pattern in categories.items())
-logsql="select case "+cases+" else 'OTHER' end as category,count(*) as occurrences from postgres_logs where regexp_contains(event_message, 'statement timeout|deadlock|ACTIVITY_ARCHIVED|PERIOD_CLOSED|column reference|constraint|permission denied|does not exist|has no field') group by category"
-req=urllib.request.Request('https://api.supabase.com/v1/projects/'+ref+'/analytics/endpoints/logs.all?'+urllib.parse.urlencode({'sql':logsql}),headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN']})
-try:
- with urllib.request.urlopen(req,timeout=40) as response:logs=json.load(response)
- rows=logs.get('result',[]) if isinstance(logs,dict) else []
- safe=[{'category':r['category'],'occurrences':int(r['occurrences'])} for r in rows if isinstance(r,dict) and r.get('category') in categories and str(r.get('occurrences','')).isdigit()]
- print('DATABASE_ERROR_CATEGORIES_ONLY',json.dumps(safe),flush=True)
-except urllib.error.HTTPError as e:print('LOG_CATEGORY_QUERY_UNAVAILABLE',e.code,flush=True)
+
+rows=query("begin read only;select r.rolname, setting from pg_roles r cross join lateral unnest(coalesce(r.rolconfig,array[]::text[])) setting where r.rolname in ('authenticated','anon','authenticator') and setting like 'statement_timeout=%';rollback;")
+print('ROLE_QUERY_TIMEOUTS',json.dumps(rows),flush=True)
+for name,sql in [
+ ('PAYROLL_READ',"select jsonb_array_length(private.live_payroll_before_statements((select id from public.guilds where slug='xd'))->'rows')"),
+ ('ATTENDANCE_SNAPSHOT',"select count(*) from private.weighted_attendance_event_counts((select id from public.guilds where slug='xd'),'2026-10-01','2026-11-15')")]:
+ rows=query("begin read only;set local statement_timeout='30s';explain (analyze,format json) "+sql+";rollback;")
+ plan=rows[0]['QUERY PLAN'][0]
+ print('READ_ONLY_BENCHMARK',name,json.dumps({'execution_ms':plan.get('Execution Time')}),flush=True)
