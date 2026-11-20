@@ -1,5 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
+import { archiveErrorMessage } from "@/lib/activity-archive-errors";
 import { requirePermission } from "@/lib/access";
 import { checkOrigin, field } from "@/lib/mutations";
 import { isUuid } from "@/lib/members";
@@ -31,21 +32,7 @@ export async function archiveActivities(
     p_from: from,
     p_through: through,
   });
-  if (error)
-    return {
-      error:
-        (
-          {
-            NO_ACTIVITIES: "В этом диапазоне нет неархивированных активностей.",
-            INVALID_PERIOD:
-              "Выберите корректный диапазон до 366 дней без будущих дат.",
-            PERIOD_CLOSED:
-              "В выбранных датах есть закрытый финансовый период. Выберите другой диапазон.",
-            REQUEST_CONFLICT: "Обновите страницу и повторите архивацию.",
-          } as Record<string, string>
-        )[error.message] ??
-        "Архивация не выполнена. Обновите страницу и повторите попытку.",
-    };
+  if (error) return { error: archiveErrorMessage(error) };
   revalidatePath("/", "layout");
   return {
     success: `Архивировано активностей: ${data}. Текущая статистика пересчитана.`,
