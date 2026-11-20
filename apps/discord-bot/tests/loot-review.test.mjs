@@ -362,3 +362,69 @@ test("received loot log strips damaged brackets, defaults single drops to one an
     1,
   );
 });
+
+test("unnumbered rage essence offers every catalogue pack size without selecting one or mixing pack count", () => {
+  const sizes = [2000, 1000, 10000, 12500, 3000, 4500, 6000, 8000];
+  const registry = sizes.map((n) => ({
+    id: String(n),
+    name: `Эссенция ярости х${n}`,
+    version: 1,
+    price_units: "10000",
+  }));
+  const result = recognizeLoot("Получено: [Эссенция ярости]x2", registry);
+  assert.equal(result.items.length, 0);
+  assert.equal(result.unresolved.length, 1);
+  assert.deepEqual(
+    result.readings[0].suggestions.map((i) => i.packSize),
+    [1000, 2000, 3000, 4500, 6000, 8000, 10000, 12500],
+  );
+  const d = { catalog: { drops: registry }, loot: result };
+  resolveLoot(d, result.readings[0].key, "1000", 2);
+  assert.equal(d.loot.items[0].id, "1000");
+  assert.equal(d.loot.items[0].quantity, 2);
+  assert.equal(
+    recognizeLoot("Получено: [Эссенция ярости х2000]x2", registry).items[0].id,
+    "2000",
+  );
+  assert.equal(
+    recognizeLoot("Получено: [Эссенция ярости]", [registry[0]]).items.length,
+    0,
+  );
+});
+test("existing disputed drafts refresh all pack choices, preserve raw text and fit Discord options", async () => {
+  const f = fixture();
+  const sizes = [1000, 2000, 3000, 4500, 6000, 8000, 10000, 12500];
+  f.get().catalog.drops = sizes.map((n) => ({
+    id: String(n),
+    name: `Эссенция ярости х${n}`,
+    version: 1,
+    price_units: "10000",
+  }));
+  f.get().loot = {
+    items: [],
+    unresolved: ["Получено: [Эссенция ярости]"],
+    readings: [
+      {
+        key: "pack",
+        raw: "Получено: [Эссенция ярости]",
+        quantity: 1,
+        pending: true,
+        suggestions: [],
+      },
+    ],
+  };
+  await f.run("reviewLoot");
+  const menu = renderDraft(f.get()).components[1].components[0];
+  assert.equal(menu.placeholder, "Выберите размер набора");
+  assert.equal(menu.options.length, 10);
+  assert.deepEqual(
+    menu.options.slice(0, 8).map((i) => i.value),
+    sizes.map(String),
+  );
+  const selected = await f.run("lootPick", ["2000"]);
+  assert.equal(selected.modal.components[0].components[0].value, "1");
+  await f.run(selected.modal.custom_id.split(":").slice(2).join(":"), [], "3");
+  assert.equal(f.get().loot.items[0].quantity, 3);
+  assert.equal(f.get().loot.items[0].id, "2000");
+  assert.equal(f.get().loot.readings[0].raw, "Получено: [Эссенция ярости]");
+});

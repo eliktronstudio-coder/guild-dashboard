@@ -111,6 +111,34 @@ export function lootSuggestions(name, drops) {
   const key = visual(name),
     clipped = /(?:\.{2,}|…)\s*$/u.test(name);
   if (key.length < 3 || key.length > 200) return [];
+  // A pack size in a catalogue label is not the number of packs looted.
+  // Without a visible size, offer the family instead of guessing one variant.
+  const variants = drops
+    .flatMap((item) => {
+      const pack = item.name.match(/^(.*?)\s*[xх×]\s*(\d+)\s*$/iu);
+      if (!pack || /\d/u.test(name)) return [];
+      const base = visual(pack[1]);
+      const score =
+        1 - distance(key, base) / Math.max(key.length, base.length, 1);
+      return key.length >= 6 && score >= 0.82
+        ? [
+            {
+              ...item,
+              matchCost: 0,
+              matchScore: score,
+              packVariant: true,
+              packSize: Number(pack[2]),
+            },
+          ]
+        : [];
+    })
+    .sort(
+      (a, b) =>
+        b.matchScore - a.matchScore ||
+        a.packSize - b.packSize ||
+        a.name.localeCompare(b.name, "ru"),
+    );
+  if (variants.length) return variants.slice(0, 23);
   return drops
     .map((item) => {
       const target = visual(item.name),
@@ -176,6 +204,7 @@ export function recognizeLoot(text, drops) {
       exact.length === 0 &&
       norm(parsed.name).length >= 6 &&
       best &&
+      !best.packVariant &&
       best.matchScore >= (best.prefixMatch ? 0.9 : 0.82) &&
       (!next || best.matchScore - next.matchScore >= 0.08) &&
       digits(parsed.name) === digits(best.name);
@@ -196,7 +225,9 @@ export function recognizeLoot(text, drops) {
       status: !validQuantity(parsed.quantity)
         ? "проверьте количество"
         : pending
-          ? "требует проверки"
+          ? suggestions.some((i) => i.packVariant)
+            ? "выберите размер набора"
+            : "требует проверки"
           : similar
             ? "автосопоставлено"
             : "точно",
@@ -227,6 +258,16 @@ export function refreshSimilarLoot(d) {
       continue;
     }
     const retry = recognizeLoot(reading.raw, d.catalog.drops).readings[0];
+    if (
+      retry?.pending &&
+      (JSON.stringify(reading.suggestions) !==
+        JSON.stringify(retry.suggestions) ||
+        reading.status !== retry.status)
+    ) {
+      reading.suggestions = retry.suggestions;
+      reading.status = retry.status;
+      changed = true;
+    }
     if (retry && !retry.pending) {
       changed = true;
       Object.assign(reading, {

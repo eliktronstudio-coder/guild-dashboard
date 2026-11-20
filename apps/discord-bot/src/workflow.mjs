@@ -286,14 +286,20 @@ function controls(d) {
               })),
               [focused?.key],
             ),
-            select(id("lootPick"), "Выберите предмет или действие", [
-              ...(focused?.suggestions ?? []).map((i) => ({
-                label: truncate(i.name, 100),
-                value: i.id,
-              })),
-              { label: "Из реестра — поиск предмета", value: "registry" },
-              { label: "Убрать строку дропа", value: "skip" },
-            ]),
+            select(
+              id("lootPick"),
+              focused?.suggestions?.some((i) => i.packVariant)
+                ? "Выберите размер набора"
+                : "Выберите предмет или действие",
+              [
+                ...(focused?.suggestions ?? []).map((i) => ({
+                  label: truncate(i.name, 100),
+                  value: i.id,
+                })),
+                { label: "Из реестра — поиск предмета", value: "registry" },
+                { label: "Убрать строку дропа", value: "skip" },
+              ],
+            ),
           ]
         : []),
       row(
