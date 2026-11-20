@@ -94,6 +94,48 @@ function parseCoefficient(value) {
   const weight = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
   return weight >= 1 && weight <= 100000 ? weight : null;
 }
+function rosterParticipants(d) {
+  return [
+    ...d.roster.members.map((m) => ({
+      label: m.nickname,
+      value: "m_" + m.id,
+      memberId: m.id,
+      name: m.nickname,
+    })),
+    ...d.roster.guests.map((name) => ({
+      label: "Гость: " + name,
+      value: "g_" + createHash("sha256").update(name).digest("hex"),
+      name,
+    })),
+  ];
+}
+function excludeParticipant(d, participant) {
+  if (participant.memberId)
+    d.roster.members = d.roster.members.filter(
+      (m) => m.id !== participant.memberId,
+    );
+  else d.roster.guests = d.roster.guests.filter((n) => n !== participant.name);
+  const keys = new Set();
+  for (const r of d.roster.readings ?? []) {
+    if (
+      participant.memberId
+        ? r.memberId === participant.memberId
+        : !r.memberId && r.name === participant.name
+    ) {
+      Object.assign(r, {
+        ignored: true,
+        pending: false,
+        status: "исключён вручную",
+      });
+      keys.add(r.key);
+    }
+  }
+  for (let i = (d.roster.unresolvedKeys?.length ?? 0) - 1; i >= 0; i--)
+    if (keys.has(d.roster.unresolvedKeys[i])) {
+      d.roster.unresolvedKeys.splice(i, 1);
+      d.roster.unresolved.splice(i, 1);
+    }
+}
 function controls(d) {
   const id = (action) => `xd:${d.id}:${action}`;
   if (d.step === "choose") {
@@ -163,6 +205,32 @@ function controls(d) {
         button(id("backchoose"), "Назад"),
       ),
     ];
+  if (d.step === "removeMember") {
+    const entries = rosterParticipants(d),
+      page = Math.max(
+        0,
+        Math.min(d.removePage ?? 0, Math.ceil(entries.length / 25) - 1),
+      );
+    return [
+      ...(entries.length
+        ? [
+            select(
+              id("removePick"),
+              "Кого убрать из активности?",
+              entries.slice(page * 25, (page + 1) * 25).map((m) => ({
+                label: truncate(m.label, 100),
+                value: m.value,
+              })),
+            ),
+          ]
+        : []),
+      row(
+        button(id("removePrev"), "←", 2, page === 0),
+        button(id("removeNext"), "→", 2, (page + 1) * 25 >= entries.length),
+        button(id("backreview"), "К проверке состава"),
+      ),
+    ];
+  }
   if (d.step === "memberSearch") {
     const query = nicknameKey(d.memberSearchQuery ?? "");
     const members = d.catalog.members
@@ -276,8 +344,8 @@ function controls(d) {
           ...(unknown.length <= 80 && !/^Ячейка /u.test(unknown)
             ? [{ label: truncate("Гость: " + unknown, 100), value: "guest" }]
             : []),
-          { label: "Из состава — поиск по нику", value: "roster" },
-          { label: "Не участник / убрать шум", value: "skip" },
+          { label: "Добавить в активность — ник из состава", value: "roster" },
+          { label: "Убрать из активности", value: "skip" },
         ]),
       ]
     : [];
@@ -289,6 +357,13 @@ function controls(d) {
         "Проверить все прочитанные ники",
         2,
         !d.roster.readings?.length,
+      ),
+      button(id("addMember"), "Добавить в активность"),
+      button(
+        id("removeMember"),
+        "Убрать из активности",
+        2,
+        !rosterParticipants(d).length,
       ),
     ),
     row(
@@ -332,7 +407,7 @@ export function reviewText(d) {
     "Ники со скриншота (чтение независимо от сайта):",
     ...(d.roster.readings ?? []).map(
       (r) =>
-        `${r.visible || "[не прочитан]"}${r.name ? " → " + r.name : ""}${r.origin === "memory" ? " [память исправлений]" : ""}${r.truncated ? " [обрезан на скрине]" : ""} [${r.status ?? "проверка"}]${r.group ? " группа " + r.group : ""}${r.pending && r.suggestions?.length ? " → варианты: " + r.suggestions.map((m) => m.nickname).join(", ") : ""}`,
+        `${r.origin === "manual-add" ? "[добавлен вручную]" : r.visible || "[не прочитан]"}${r.name ? " → " + r.name : ""}${r.origin === "memory" ? " [память исправлений]" : ""}${r.truncated ? " [обрезан на скрине]" : ""} [${r.status ?? "проверка"}]${r.group ? " группа " + r.group : ""}${r.pending && r.suggestions?.length ? " → варианты: " + r.suggestions.map((m) => m.nickname).join(", ") : ""}`,
     ),
     "",
     "Состав:",
@@ -381,7 +456,10 @@ export function renderDraft(d) {
   else if (d.step === "images")
     content = `Первый скрин — состав, остальные — дроп. Скрин состава: ${d.attachments[0]?.name ?? "не прикреплён"}. Скриншотов дропа: ${d.lootImages.length}. Нажмите «Распознать скрины»; если дропа нет, сохранится только состав. Ещё скрины дропа можно добавлять партиями до 10 файлов. Уже прочитанные скрины повторно не анализируются. На сайт прикрепляются состав и первые 7 скринов дропа; предметы учитываются из всех скринов. Текст сообщения как дроп не используется.`;
   else if (d.step === "memberSearch")
-    content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». Выберите игрока для «${d.memberSearchRaw}». Страница ${(d.memberSearchPage ?? 0) + 1}.`;
+    content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». ${d.memberSearchMode === "add" ? "Добавьте участника в эту активность." : `Выберите игрока для «${d.memberSearchRaw}».`} Страница ${(d.memberSearchPage ?? 0) + 1}.`;
+  else if (d.step === "removeMember")
+    content =
+      "Выберите участника или гостя, которого нужно убрать из этой активности. При сохранении он не попадёт в её состав. Можно снова добавить его через поиск по составу сайта.";
   else if (d.step === "names")
     content =
       "Выберите любой прочитанный ник, даже уже распознанный. «Исправить и запомнить» сохраняет полный игровой ник и пример чтения. Наличие аккаунта на сайте не требуется.";
@@ -580,9 +658,19 @@ export class ImportWorkflow {
       }
       if (
         action === "memberSearch" ||
+        action === "addMember" ||
         (action === "rosterPick" && interaction.values[0] === "roster")
       ) {
+        if (action === "addMember") {
+          d.memberSearchMode = "add";
+          delete d.memberSearchReadingKey;
+          delete d.memberSearchRaw;
+          d.memberSearchQuery = "";
+          d.memberSearchPage = 0;
+          this.store.put(d);
+        }
         if (action === "rosterPick") {
+          d.memberSearchMode = "resolve";
           const reading = focusedReading(d, d.rosterFocus ?? 0);
           d.memberSearchReadingKey = reading?.key;
           d.memberSearchRaw = d.roster.unresolved[d.rosterFocus ?? 0];
@@ -728,6 +816,10 @@ export class ImportWorkflow {
         d.analyzed = false;
         d.step = "images";
       } else if (action === "memberQuery") {
+        if (this.site) {
+          const fresh = await this.site("context", { context: d.context });
+          if (Array.isArray(fresh?.members)) d.catalog.members = fresh.members;
+        }
         d.memberSearchQuery = interaction.fields
           .getTextInputValue("value")
           .trim();
@@ -957,6 +1049,8 @@ export class ImportWorkflow {
         )) {
           const i = updated.readings.findIndex((r) => r.key === reading.key);
           if (i >= 0) updated.readings[i] = reading;
+          else if (reading.origin === "manual-add")
+            updated.readings.push(reading);
         }
         updated.members = [
           ...new Map(
@@ -1017,6 +1111,55 @@ export class ImportWorkflow {
           throw Error("INVALID_INPUT");
         d.rosterFocus = focus;
         d.step = "review";
+      } else if (action === "removeMember") {
+        d.removePage = 0;
+        d.step = "removeMember";
+      } else if (action === "removePrev" || action === "removeNext") {
+        d.removePage = Math.max(
+          0,
+          Math.min(
+            Math.ceil(rosterParticipants(d).length / 25) - 1,
+            (d.removePage ?? 0) + (action === "removePrev" ? -1 : 1),
+          ),
+        );
+      } else if (action === "removePick") {
+        const participant = rosterParticipants(d).find(
+          (m) => m.value === interaction.values[0],
+        );
+        if (!participant) throw Error("DRAFT_CHANGED");
+        excludeParticipant(d, participant);
+        d.removePage = Math.max(
+          0,
+          Math.min(
+            d.removePage ?? 0,
+            Math.ceil(rosterParticipants(d).length / 25) - 1,
+          ),
+        );
+        if (!rosterParticipants(d).length) d.step = "review";
+      } else if (action === "memberPick" && d.memberSearchMode === "add") {
+        const member = d.catalog.members.find(
+          (m) => m.id === interaction.values[0],
+        );
+        if (!member) throw Error("INVALID_ROSTER");
+        if (!d.roster.members.some((m) => m.id === member.id)) {
+          d.roster.members.push(member);
+          (d.roster.readings ??= []).push({
+            key: "manual_" + randomUUID(),
+            visible: "",
+            name: member.nickname,
+            memberId: member.id,
+            pending: false,
+            ignored: false,
+            origin: "manual-add",
+            status: "добавлен вручную",
+            verifiedCell: false,
+            engine: "manual",
+            imageKey: "",
+            variants: [],
+            observations: [],
+          });
+        }
+        d.step = "review";
       } else if (action === "rosterPick" || action === "memberPick") {
         if (action === "memberPick") {
           const index = d.memberSearchReadingKey
@@ -1040,6 +1183,14 @@ export class ImportWorkflow {
           if (reading) {
             reading.pending = false;
             reading.ignored = true;
+            reading.status = "исключён вручную";
+            if (reading.memberId)
+              excludeParticipant(d, {
+                memberId: reading.memberId,
+                name: reading.name,
+              });
+            else if (reading.name && d.roster.guests.includes(reading.name))
+              excludeParticipant(d, { name: reading.name });
           }
         } else {
           const member = [

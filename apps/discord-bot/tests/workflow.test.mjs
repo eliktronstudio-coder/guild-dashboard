@@ -678,7 +678,9 @@ test("roster-only analysis ignores caption text and loot-only attachments; unrev
 
 test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and loot in the existing draft", async () => {
   const id = randomUUID(),
-    member = { id: randomUUID(), nickname: "Registered" };
+    member = { id: randomUUID(), nickname: "Registered" },
+    removed = { id: randomUUID(), nickname: "Removed" },
+    manual = { id: randomUUID(), nickname: "Manual" };
   const box = { left: 0, top: 0, width: 50, height: 20 };
   const base = {
     kind: "raid-cell",
@@ -708,8 +710,15 @@ test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and
     },
     { ...base, text: "Noise", slotKey: "ignored", region: "2", line: "shot:2" },
   ];
+  words.push({
+    ...base,
+    text: "Removed",
+    slotKey: "removed",
+    region: "3",
+    line: "shot:3",
+  });
   const { recognizeIndependentRoster } = await import("../src/recognition.mjs");
-  const roster = recognizeIndependentRoster(words, [member]);
+  const roster = recognizeIndependentRoster(words, [member, removed, manual]);
   Object.assign(
     roster.readings.find((r) => r.key === "good"),
     {
@@ -729,7 +738,7 @@ test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and
     owner: "staff",
     context: { server: "guild" },
     message: "source",
-    catalog: { members: [member], drops: [] },
+    catalog: { members: [member, removed, manual], drops: [] },
     activity: { name: "Raid", weight: 100 },
     mode: "raid",
     source: "prime",
@@ -767,10 +776,19 @@ test("GPT disputed-cell retry preserves confirmed corrections, ignored cells and
       };
     },
   });
+  const add = interaction(id, "addMember");
+  add.showModal = async () => {};
+  await flow.handle(add);
+  await flow.handle(interaction(id, "memberQuery", [], "Manual"));
+  await flow.handle(interaction(id, "memberPick", [manual.id]));
+  await flow.handle(interaction(id, "removeMember"));
+  await flow.handle(interaction(id, "removePick", ["m_" + removed.id]));
+  await flow.handle(interaction(id, "backreview"));
   const click = interaction(id, "retryVision");
   await flow.handle(click);
   assert.equal(click.errorPayload, undefined);
-  assert.deepEqual(saved.roster.members, [member]);
+  assert.deepEqual(saved.roster.members, [member, manual]);
+  assert.ok(saved.roster.readings.find((r) => r.key === "removed").ignored);
   assert.deepEqual(saved.roster.guests, ["NewGuest"]);
   assert.deepEqual(saved.roster.unresolved, []);
   assert.equal(
@@ -1070,4 +1088,155 @@ test("saved creation date uses Moscow rather than the host or Yekaterinburg time
   });
   assert.match(rendered.content, /20\.11\.2026, 00:30 \(МСК\)/);
   assert.doesNotMatch(rendered.content, /Екатеринбург/);
+});
+
+test("activity membership actions add a missing registered player and remove confirmed players and guests from publication", async () => {
+  const a = { id: randomUUID(), nickname: "Первый" },
+    b = { id: randomUUID(), nickname: "Второй" },
+    c = { id: randomUUID(), nickname: "Третий" };
+  let saved = {
+    id: randomUUID(),
+    request: randomUUID(),
+    owner: "staff",
+    context: { server: "guild" },
+    message: "message",
+    startsAt: "2026-11-01T00:00:00",
+    activity: { id: randomUUID(), name: "Рейд", weight: 100, version: 1 },
+    coefficientWeight: 150,
+    mode: "raid",
+    source: "prime",
+    catalog: { members: [a, b, c] },
+    step: "review",
+    analyzed: true,
+    roster: {
+      members: [a, b],
+      guests: ["ГостьОдин", "ГостьДва"],
+      unresolved: ["Нечётко"],
+      unresolvedKeys: ["pending"],
+      readings: [
+        { key: "pending", visible: "Нечётко", pending: true },
+        { key: "second1", name: b.nickname, memberId: b.id, pending: false },
+        { key: "second2", name: b.nickname, memberId: b.id, pending: false },
+      ],
+    },
+    loot: {
+      items: [{ id: randomUUID(), name: "Дроп", quantity: 3 }],
+      unresolved: [],
+    },
+    lootRequests: {},
+    evidence: [],
+  };
+  const publications = [],
+    flow = new ImportWorkflow({
+      store: {
+        get: () => structuredClone(saved),
+        put: (d) => {
+          saved = structuredClone(d);
+        },
+      },
+      site: async (op, p) => {
+        if (op === "context") return { members: [a, b, c] };
+        publications.push(p);
+        return {
+          event_id: randomUUID(),
+          url: "https://xd-guild.ru/events/test",
+        };
+      },
+    });
+  const options = renderDraft(saved).components[1].components[0].options;
+  assert.ok(options.some((o) => o.label === "Убрать из активности"));
+  assert.ok(
+    options.some((o) => o.label === "Добавить в активность — ник из состава"),
+  );
+  const add = interaction(saved.id, "addMember");
+  add.showModal = async () => {};
+  await flow.handle(add);
+  await flow.handle(interaction(saved.id, "memberQuery", [], "Трет"));
+  await flow.handle(interaction(saved.id, "memberPick", [c.id]));
+  assert.deepEqual(
+    saved.roster.members.map((m) => m.id),
+    [a.id, b.id, c.id],
+  );
+  assert.deepEqual(saved.roster.unresolved, ["Нечётко"]);
+  const manual = saved.roster.readings.find((r) => r.origin === "manual-add");
+  assert.equal(manual.verifiedCell, false);
+  assert.equal(manual.visible, "");
+  assert.equal(manual.box, undefined);
+  await flow.handle(interaction(saved.id, "memberPick", [c.id]));
+  assert.equal(saved.roster.members.length, 3);
+  await flow.handle(interaction(saved.id, "removeMember"));
+  await flow.handle(interaction(saved.id, "removePick", ["m_" + b.id]));
+  assert.equal(
+    saved.roster.members.some((m) => m.id === b.id),
+    false,
+  );
+  assert.ok(
+    saved.roster.readings
+      .filter((r) => r.memberId === b.id)
+      .every((r) => r.ignored),
+  );
+  const guest = renderDraft(saved).components[0].components[0].options.find(
+    (o) => o.label === "Гость: ГостьОдин",
+  );
+  await flow.handle(interaction(saved.id, "removePick", [guest.value]));
+  assert.deepEqual(saved.roster.guests, ["ГостьДва"]);
+  const stale = interaction(saved.id, "removePick", [guest.value]);
+  await flow.handle(stale);
+  assert.ok(stale.errorPayload);
+  assert.deepEqual(saved.roster.guests, ["ГостьДва"]);
+  await flow.handle(interaction(saved.id, "backreview"));
+  await flow.handle(interaction(saved.id, "rosterPick", ["skip"]));
+  assert.equal(saved.roster.unresolved.length, 0);
+  assert.equal(
+    saved.roster.readings.find((r) => r.key === "pending").ignored,
+    true,
+  );
+  await flow.handle(interaction(saved.id, "confirm"));
+  await flow.handle(interaction(saved.id, "publish"));
+  assert.deepEqual(publications[0].activity.members, [a.id, c.id]);
+  assert.deepEqual(publications[0].activity.guests, ["ГостьДва"]);
+  assert.equal(publications[0].activity.coefficient, "1.50");
+  assert.equal(publications[0].activity.loot[0].quantity, 3);
+});
+
+test("excluding a selected reading removes its known participant without discarding the next unresolved nickname", async () => {
+  const member = { id: randomUUID(), nickname: "Player" };
+  let saved = {
+    id: randomUUID(),
+    owner: "staff",
+    step: "review",
+    activity: { name: "Рейд", weight: 100 },
+    catalog: { members: [member] },
+    mode: "raid",
+    source: "prime",
+    roster: {
+      members: [member],
+      guests: [],
+      unresolved: ["Player?", "Other?"],
+      unresolvedKeys: ["first", "second"],
+      readings: [
+        {
+          key: "first",
+          visible: "Player?",
+          name: "Player",
+          memberId: member.id,
+          pending: true,
+        },
+        { key: "second", visible: "Other?", pending: true },
+      ],
+    },
+    loot: { items: [], unresolved: [] },
+  };
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+  });
+  await flow.handle(interaction(saved.id, "rosterPick", ["skip"]));
+  assert.equal(saved.roster.members.length, 0);
+  assert.deepEqual(saved.roster.unresolved, ["Other?"]);
+  assert.deepEqual(saved.roster.unresolvedKeys, ["second"]);
 });
