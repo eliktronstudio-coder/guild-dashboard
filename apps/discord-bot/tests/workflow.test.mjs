@@ -970,7 +970,7 @@ test("full site roster search supports all members, pagination and a stable unre
   await flow.handle(pick);
   assert.equal(pick.modal, undefined);
   assert.equal(saved.step, "memberSearch");
-  const search = interaction(saved.id, "memberSearch");
+  const search = interaction(saved.id, "memberPick", ["search"]);
   search.showModal = async (modal) => {
     search.modal = modal.toJSON();
   };
@@ -986,8 +986,14 @@ test("full site roster search supports all members, pagination and a stable unre
   assert.equal(saved.memberSearchPage, 1);
   await flow.handle(interaction(saved.id, "memberQuery", [], "player59"));
   const options = renderDraft(saved).components[0].components[0].options;
-  assert.equal(options.length, 1);
-  assert.equal(options[0].value, members[59].id);
+  assert.equal(options.length, 2);
+  assert.equal(options[0].value, "search");
+  assert.equal(options[1].value, members[59].id);
+  await flow.handle(interaction(saved.id, "memberQuery", [], "no-such-player"));
+  assert.deepEqual(
+    renderDraft(saved).components[0].components[0].options.map((o) => o.value),
+    ["search"],
+  );
   await flow.handle(interaction(saved.id, "memberAll"));
   assert.equal(saved.memberSearchQuery, "");
   assert.equal(saved.memberSearchPage, 0);
@@ -1169,7 +1175,7 @@ test("activity membership actions add a missing registered player and remove con
   assert.equal(saved.step, "memberSearch");
   assert.equal(
     renderDraft(saved).components[0].components[0].options.length,
-    3,
+    4,
   );
   await flow.handle(interaction(saved.id, "memberQuery", [], "Трет"));
   await flow.handle(interaction(saved.id, "memberPick", [c.id]));

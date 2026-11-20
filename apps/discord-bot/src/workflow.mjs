@@ -238,25 +238,19 @@ function controls(d) {
       .sort((a, b) => a.nickname.localeCompare(b.nickname, "ru"));
     const page = Math.max(
       0,
-      Math.min(d.memberSearchPage ?? 0, Math.ceil(members.length / 25) - 1),
+      Math.min(d.memberSearchPage ?? 0, Math.ceil(members.length / 24) - 1),
     );
     return [
-      ...(members.length
-        ? [
-            select(
-              id("memberPick"),
-              "Игрок из состава сайта",
-              members.slice(page * 25, (page + 1) * 25).map((m) => ({
-                label: truncate(m.nickname, 100),
-                value: m.id,
-              })),
-            ),
-          ]
-        : []),
+      select(id("memberPick"), "Быстрый поиск / выберите игрока", [
+        { label: "Найти по нику…", value: "search" },
+        ...members.slice(page * 24, (page + 1) * 24).map((m) => ({
+          label: truncate(m.nickname, 100),
+          value: m.id,
+        })),
+      ]),
       row(
         button(id("memberPrev"), "←", 2, page === 0),
-        button(id("memberNext"), "→", 2, (page + 1) * 25 >= members.length),
-        button(id("memberSearch"), "Быстрый поиск ника"),
+        button(id("memberNext"), "→", 2, (page + 1) * 24 >= members.length),
         button(id("memberAll"), "Все ники"),
         button(id("backreview"), "Назад"),
       ),
@@ -657,7 +651,8 @@ export class ImportWorkflow {
             ),
         );
       }
-      if (action === "memberSearch") {
+      if (action === "memberSearch" ||
+          (action === "memberPick" && interaction.values?.[0] === "search")) {
         return interaction.showModal(
           new ModalBuilder()
             .setCustomId(`xd:${id}:memberQuery`)
@@ -840,7 +835,7 @@ export class ImportWorkflow {
         d.memberSearchPage = Math.max(
           0,
           Math.min(
-            Math.ceil(count / 25) - 1,
+            Math.ceil(count / 24) - 1,
             (d.memberSearchPage ?? 0) + (action === "memberPrev" ? -1 : 1),
           ),
         );
