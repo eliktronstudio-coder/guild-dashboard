@@ -257,6 +257,7 @@ function controls(d) {
         button(id("memberPrev"), "←", 2, page === 0),
         button(id("memberNext"), "→", 2, (page + 1) * 25 >= members.length),
         button(id("memberSearch"), "Быстрый поиск ника"),
+        button(id("memberAll"), "Все ники"),
         button(id("backreview"), "Назад"),
       ),
     ];
@@ -456,7 +457,7 @@ export function renderDraft(d) {
   else if (d.step === "images")
     content = `Первый скрин — состав, остальные — дроп. Скрин состава: ${d.attachments[0]?.name ?? "не прикреплён"}. Скриншотов дропа: ${d.lootImages.length}. Нажмите «Распознать скрины»; если дропа нет, сохранится только состав. Ещё скрины дропа можно добавлять партиями до 10 файлов. Уже прочитанные скрины повторно не анализируются. На сайт прикрепляются состав и первые 7 скринов дропа; предметы учитываются из всех скринов. Текст сообщения как дроп не используется.`;
   else if (d.step === "memberSearch")
-    content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». ${d.memberSearchMode === "add" ? "Добавьте участника в эту активность." : `Выберите игрока для «${d.memberSearchRaw}».`} Страница ${(d.memberSearchPage ?? 0) + 1}.`;
+    content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». ${d.memberSearchMode === "add" ? "Добавьте участника в эту активность." : `Выберите игрока для «${d.memberSearchRaw}».`} Ников в списке: ${d.catalog.members.filter((m) => !nicknameKey(d.memberSearchQuery ?? "") || nicknameKey(m.nickname).includes(nicknameKey(d.memberSearchQuery ?? ""))).length}. Страница ${(d.memberSearchPage ?? 0) + 1}.`;
   else if (d.step === "removeMember")
     content =
       "Выберите участника или гостя, которого нужно убрать из этой активности. При сохранении он не попадёт в её состав. Можно снова добавить его через поиск по составу сайта.";
@@ -656,27 +657,7 @@ export class ImportWorkflow {
             ),
         );
       }
-      if (
-        action === "memberSearch" ||
-        action === "addMember" ||
-        (action === "rosterPick" && interaction.values[0] === "roster")
-      ) {
-        if (action === "addMember") {
-          d.memberSearchMode = "add";
-          delete d.memberSearchReadingKey;
-          delete d.memberSearchRaw;
-          d.memberSearchQuery = "";
-          d.memberSearchPage = 0;
-          this.store.put(d);
-        }
-        if (action === "rosterPick") {
-          d.memberSearchMode = "resolve";
-          const reading = focusedReading(d, d.rosterFocus ?? 0);
-          d.memberSearchReadingKey = reading?.key;
-          d.memberSearchRaw = d.roster.unresolved[d.rosterFocus ?? 0];
-          if (!d.memberSearchRaw) throw Error("DRAFT_CHANGED");
-          this.store.put(d);
-        }
+      if (action === "memberSearch") {
         return interaction.showModal(
           new ModalBuilder()
             .setCustomId(`xd:${id}:memberQuery`)
@@ -815,6 +796,32 @@ export class ImportWorkflow {
         d.rosterOnly = false;
         d.analyzed = false;
         d.step = "images";
+      } else if (
+        action === "addMember" ||
+        (action === "rosterPick" && interaction.values[0] === "roster")
+      ) {
+        if (action === "addMember") {
+          d.memberSearchMode = "add";
+          delete d.memberSearchReadingKey;
+          delete d.memberSearchRaw;
+        } else {
+          d.memberSearchMode = "resolve";
+          const reading = focusedReading(d, d.rosterFocus ?? 0);
+          d.memberSearchReadingKey = reading?.key;
+          d.memberSearchRaw = d.roster.unresolved[d.rosterFocus ?? 0];
+          if (!d.memberSearchRaw) throw Error("DRAFT_CHANGED");
+        }
+        if (this.site) {
+          const fresh = await this.site("context", { context: d.context });
+          if (Array.isArray(fresh?.members)) d.catalog.members = fresh.members;
+        }
+        d.memberSearchQuery = "";
+        d.memberSearchPage = 0;
+        d.step = "memberSearch";
+      } else if (action === "memberAll") {
+        d.memberSearchQuery = "";
+        d.memberSearchPage = 0;
+        d.step = "memberSearch";
       } else if (action === "memberQuery") {
         if (this.site) {
           const fresh = await this.site("context", { context: d.context });
