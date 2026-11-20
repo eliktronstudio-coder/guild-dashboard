@@ -1,0 +1,255 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import {
+  recognizeLoot,
+  ensureLoot,
+  resolveLoot,
+  persistLoot,
+} from "../src/loot-review.mjs";
+import { ImportWorkflow, renderDraft } from "../src/workflow.mjs";
+
+const drops = [
+  {
+    id: randomUUID(),
+    name: "Трофейная эссенция стихий",
+    price_units: "1500000",
+    version: 1,
+  },
+  {
+    id: randomUUID(),
+    name: "Коготь дракона",
+    price_units: "30000",
+    version: 2,
+  },
+];
+test("drop recognition accepts clear isolated typos, aggregates duplicates and retains original readings", () => {
+  const r = recognizeLoot(
+    "Трофейная эссенцня стихий x2\nТрофейная эссенция стихий x3",
+    drops,
+  );
+  assert.equal(r.items[0].quantity, 5);
+  assert.equal(r.items[0].id, drops[0].id);
+  assert.equal(r.readings[0].status, "автосопоставлено");
+  assert.equal(r.readings[0].raw, "Трофейная эссенцня стихий x2");
+  assert.deepEqual(r.unresolved, []);
+});
+test("ambiguous items, unread quantities, numeric variants and clipped names remain pending", () => {
+  const similar = [
+    { id: "a", name: "Коготь дракона" },
+    { id: "b", name: "Коготь драконы" },
+  ];
+  assert.equal(
+    recognizeLoot("Коготь драконя x3", similar).unresolved.length,
+    1,
+  );
+  for (const raw of [
+    "Коготь дракона x0",
+    "Коготь дракона x1000001",
+    "Коготь дракон… x3",
+    "Коготъ дракона",
+    "Коготь дракона",
+    "Коготь дракона xO",
+    "? Коготь дракона x3",
+  ]) {
+    const r = recognizeLoot(raw, drops);
+    assert.equal(r.items.length, 0, raw);
+    assert.equal(r.unresolved.length, 1, raw);
+  }
+  assert.equal(
+    recognizeLoot("Эссенция ярости x200 x2", [
+      { id: "pack", name: "Эссенция ярости x2000" },
+    ]).items.length,
+    0,
+  );
+  const packs = recognizeLoot(
+    "Эссенция ярости x2000\nЭссенция ярости x2000 x2",
+    [{ id: "pack", name: "Эссенция ярости x2000" }],
+  );
+  assert.equal(packs.items[0].quantity, 2);
+  assert.equal(packs.unresolved.length, 1);
+});
+test("manual correction persists over later screenshot batches and rejects unsafe totals atomically", () => {
+  const d = {
+    catalog: { drops },
+    screensOnly: true,
+    lootImageResults: { old: "? raw" },
+    loot: recognizeLoot("? Неизвестный x2\nКоготь дракона x3", drops),
+  };
+  const key = ensureLoot(d)[0].key;
+  resolveLoot(d, key, drops[1].id, 4);
+  assert.equal(d.loot.items[0].quantity, 7);
+  assert.deepEqual(d.lootOverrideImages, ["old"]);
+  const later = recognizeLoot(d.lootOverride + "\nКоготь дракона x2", drops);
+  assert.equal(later.items[0].quantity, 9);
+  const before = structuredClone(d.loot);
+  for (const quantity of [0, -1, 1.5, NaN, 1000000])
+    assert.throws(
+      () => resolveLoot(d, key, drops[1].id, quantity),
+      /INVALID_LOOT_QUANTITY/,
+    );
+  assert.deepEqual(d.loot, before);
+  d.loot.readings[0].ignored = true;
+  persistLoot(d);
+  assert.equal(d.loot.items[0].quantity, 3);
+  assert.throws(() => resolveLoot(d, key, drops[0].id, 1), /DRAFT_CHANGED/);
+});
+function fixture() {
+  const member = { id: randomUUID(), nickname: "Ронин" };
+  let saved = {
+    id: randomUUID(),
+    request: randomUUID(),
+    owner: "staff",
+    context: {},
+    message: "one",
+    startsAt: "2026-11-01T00:00:00Z",
+    step: "review",
+    analyzed: true,
+    screensOnly: true,
+    lootImageResults: { old: "unread" },
+    evidence: [],
+    lootRequests: {},
+    catalog: { members: [member], drops, activities: [] },
+    activity: { id: randomUUID(), name: "Анталлон", weight: 100, version: 1 },
+    mode: "raid",
+    source: "prime",
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: recognizeLoot("? Непрочитанный предмет x2", drops),
+  };
+  const published = [];
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+    site: async (op, payload) => {
+      if (op === "context") return saved.catalog;
+      published.push(payload);
+      return { event_id: randomUUID(), url: "https://xd-guild.ru/events/test" };
+    },
+  });
+  const run = async (action, values = [], text = "", owner = "staff") => {
+    const i = {
+      customId: `xd:${saved.id}:${action}`,
+      user: { id: owner },
+      values,
+      fields: { getTextInputValue: () => text },
+      deferUpdate: async () => {
+        i.deferred = true;
+      },
+      editReply: async (p) => {
+        i.payload = p;
+      },
+      reply: async (p) => {
+        i.error = p;
+      },
+      followUp: async (p) => {
+        i.error = p;
+      },
+      showModal: async (modal) => {
+        i.modal = modal.toJSON();
+      },
+    };
+    await flow.handle(i);
+    return i;
+  };
+  return { get: () => saved, run, published };
+}
+test("drop workflow searches registry, confirms quantity against a stable row and publishes canonical item IDs", async () => {
+  const f = fixture();
+  await f.run("reviewLoot");
+  assert.equal(f.get().step, "lootReview");
+  await f.run("lootPick", ["registry"]);
+  assert.equal(
+    renderDraft(f.get()).components[0].components[0].options[0].value,
+    "search",
+  );
+  const search = await f.run("lootPick", ["search"]);
+  assert.ok(search.modal);
+  assert.equal(search.deferred, undefined);
+  await f.run("lootQuery", [], "коготь");
+  assert.equal(
+    renderDraft(f.get()).components[0].components[0].options.length,
+    2,
+  );
+  const selection = await f.run("lootPick", [drops[1].id]);
+  assert.ok(selection.modal.custom_id.length <= 100);
+  const action = selection.modal.custom_id.split(":").slice(2).join(":");
+  const bad = await f.run(action, [], "1.5");
+  assert.ok(bad.error);
+  assert.equal(f.get().loot.unresolved.length, 1);
+  await f.run(action, [], "4");
+  assert.equal(f.get().loot.items[0].quantity, 4);
+  assert.equal(f.get().loot.items[0].version, 2);
+  assert.equal(f.get().loot.unresolved.length, 0);
+  await f.run("backreview");
+  await f.run("confirm");
+  assert.equal(f.get().step, "confirm");
+  await f.run("publish");
+  assert.equal(f.published.length, 1);
+  assert.equal(f.published[0].activity.loot[0].id, drops[1].id);
+  assert.equal(f.published[0].activity.loot[0].quantity, 4);
+});
+test("registry pagination, empty searches, add/remove and ownership stay within Discord limits", async () => {
+  const f = fixture();
+  f.get().catalog.drops = Array.from({ length: 60 }, (_, i) => ({
+    id: randomUUID(),
+    name: `Предмет ${String(i).padStart(2, "0")}`,
+    price_units: "10000",
+    version: 1,
+  }));
+  await f.run("reviewLoot");
+  await f.run("lootPick", ["registry"]);
+  assert.equal(
+    renderDraft(f.get()).components[0].components[0].options.length,
+    25,
+  );
+  await f.run("lootNext");
+  assert.equal(f.get().lootSearchPage, 1);
+  await f.run("lootQuery", [], "нет такого предмета");
+  assert.equal(
+    renderDraft(f.get()).components[0].components[0].options.length,
+    1,
+  );
+  await f.run("lootAll");
+  assert.equal(f.get().lootSearchQuery, "");
+  const foreign = await f.run("addLoot", [], "", "other");
+  assert.ok(foreign.error);
+  await f.run("reviewLoot");
+  await f.run("lootPick", ["skip"]);
+  assert.equal(f.get().loot.unresolved.length, 0);
+  await f.run("addLoot");
+  assert.equal(f.get().loot.unresolved.length, 1);
+  assert.equal(f.get().step, "lootSearch");
+  for (const row of renderDraft(f.get()).components)
+    assert.ok(row.components.length <= 5);
+});
+
+test("quantity forms remain tied to their original row even after focus changes", async () => {
+  const f = fixture();
+  await f.run("reviewLoot");
+  const original = f.get().loot.readings[0].key;
+  const modal = await f.run("lootPick", [drops[1].id]);
+  await f.run("addLoot");
+  const added = f.get().lootFocusKey;
+  await f.run(modal.modal.custom_id.split(":").slice(2).join(":"), [], "8");
+  assert.equal(
+    f.get().loot.readings.find((r) => r.key === original).quantity,
+    8,
+  );
+  assert.equal(
+    f.get().loot.readings.find((r) => r.key === added).pending,
+    true,
+  );
+  await f.run("lootFocus", [original]);
+  await f.run("lootPick", ["skip"]);
+  const stale = await f.run(
+    modal.modal.custom_id.split(":").slice(2).join(":"),
+    [],
+    "9",
+  );
+  assert.ok(stale.error);
+  assert.equal(f.get().loot.items.length, 0);
+});

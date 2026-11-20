@@ -7,8 +7,16 @@ import {
   LabelBuilder,
   FileUploadBuilder,
 } from "discord.js";
-import { lootText, reviewReady, readingSuggestions } from "./matching.mjs";
+import { reviewReady, readingSuggestions } from "./matching.mjs";
 import { safeError } from "./site.mjs";
+import {
+  recognizeLoot,
+  ensureLoot,
+  lootReading,
+  persistLoot,
+  resolveLoot,
+  addLootReading,
+} from "./loot-review.mjs";
 import {
   recognizeIndependentRoster,
   manuallyReadRoster,
@@ -231,6 +239,74 @@ function controls(d) {
       ),
     ];
   }
+  if (d.step === "lootSearch") {
+    const query = nicknameKey(d.lootSearchQuery ?? "");
+    const items = d.catalog.drops
+      .filter((i) => !query || nicknameKey(i.name).includes(query))
+      .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    const page = Math.max(
+      0,
+      Math.min(d.lootSearchPage ?? 0, Math.ceil(items.length / 24) - 1),
+    );
+    return [
+      select(id("lootPick"), "Поиск / выберите предмет", [
+        { label: "Найти предмет…", value: "search" },
+        ...items
+          .slice(page * 24, (page + 1) * 24)
+          .map((i) => ({ label: truncate(i.name, 100), value: i.id })),
+      ]),
+      row(
+        button(id("lootPrev"), "←", 2, page === 0),
+        button(id("lootNext"), "→", 2, (page + 1) * 24 >= items.length),
+        button(id("lootAll"), "Все предметы"),
+        button(id("reviewLoot"), "К дропу"),
+      ),
+    ];
+  }
+  if (d.step === "lootReview") {
+    const rows = ensureLoot(d),
+      focused = lootReading(d);
+    const page = Math.max(
+      0,
+      Math.min(d.lootPage ?? 0, Math.ceil(rows.length / 25) - 1),
+    );
+    return [
+      ...(rows.length
+        ? [
+            select(
+              id("lootFocus"),
+              "Какую строку дропа проверить?",
+              rows.slice(page * 25, (page + 1) * 25).map((r) => ({
+                label: truncate(
+                  `${r.pending ? "? " : "✓ "}${r.pending ? r.raw : r.name} × ${r.quantity ?? "?"}`,
+                  100,
+                ),
+                value: r.key,
+              })),
+              [focused?.key],
+            ),
+            select(id("lootPick"), "Выберите предмет или действие", [
+              ...(focused?.suggestions ?? []).map((i) => ({
+                label: truncate(i.name, 100),
+                value: i.id,
+              })),
+              { label: "Из реестра — поиск предмета", value: "registry" },
+              { label: "Убрать строку дропа", value: "skip" },
+            ]),
+          ]
+        : []),
+      row(
+        button(id("lootPagePrev"), "←", 2, page === 0),
+        button(id("lootPageNext"), "→", 2, (page + 1) * 25 >= rows.length),
+        button(id("lootQuantity"), "Изменить количество", 2, !focused?.itemId),
+      ),
+      row(
+        button(id("addLoot"), "Добавить предмет"),
+        button(id("editloot"), "Исправить текстом"),
+        button(id("backreview"), "К составу и сохранению"),
+      ),
+    ];
+  }
   if (d.step === "memberSearch") {
     const query = nicknameKey(d.memberSearchQuery ?? "");
     const members = d.catalog.members
@@ -364,7 +440,7 @@ function controls(d) {
     row(
       button(id("editroster"), "Исправить состав"),
       ...(unknown ? [button(id("editnick"), "Исправить и запомнить ник")] : []),
-      button(id("editloot"), "Исправить дроп"),
+      button(id("reviewLoot"), "Проверить / исправить дроп"),
       button(
         id("remember"),
         "Запомнить проверенные ники",
@@ -416,6 +492,10 @@ export function reviewText(d) {
         `${item.name} x${item.quantity} (${Number(item.price_units) / 10000} зол./ед.)`,
     ),
     ...d.loot.unresolved.map((n) => "? " + n),
+    ...(d.loot.readings ?? []).map(
+      (r) =>
+        `${r.raw} → ${r.ignored ? "убрано" : r.name || "не прочитано"} × ${r.quantity ?? "?"} [${r.status}]`,
+    ),
   ].join("\n");
 }
 export function renderDraft(d) {
@@ -450,6 +530,11 @@ export function renderDraft(d) {
       "Выберите активность из реестра сайта, тип и источник. Данные пока не сохраняются на сайт.";
   else if (d.step === "images")
     content = `Первый скрин — состав, остальные — дроп. Скрин состава: ${d.attachments[0]?.name ?? "не прикреплён"}. Скриншотов дропа: ${d.lootImages.length}. Нажмите «Распознать скрины»; если дропа нет, сохранится только состав. Ещё скрины дропа можно добавлять партиями до 10 файлов. Уже прочитанные скрины повторно не анализируются. На сайт прикрепляются состав и первые 7 скринов дропа; предметы учитываются из всех скринов. Текст сообщения как дроп не используется.`;
+  else if (d.step === "lootReview")
+    content =
+      "Проверьте распознанный дроп. Выберите строку, затем предмет и количество. Спорные позиции не сохраняются без подтверждения. Удаление строки убирает только её из черновика.";
+  else if (d.step === "lootSearch")
+    content = `Поиск предмета: «${d.lootSearchQuery || "все предметы"}». Выберите предмет из реестра, затем укажите количество.`;
   else if (d.step === "memberSearch")
     content = `Поиск по составу сайта: «${d.memberSearchQuery || "все игроки"}». ${d.memberSearchMode === "add" ? "Добавьте участника в эту активность." : `Выберите игрока для «${d.memberSearchRaw}».`} Ников в списке: ${d.catalog.members.filter((m) => !nicknameKey(d.memberSearchQuery ?? "") || nicknameKey(m.nickname).includes(nicknameKey(d.memberSearchQuery ?? ""))).length}. Страница ${(d.memberSearchPage ?? 0) + 1}.`;
   else if (d.step === "removeMember")
@@ -468,7 +553,13 @@ export function renderDraft(d) {
       (d.recognitionNotices ?? []).join("\n") +
         "\n" +
         (d.step === "review"
-          ? ["точно", "автосопоставлено", "похожие", "не найден", "ручная проверка"]
+          ? [
+              "точно",
+              "автосопоставлено",
+              "похожие",
+              "не найден",
+              "ручная проверка",
+            ]
               .map(
                 (status) =>
                   status +
@@ -484,7 +575,7 @@ export function renderDraft(d) {
     allowedMentions: { parse: [] },
     components: controls(d),
     embeds:
-      ["review", "names"].includes(d.step) ||
+      ["review", "names", "lootReview", "lootSearch"].includes(d.step) ||
       (d.step === "choose" && d.analyzed)
         ? [
             {
@@ -508,18 +599,26 @@ export function renderDraft(d) {
             {
               title: "Распознанный дроп",
               description: truncate(
-                [
-                  ...d.loot.items.map((i) => `${i.name} × ${i.quantity}`),
-                  ...d.loot.unresolved.map((n) => "? " + n),
-                ].join("\n") ||
-                  "Дроп не найден — можно сохранить только состав",
-                2000,
+                [...d.loot.items.map((i) => `${i.name} × ${i.quantity}`)].join(
+                  "\n",
+                ) ||
+                  (d.loot.unresolved.length
+                    ? "Нет подтверждённых предметов — проверьте спорные строки"
+                    : "Дроп не найден — можно сохранить только состав"),
+                1600,
+              ),
+            },
+            {
+              title: "Дроп — требуется проверка",
+              description: truncate(
+                d.loot.unresolved.join("\n") || "Нет спорных позиций",
+                800,
               ),
             },
           ]
         : [],
     attachments: [],
-    ...(["review", "names"].includes(d.step) ||
+    ...(["review", "names", "lootReview", "lootSearch"].includes(d.step) ||
     (d.step === "choose" && d.analyzed)
       ? {
           files: [
@@ -593,7 +692,8 @@ export class ImportWorkflow {
     }
   }
   async handle(interaction) {
-    const [, id, action] = interaction.customId.split(":");
+    const [, id, action, targetKey, targetItem] =
+      interaction.customId.split(":");
     let d,
       acquired = false;
     try {
@@ -613,6 +713,55 @@ export class ImportWorkflow {
         if (!interaction.deferred && !interaction.replied)
           await interaction.deferUpdate();
         return interaction.editReply(renderDraft(d));
+      }
+      if (
+        action === "lootSearch" ||
+        (action === "lootPick" && interaction.values?.[0] === "search")
+      ) {
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId(`xd:${id}:lootQuery`)
+            .setTitle("Найти предмет в реестре")
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel("Часть названия; пусто — все предметы")
+                  .setStyle(TextInputStyle.Short)
+                  .setRequired(false)
+                  .setMaxLength(100),
+              ),
+            ),
+        );
+      }
+      if (
+        action === "lootQuantity" ||
+        (action === "lootPick" &&
+          !["registry", "skip"].includes(interaction.values?.[0]))
+      ) {
+        const reading = lootReading(d),
+          itemId =
+            action === "lootQuantity"
+              ? reading?.itemId
+              : interaction.values?.[0];
+        const item = d.catalog.drops.find((i) => i.id === itemId);
+        if (!reading || !item) throw Error("DRAFT_CHANGED");
+        return interaction.showModal(
+          new ModalBuilder()
+            .setCustomId(`xd:${id}:lq:${reading.key}:${item.id}`)
+            .setTitle("Количество предмета")
+            .addComponents(
+              new ActionRowBuilder().addComponents(
+                new TextInputBuilder()
+                  .setCustomId("value")
+                  .setLabel(truncate(item.name, 45))
+                  .setStyle(TextInputStyle.Short)
+                  .setValue(String(reading.quantity ?? 1))
+                  .setRequired(true)
+                  .setMaxLength(7),
+              ),
+            ),
+        );
       }
       if (action === "editCoefficient") {
         if (!d.activity) throw Error("INVALID_INPUT");
@@ -651,8 +800,10 @@ export class ImportWorkflow {
             ),
         );
       }
-      if (action === "memberSearch" ||
-          (action === "memberPick" && interaction.values?.[0] === "search")) {
+      if (
+        action === "memberSearch" ||
+        (action === "memberPick" && interaction.values?.[0] === "search")
+      ) {
         return interaction.showModal(
           new ModalBuilder()
             .setCustomId(`xd:${id}:memberQuery`)
@@ -762,7 +913,74 @@ export class ImportWorkflow {
         await interaction.editReply(renderDraft(d));
         return;
       }
-      if (action === "coefficientValue") {
+      if (action === "reviewLoot") {
+        const rows = ensureLoot(d);
+        const target = rows.find((r) => r.pending) ?? lootReading(d);
+        d.lootFocusKey = target?.key;
+        d.lootPage = Math.max(
+          0,
+          Math.floor(rows.findIndex((r) => r.key === target?.key) / 25),
+        );
+        d.step = "lootReview";
+      } else if (action === "lootFocus") {
+        const reading = ensureLoot(d).find(
+          (r) => r.key === interaction.values[0],
+        );
+        if (!reading) throw Error("DRAFT_CHANGED");
+        d.lootFocusKey = reading.key;
+      } else if (
+        action === "addLoot" ||
+        (action === "lootPick" && interaction.values[0] === "registry")
+      ) {
+        if (action === "addLoot") addLootReading(d);
+        if (!lootReading(d)) throw Error("DRAFT_CHANGED");
+        d.lootFocusKey = lootReading(d).key;
+        d.lootSearchQuery = "";
+        d.lootSearchPage = 0;
+        d.step = "lootSearch";
+      } else if (action === "lootPick" && interaction.values[0] === "skip") {
+        const reading = lootReading(d);
+        if (!reading) throw Error("DRAFT_CHANGED");
+        reading.ignored = true;
+        persistLoot(d);
+        d.lootFocusKey = lootReading(d)?.key;
+        d.step = "lootReview";
+      } else if (action === "lq") {
+        const text = interaction.fields.getTextInputValue("value").trim();
+        if (!/^\d{1,7}$/.test(text)) throw Error("INVALID_LOOT_QUANTITY");
+        resolveLoot(d, targetKey, targetItem, Number(text));
+        d.lootFocusKey = targetKey;
+        d.step = "lootReview";
+      } else if (action === "lootQuery" || action === "lootAll") {
+        d.lootSearchQuery =
+          action === "lootAll"
+            ? ""
+            : interaction.fields.getTextInputValue("value").trim();
+        d.lootSearchPage = 0;
+        d.step = "lootSearch";
+      } else if (action === "lootPrev" || action === "lootNext") {
+        const query = nicknameKey(d.lootSearchQuery ?? "");
+        const count = d.catalog.drops.filter(
+          (i) => !query || nicknameKey(i.name).includes(query),
+        ).length;
+        d.lootSearchPage = Math.max(
+          0,
+          Math.min(
+            Math.ceil(count / 24) - 1,
+            (d.lootSearchPage ?? 0) + (action === "lootPrev" ? -1 : 1),
+          ),
+        );
+      } else if (action === "lootPagePrev" || action === "lootPageNext") {
+        const rows = ensureLoot(d);
+        d.lootPage = Math.max(
+          0,
+          Math.min(
+            Math.ceil(rows.length / 25) - 1,
+            (d.lootPage ?? 0) + (action === "lootPagePrev" ? -1 : 1),
+          ),
+        );
+        d.lootFocusKey = rows[d.lootPage * 25]?.key;
+      } else if (action === "coefficientValue") {
         if (!d.activity) throw Error("INVALID_INPUT");
         const weight = parseCoefficient(
           interaction.fields.getTextInputValue("value"),
@@ -1009,7 +1227,7 @@ export class ImportWorkflow {
           });
         d.rosterAnalyzed = true;
         d.rosterFocus = 0;
-        d.loot = lootText(lootLines.join("\n"), d.catalog.drops);
+        d.loot = recognizeLoot(lootLines.join("\n"), d.catalog.drops);
         d.analyzed = true;
         d.step = d.automaticNeedsChoice ? "choose" : "review";
       } else if (action === "retryVision") {
@@ -1266,7 +1484,7 @@ export class ImportWorkflow {
           d.lootOverride = text;
           d.lootOverrideImages = Object.keys(d.lootImageResults ?? {});
         }
-        d.loot = lootText(text, d.catalog.drops);
+        d.loot = recognizeLoot(text, d.catalog.drops);
         d.step = "review";
       } else if (action === "remember") {
         if (

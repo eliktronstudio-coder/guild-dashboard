@@ -115,7 +115,7 @@ test("a screenshot message automatically recognises both images before asking fo
     assert.equal(d.activity, undefined);
     assert.equal(d.roster.members[0].id, member.id);
     assert.equal(d.loot.items[0].quantity, 2);
-    assert.equal(rendered.embeds.length, 3);
+    assert.equal(rendered.embeds.length, 4);
     assert.ok(edits.every((e) => e.flags === undefined));
     assert.ok(edits.every((e) => e.allowedMentions.parse.length === 0));
     const premature = action(id, "confirm");
