@@ -246,3 +246,31 @@ test("archive metadata can move a closed-period activity without changing its im
     await c.db.close();
   }
 });
+
+test("bulk archive has its own bounded timeout, keeps ACL and processes 218 activities atomically", async () => {
+  const c = await setup();
+  try {
+    const configuration = await c.scalar<string[]>(
+      "select proconfig from pg_proc where oid='public.archive_activities(uuid,date,date)'::regprocedure",
+    );
+    assert.ok(configuration.includes("statement_timeout=30s"));
+    assert.ok(configuration.includes("lock_timeout=2s"));
+    // Seed historical activities without calling the public mutation 218 times.
+    await c.db.exec("reset role");
+    await c.db.query(
+      `insert into public.events(id,guild_id,title,starts_at,status,kind,organizer_id)
+      select gen_random_uuid(),$1,'Анталлон','2026-11-01T12:00:00Z'::timestamptz,'completed','raid',$2 from generate_series(1,218)`,
+      [guild, c.members[1]],
+    );
+    await c.as(1);
+    const request = randomUUID();
+    assert.equal(await c.archive(request), 218);
+    assert.equal(await c.archive(request), 218);
+    assert.equal((await c.journal()).total, 0);
+    assert.equal((await c.journal(true)).total, 218);
+    await c.as(3);
+    await assert.rejects(c.archive(randomUUID()), /FORBIDDEN/);
+  } finally {
+    await c.db.close();
+  }
+});
