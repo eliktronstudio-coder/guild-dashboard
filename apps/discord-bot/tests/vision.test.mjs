@@ -268,7 +268,6 @@ test("only exact canonical/registered aliases link IDs; confusables, cropped and
   for (const change of [
     { clipped: true },
     { uncertain: true },
-    { text: "СмешанныиX" },
   ])
     assert.equal(
       recognizeIndependentRoster([{ ...word, ...change }], members).members

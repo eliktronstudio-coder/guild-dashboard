@@ -90,6 +90,26 @@ export function independentReadings(words) {
 function exactMember(name, members) {
   return registeredMatch(name, members);
 }
+// Only a clear raid-cell reading with a strong, isolated registry candidate
+// can be accepted automatically. Keep the original image text for review.
+export function automaticSimilarMember(reading, members) {
+  if (!reading.verifiedCell || reading.uncertain || !reading.unbiased ||
+      reading.confidence < 85 ||
+      (reading.engine !== "gpt" && reading.passes < 2)) return null;
+  const raw = nicknameKey(reading.visible).replace(/[.…_-]+$/u, "");
+  if (raw.length < 5) return null;
+  const candidates = nicknameSuggestions(reading.visible, members);
+  const [best, next] = candidates;
+  if (!best || best.matchCost > 1.4 ||
+      (next && next.matchCost - best.matchCost < 1)) return null;
+  const targets = [best.nickname, ...(best.aliases ?? [])].map(nicknameKey);
+  const clearBeginning = targets.some((target) =>
+    target.slice(0, 3) === raw.slice(0, 3) &&
+    (reading.truncated
+      ? target.startsWith(raw) && raw.length / target.length >= 0.75
+      : Math.abs(target.length - raw.length) <= 1));
+  return clearBeginning ? members.find((m) => m.id === best.id) : null;
+}
 export function recognizeIndependentRoster(
   words,
   members,
@@ -120,6 +140,9 @@ export function recognizeIndependentRoster(
         member = registered;
         name = member.nickname;
         reading.origin = "registry";
+      } else if ((member = automaticSimilarMember(reading, members))) {
+        name = member.nickname;
+        reading.origin = "automatic-similar";
       } else if (
         reading.verifiedCell &&
         !reading.truncated &&
@@ -142,7 +165,9 @@ export function recognizeIndependentRoster(
       3,
     );
     reading.status =
-      reading.truncated || reading.uncertain
+      reading.origin === "automatic-similar"
+        ? "автосопоставлено"
+        : reading.truncated || reading.uncertain
         ? "ручная проверка"
         : member
           ? "точно"
