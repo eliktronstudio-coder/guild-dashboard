@@ -329,12 +329,30 @@ export function reviewText(d) {
 }
 export function renderDraft(d) {
   let content;
-  if (d.event)
+  if (d.event) {
+    const weight =
+      d.publication?.activity.coefficient ??
+      (d.activity ? d.activity.weight / 100 : null);
+    const coefficient =
+      weight === null
+        ? "не указан"
+        : "×" +
+          Number(weight).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
+    const created = d.savedAt
+      ? new Intl.DateTimeFormat("ru-RU", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: "Asia/Yekaterinburg",
+        }).format(new Date(d.savedAt)) + " (Екатеринбург)"
+      : "не указана";
     return {
-      content: `Активность сохранена: ${d.event.url}\n${d.rosterOnly ? "Состав сохранён без дропа. Дроп можно добавить позже в карточке активности.\n" : ""}${d.nicknameMemoryFailed ? "Память ников временно недоступна." : "Подтверждённые ники добавлены в память бота."}`,
+      content: `Активность сохранена: ${d.event.url}\nНазвание: ${d.publication?.activity.title ?? d.activity?.name ?? "не указано"}\nКоэффициент: ${coefficient}\nДата создания: ${created}\n${d.rosterOnly ? "Состав сохранён без дропа. Дроп можно добавить позже в карточке активности.\n" : ""}${d.nicknameMemoryFailed ? "Память ников временно недоступна." : "Подтверждённые ники добавлены в память бота."}`,
       components: [],
+      embeds: [],
       attachments: [],
+      allowedMentions: { parse: [] },
     };
+  }
   if (d.step === "choose")
     content =
       (d.analyzed ? "Скриншоты распознаны — состав и дроп ниже. " : "") +
@@ -1128,6 +1146,7 @@ export class ImportWorkflow {
           this.store.put(d);
         }
         d.event = await this.site("import", d.publication);
+        d.savedAt ??= new Date().toISOString();
         try {
           this.store.rememberNicknames?.({
             scope: d.context.server,

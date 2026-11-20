@@ -219,7 +219,17 @@ test("complete Discord conversation publishes a stable reviewed payload and surv
   assert.equal(requests[1].activity.confirmRoster, true);
   assert.deepEqual(requests[1].activity.facts, {});
   assert.ok(store.get(draft.id).event);
-  assert.equal(renderDraft(store.get(draft.id)).components.length, 0);
+  const saved = store.get(draft.id),
+    summary = renderDraft(saved);
+  assert.equal(summary.components.length, 0);
+  assert.deepEqual(summary.embeds, []);
+  assert.match(summary.content, /Название: Левиафан/);
+  assert.match(summary.content, /Коэффициент: ×1/);
+  assert.match(summary.content, /Дата создания: .*Екатеринбург/);
+  const savedAt = saved.savedAt;
+  await flow.handle(interaction(draft.id, "publish"));
+  assert.equal(store.get(draft.id).savedAt, savedAt);
+  assert.equal(requests.length, 2);
   store.close();
   rmSync(dir, { recursive: true });
 });
