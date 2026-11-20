@@ -18,7 +18,38 @@ function distance(a, b) {
   }
   return row[b.length];
 }
+const receivedLine = (text) =>
+  /^получено\s*:/iu.test(text.replace(/^\?\s*/, ""));
+const interfaceNoise = (text) => /^дней\s+в\s+ng$/iu.test(text.trim());
+const cleanItem = (text) =>
+  text
+    .trim()
+    .replace(/^[\[\]{}|]+|[\[\]{}|]+$/gu, "")
+    .trim()
+    .replace(/(?<=[а-яё])l$/iu, "");
+function lootLines(text) {
+  const lines = [];
+  for (const line of text
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    const previous = lines.at(-1);
+    if (
+      !receivedLine(line) &&
+      previous &&
+      receivedLine(previous) &&
+      previous.includes("[") &&
+      !previous.includes("]") &&
+      !interfaceNoise(line) &&
+      previous.split("\n").length < 3
+    )
+      lines[lines.length - 1] += "\n" + line;
+    else lines.push(line);
+  }
+  return lines.map((s) => s.replace(/\n/gu, " "));
+}
 export function parseLootReading(raw, drops) {
+  const received = receivedLine(raw);
   const text = raw
     .replace(/^\?\s*/, "")
     .replace(/^[•*-]\s*/, "")
@@ -28,23 +59,30 @@ export function parseLootReading(raw, drops) {
   if (exact)
     return {
       name: exact.name,
-      // A complete item name is not evidence that its quantity was visible.
-      // In particular, a pack's x2000 suffix is part of its name.
-      quantity: drops.some(
-        (d) => norm(d.name) === norm(text.replace(/^\[(.*)\]$/u, "$1")),
-      )
-        ? null
+      quantity: drops.some((d) => norm(d.name) === norm(cleanItem(text)))
+        ? received
+          ? 1
+          : null
         : exact.quantity,
     };
+  // Prefer a complete catalogue label before interpreting a pack suffix as quantity.
+  const whole = drops.filter((d) => norm(d.name) === norm(cleanItem(text)));
+  if (whole.length === 1)
+    return { name: whole[0].name, quantity: received ? 1 : null };
   const tail = text.match(/^(.*?)\s*[xх×]\s*(\d+)\s*$/iu);
   const head = text.match(/^(\d+)\s*[xх×]\s*(.+)$/iu);
   const tab = text.match(/^(.*?)\t+(\d+)$/u);
+  const malformedMultiplier = /[xх×]\s*[\dOoОо?]*\s*$/iu.test(text);
+  const completeReceived =
+    received && !/[.…]{2}|…/u.test(text) && !malformedMultiplier;
   return {
-    name: (tail?.[1] ?? head?.[2] ?? tab?.[1] ?? text)
-      .trim()
-      .replace(/^\[(.*)\]$/u, "$1"),
+    name: cleanItem(tail?.[1] ?? head?.[2] ?? tab?.[1] ?? text),
     quantity:
-      tail || head || tab ? Number(tail?.[2] ?? head?.[1] ?? tab?.[2]) : null,
+      tail || head || tab
+        ? Number(tail?.[2] ?? head?.[1] ?? tab?.[2])
+        : completeReceived
+          ? 1
+          : null,
   };
 }
 export function lootSuggestions(name, drops) {
@@ -125,10 +163,8 @@ export function rebuildLoot(readings, drops) {
 }
 export function recognizeLoot(text, drops) {
   const readings = [];
-  for (const raw of text
-    .split("\n")
-    .map((s) => s.trim())
-    .filter(Boolean)) {
+  for (const raw of lootLines(text)) {
+    if (interfaceNoise(raw)) continue;
     if (/^(нет|без дропа|дроп|список дропа|монеты?|золото)[:.!]?$/iu.test(raw))
       continue;
     const parsed = parseLootReading(raw, drops);
@@ -184,6 +220,12 @@ export function refreshSimilarLoot(d) {
   let changed = false;
   for (const reading of d.loot.readings) {
     if (!reading.pending || reading.ignored) continue;
+    if (interfaceNoise(reading.raw)) {
+      reading.ignored = true;
+      reading.status = "надпись интерфейса";
+      changed = true;
+      continue;
+    }
     const retry = recognizeLoot(reading.raw, d.catalog.drops).readings[0];
     if (retry && !retry.pending) {
       changed = true;

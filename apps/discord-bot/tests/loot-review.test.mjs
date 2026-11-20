@@ -318,3 +318,47 @@ test("older pending loot auto-matches on review without losing row identity, cor
   refreshSimilarLoot(d);
   assert.deepEqual(d, before);
 });
+
+test("received loot log strips damaged brackets, defaults single drops to one and keeps explicit quantities", () => {
+  const names = [
+    "Нарвиг, огненный клинок Морфеоса",
+    "Каменное сердце Морфеоса",
+    "Эссенция ярости",
+    "Мелкий лунный жемчуг",
+    "Фрагмент чертежа пиратского галеона",
+    "Трофейная эссенция стихий",
+    "Призма солнечного акхиума",
+    "Эссенция солнечного акхиума",
+    "Эссенция лунного акхиума",
+    "Эссенция звездного акхиума",
+  ];
+  const registry = names.map((name, i) => ({ id: String(i), name }));
+  const raw =
+    "ДНЕЙ В NG\nПолучено: [Нарвиг, огненный клинок Морфеосаl\nПолучено: [Каменное сердце Морфеоса]\nПолучено: ]Эссенция ярости]\nПолучено: [Мелкий лунный жемчуг]\nПолучено: [Фрагмент чертежа пиратского галеона]\nПолучено: Трофейная эссенция стихий]х2\nПолучено: [Призма солнечного акхиума]x2\nПолучено: ]Эссенция солнечного акхиума]x2\nПолучено: [Эссенция лунного акхиума]x2\nПолучено: [Эссенция звездного акхиума]";
+  const r = recognizeLoot(raw, registry);
+  assert.equal(r.items.length, 10);
+  assert.deepEqual(r.unresolved, []);
+  assert.deepEqual(
+    r.items.map((i) => i.quantity),
+    [1, 1, 1, 1, 1, 2, 2, 2, 2, 1],
+  );
+  assert.equal(
+    recognizeLoot("Получено: [Каменное сердце\nМорфеоса]", registry).items[0]
+      .quantity,
+    1,
+  );
+  assert.equal(
+    recognizeLoot("Получено: [Эссенция ярости]xO", registry).items.length,
+    0,
+  );
+  assert.equal(
+    recognizeLoot("Получено: [Свиток опыта 2", registry).unresolved.length,
+    1,
+  );
+  assert.equal(
+    recognizeLoot("Получено: [Эссенция ярости x2000]", [
+      { id: "pack", name: "Эссенция ярости x2000" },
+    ]).items[0].quantity,
+    1,
+  );
+});
