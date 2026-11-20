@@ -19,7 +19,15 @@ def query(sql):
   raise SystemExit(1)
 
 
-rows=query("begin read only;set local statement_timeout='20s';\nselect p.proname, pg_get_functiondef(p.oid) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname in ('archive_activities','archive_activities_before_salary_history','guard_activity_archive','guard_closed_event');\nrollback;")
-print("ARCHIVE_FUNCTION_DIAGNOSTIC",json.dumps(rows),flush=True)
-rows=query("begin read only;select (select count(*) from public.activity_archives) archive_batches,(select count(*) from public.events where activity_archive_id is null and deleted_at is null and not inventory_receipt and starts_at>=date '2026-10-01' and starts_at<date '2026-11-15') candidates;rollback;")
-print("ARCHIVE_COUNTS",json.dumps(rows),flush=True)
+
+# Never export production log text. Request only fixed categories and counts.
+categories={'STATEMENT_TIMEOUT':'statement timeout','DEADLOCK':'deadlock','ARCHIVE_GUARD':'ACTIVITY_ARCHIVED','PERIOD_GUARD':'PERIOD_CLOSED','AMBIGUOUS_COLUMN':'column reference','FOREIGN_KEY':'foreign key constraint','UNIQUE_CONSTRAINT':'unique constraint','CHECK_CONSTRAINT':'check constraint','PERMISSION_DENIED':'permission denied','MISSING_COLUMN':'does not exist','RECORD_FIELD':'has no field'}
+cases=' '.join("when regexp_contains(event_message, '"+pattern+"') then '"+name+"'" for name,pattern in categories.items())
+logsql="select case "+cases+" else 'OTHER' end as category,count(*) as occurrences from postgres_logs where regexp_contains(event_message, 'statement timeout|deadlock|ACTIVITY_ARCHIVED|PERIOD_CLOSED|column reference|constraint|permission denied|does not exist|has no field') group by category"
+req=urllib.request.Request('https://api.supabase.com/v1/projects/'+ref+'/analytics/endpoints/logs.all?'+urllib.parse.urlencode({'sql':logsql}),headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN']})
+try:
+ with urllib.request.urlopen(req,timeout=40) as response:logs=json.load(response)
+ rows=logs.get('result',[]) if isinstance(logs,dict) else []
+ safe=[{'category':r['category'],'occurrences':int(r['occurrences'])} for r in rows if isinstance(r,dict) and r.get('category') in categories and str(r.get('occurrences','')).isdigit()]
+ print('DATABASE_ERROR_CATEGORIES_ONLY',json.dumps(safe),flush=True)
+except urllib.error.HTTPError as e:print('LOG_CATEGORY_QUERY_UNAVAILABLE',e.code,flush=True)
