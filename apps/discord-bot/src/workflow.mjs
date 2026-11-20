@@ -11,6 +11,7 @@ import { reviewReady, readingSuggestions } from "./matching.mjs";
 import { safeError } from "./site.mjs";
 import {
   recognizeLoot,
+  refreshSimilarLoot,
   ensureLoot,
   lootReading,
   persistLoot,
@@ -913,6 +914,7 @@ export class ImportWorkflow {
         return;
       }
       if (action === "reviewLoot") {
+        refreshSimilarLoot(d);
         const rows = ensureLoot(d);
         const target = rows.find((r) => r.pending) ?? lootReading(d);
         d.lootFocusKey = target?.key;

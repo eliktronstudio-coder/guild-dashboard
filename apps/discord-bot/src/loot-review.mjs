@@ -48,15 +48,56 @@ export function parseLootReading(raw, drops) {
   };
 }
 export function lootSuggestions(name, drops) {
-  const key = norm(name);
-  if (key.length < 3) return [];
+  // OCR often mixes visually identical Latin and Cyrillic letters.
+  // Digits stay unchanged: different pack sizes must never be conflated.
+  const visual = (value) =>
+    norm(value).replace(
+      /[аекмнорстухві]/gu,
+      (c) =>
+        ({
+          а: "a",
+          е: "e",
+          к: "k",
+          м: "m",
+          н: "h",
+          о: "o",
+          р: "p",
+          с: "c",
+          т: "t",
+          у: "y",
+          х: "x",
+          в: "b",
+          і: "i",
+        })[c],
+    );
+  const key = visual(name),
+    clipped = /(?:\.{2,}|…)\s*$/u.test(name);
+  if (key.length < 3 || key.length > 200) return [];
   return drops
-    .map((item) => ({ ...item, matchCost: distance(key, norm(item.name)) }))
-    .filter(
-      (item) => item.matchCost <= Math.max(2, Math.floor(key.length * 0.25)),
-    )
+    .map((item) => {
+      const target = visual(item.name),
+        cost = distance(key, target);
+      const fullScore = 1 - cost / Math.max(key.length, target.length, 1);
+      const prefixScore =
+        clipped &&
+        key.length >= 8 &&
+        key.length / target.length >= 0.65 &&
+        key.length < target.length
+          ? 1 - distance(key, target.slice(0, key.length)) / key.length
+          : 0;
+      return {
+        ...item,
+        matchCost: cost,
+        matchScore: Math.max(fullScore, prefixScore),
+        prefixMatch: prefixScore > fullScore,
+      };
+    })
+    .filter((item) => item.matchScore >= 0.55)
     .sort(
-      (a, b) => a.matchCost - b.matchCost || a.name.localeCompare(b.name, "ru"),
+      (a, b) =>
+        b.matchScore - a.matchScore ||
+        a.matchCost - b.matchCost ||
+        a.name.localeCompare(b.name, "ru"),
     )
     .slice(0, 3);
 }
@@ -98,10 +139,9 @@ export function recognizeLoot(text, drops) {
     const similar =
       exact.length === 0 &&
       norm(parsed.name).length >= 6 &&
-      !/[.…]{2}|…/u.test(parsed.name) &&
       best &&
-      best.matchCost <= (norm(parsed.name).length >= 12 ? 2 : 1) &&
-      (!next || next.matchCost - best.matchCost >= 2) &&
+      best.matchScore >= (best.prefixMatch ? 0.9 : 0.82) &&
+      (!next || best.matchScore - next.matchScore >= 0.08) &&
       digits(parsed.name) === digits(best.name);
     const item = exact.length === 1 ? exact[0] : similar ? best : null;
     const pending =
@@ -138,6 +178,30 @@ export function ensureLoot(d) {
       d.catalog.drops,
     );
   return d.loot.readings.filter((r) => !r.ignored);
+}
+export function refreshSimilarLoot(d) {
+  ensureLoot(d);
+  let changed = false;
+  for (const reading of d.loot.readings) {
+    if (!reading.pending || reading.ignored) continue;
+    const retry = recognizeLoot(reading.raw, d.catalog.drops).readings[0];
+    if (retry && !retry.pending) {
+      changed = true;
+      Object.assign(reading, {
+        itemId: retry.itemId,
+        name: retry.name,
+        quantity: retry.quantity,
+        suggestions: retry.suggestions,
+        pending: false,
+        status: retry.status,
+      });
+    }
+  }
+  if (changed) {
+    const rosterOnly = d.rosterOnly;
+    persistLoot(d);
+    d.rosterOnly = rosterOnly;
+  }
 }
 export function lootReading(d) {
   const rows = ensureLoot(d);

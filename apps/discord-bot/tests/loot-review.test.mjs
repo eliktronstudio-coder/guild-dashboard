@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
   recognizeLoot,
+  refreshSimilarLoot,
   ensureLoot,
   resolveLoot,
   persistLoot,
@@ -46,7 +47,7 @@ test("ambiguous items, unread quantities, numeric variants and clipped names rem
   for (const raw of [
     "Коготь дракона x0",
     "Коготь дракона x1000001",
-    "Коготь дракон… x3",
+    "Коготь… x3",
     "Коготъ дракона",
     "Коготь дракона",
     "Коготь дракона xO",
@@ -252,4 +253,68 @@ test("quantity forms remain tied to their original row even after focus changes"
   );
   assert.ok(stale.error);
   assert.equal(f.get().loot.items.length, 0);
+});
+
+test("similar loot handles several OCR errors, mixed alphabets and unique long clipped prefixes", () => {
+  for (const raw of [
+    "Трофеиная эссенцня стихии x2",
+    "Тpофейная эcсенция cтихий x2",
+    "Трофейная эссенция… x2",
+  ]) {
+    const result = recognizeLoot(raw, drops);
+    assert.equal(result.items[0]?.id, drops[0].id, raw);
+    assert.equal(result.items[0].quantity, 2);
+    assert.equal(result.readings[0].status, "автосопоставлено");
+    assert.equal(result.readings[0].raw, raw);
+  }
+  const ambiguous = [...drops, { id: "fire", name: "Трофейная эссенция огня" }];
+  assert.equal(
+    recognizeLoot("Трофейная эссенция… x2", ambiguous).unresolved.length,
+    1,
+  );
+  assert.equal(
+    recognizeLoot("Трофеиная эссенцня стихии", drops).items.length,
+    0,
+  );
+});
+test("older pending loot auto-matches on review without losing row identity, corrections or roster-only intent", () => {
+  const raw = "Трофеиная эссенцня стихии x2";
+  const d = {
+    catalog: { drops },
+    screensOnly: true,
+    rosterOnly: true,
+    lootImageResults: { image: raw },
+    loot: {
+      items: [],
+      unresolved: [raw],
+      readings: [
+        {
+          key: "old-row",
+          raw,
+          pending: true,
+          quantity: 2,
+          status: "требует проверки",
+        },
+        {
+          key: "manual",
+          raw: "Original",
+          name: drops[1].name,
+          itemId: drops[1].id,
+          quantity: 4,
+          pending: false,
+          status: "подтверждён вручную",
+        },
+      ],
+    },
+  };
+  refreshSimilarLoot(d);
+  assert.equal(d.loot.readings[0].key, "old-row");
+  assert.equal(d.loot.readings[0].raw, raw);
+  assert.equal(d.loot.items.find((i) => i.id === drops[0].id).quantity, 2);
+  assert.equal(d.loot.items.find((i) => i.id === drops[1].id).quantity, 4);
+  assert.equal(d.rosterOnly, true);
+  assert.deepEqual(d.loot.unresolved, []);
+  const before = structuredClone(d);
+  refreshSimilarLoot(d);
+  assert.deepEqual(d, before);
 });
