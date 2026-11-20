@@ -597,8 +597,15 @@ test("roster-only publication skips unresolved or selected loot and loot screens
   const blocked = interaction(id, "confirm");
   await flow.handle(blocked);
   assert.ok(blocked.errorPayload);
+  assert.match(blocked.errorPayload.content, /спорные предметы/);
   assert.equal(publications.length, 0);
   const controls = renderDraft(saved).components;
+  assert.equal(
+    controls
+      .flatMap((r) => r.components)
+      .find((c) => c.custom_id?.endsWith(":confirm")).disabled,
+    false,
+  );
   assert.ok(controls.length <= 5);
   assert.ok(controls.every((r) => r.components.length <= 5));
   await flow.handle(interaction(id, "confirmRosterOnly"));
@@ -670,6 +677,12 @@ test("roster-only analysis ignores caption text and loot-only attachments; unrev
     ["roster"],
   );
   saved.roster.unresolved = ["Unknown"];
+  assert.equal(
+    renderDraft(saved)
+      .components.flatMap((r) => r.components)
+      .find((c) => c.custom_id?.endsWith(":confirm")).disabled,
+    false,
+  );
   const attempt = interaction(id, "confirmRosterOnly");
   await flow.handle(attempt);
   assert.ok(attempt.errorPayload);
