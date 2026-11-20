@@ -41,7 +41,11 @@ function validInput(data) {
     data.slots >= 1 &&
     data.slots <= 150 &&
     typeof data.retry === "boolean" &&
-    (data.wholeImage === undefined || (data.wholeImage === true && data.retry === false && data.slots === 150 && [1, 2].includes(data.images?.length))) &&
+    (data.wholeImage === undefined ||
+      (data.wholeImage === true &&
+        data.retry === false &&
+        data.slots === 150 &&
+        [1, 2].includes(data.images?.length))) &&
     Array.isArray(data.images) &&
     data.images.length >= 1 &&
     data.images.length <= 7 &&
@@ -52,7 +56,15 @@ function validInput(data) {
         /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(x),
     ) &&
     Object.keys(data).every((k) =>
-      ["version", "model", "maxOutput", "slots", "retry", "images", "wholeImage"].includes(k),
+      [
+        "version",
+        "model",
+        "maxOutput",
+        "slots",
+        "retry",
+        "images",
+        "wholeImage",
+      ].includes(k),
     )
   );
 }
@@ -73,8 +85,6 @@ export function createVisionServer({
     new OpenAI({ apiKey: env.OPENAI_API_KEY, maxRetries: 0, timeout: 65000 });
   const cache = new Map();
   let active = 0,
-    day = "",
-    daily = 0,
     month = "",
     spent = 0;
   const send = (res, status, value) => {
@@ -88,7 +98,12 @@ export function createVisionServer({
     send(res, status, { error: { code, status } });
   const server = createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/health") {
-      send(res, 200, { status: "ok", protocol: 1, capabilities: ["whole-image-roster", "whole-image-enlarged"] });
+      send(res, 200, {
+        status: "ok",
+        protocol: 1,
+        capabilities: ["whole-image-roster", "whole-image-enlarged"],
+        limits: { daily: null, concurrent: 2, monthlyBudgetUSD: 5 },
+      });
       return;
     }
     if (!equal(req.headers.authorization, "Bearer " + secret)) {
@@ -186,25 +201,16 @@ export function createVisionServer({
         month: "2-digit",
         day: "2-digit",
       }).format(new Date(clock()));
-      if (day !== date) {
-        day = date;
-        daily = 0;
-      }
       if (month !== date.slice(0, 7)) {
         month = date.slice(0, 7);
         spent = 0;
       }
       // Secondary, in-memory guard. The authoritative durable $5 ledger remains on Timeweb.
       const reserve = Math.ceil(400000 * 0.75 + input.maxOutput * 4.5);
-      if (daily >= 20) {
-        reject(res, 429, "GPT_DAILY_LIMIT");
-        return;
-      }
       if (spent + reserve > 5e6) {
         reject(res, 429, "GPT_MONTHLY_LIMIT");
         return;
       }
-      daily++;
       spent += reserve;
       active++;
       const entry = { digest, running: true, expires: clock() + 600000 };

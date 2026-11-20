@@ -225,7 +225,7 @@ test("complete Discord conversation publishes a stable reviewed payload and surv
   assert.deepEqual(summary.embeds, []);
   assert.match(summary.content, /Название: Левиафан/);
   assert.match(summary.content, /Коэффициент: ×1/);
-  assert.match(summary.content, /Дата создания: .*Екатеринбург/);
+  assert.match(summary.content, /Дата создания: .*МСК/);
   const savedAt = saved.savedAt;
   await flow.handle(interaction(draft.id, "publish"));
   assert.equal(store.get(draft.id).savedAt, savedAt);
@@ -1060,4 +1060,14 @@ test("fourth coefficient row uses site default, accepts a comma override and sub
   saved = { ...saved, event: undefined, step: "choose" };
   await flow.handle(interaction(saved.id, "activity", [second.id]));
   assert.equal(saved.coefficientWeight, 50);
+});
+
+test("saved creation date uses Moscow rather than the host or Yekaterinburg timezone", () => {
+  const rendered = renderDraft({
+    event: { url: "https://xd-guild.ru/events/test" },
+    publication: { activity: { title: "Рейд", coefficient: "1.00" } },
+    savedAt: "2026-11-19T21:30:00Z",
+  });
+  assert.match(rendered.content, /20\.11\.2026, 00:30 \(МСК\)/);
+  assert.doesNotMatch(rendered.content, /Екатеринбург/);
 });

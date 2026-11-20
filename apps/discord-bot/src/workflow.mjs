@@ -363,8 +363,8 @@ export function renderDraft(d) {
       ? new Intl.DateTimeFormat("ru-RU", {
           dateStyle: "short",
           timeStyle: "short",
-          timeZone: "Asia/Yekaterinburg",
-        }).format(new Date(d.savedAt)) + " (Екатеринбург)"
+          timeZone: "Europe/Moscow",
+        }).format(new Date(d.savedAt)) + " (МСК)"
       : "не указана";
     return {
       content: `Активность сохранена: ${d.event.url}\nНазвание: ${d.publication?.activity.title ?? d.activity?.name ?? "не указано"}\nКоэффициент: ${coefficient}\nДата создания: ${created}\n${d.rosterOnly ? "Состав сохранён без дропа. Дроп можно добавить позже в карточке активности.\n" : ""}${d.nicknameMemoryFailed ? "Память ников временно недоступна." : "Подтверждённые ники добавлены в память бота."}`,

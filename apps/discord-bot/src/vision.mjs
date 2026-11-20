@@ -89,7 +89,12 @@ export function visionConfig(env = process.env, now = Date.now()) {
     model,
     timeout,
     maxOutput,
-    daily: number(env, "OPENAI_DAILY_LIMIT", 20, 0, 10000),
+    daily:
+      String(env.OPENAI_DAILY_LIMIT ?? "unlimited")
+        .trim()
+        .toLowerCase() === "unlimited"
+        ? null
+        : number(env, "OPENAI_DAILY_LIMIT", 0, 0, 10000),
     concurrent: number(env, "OPENAI_CONCURRENCY", 2, 1, 2),
     monthlyMicros: Math.floor(
       number(env, "OPENAI_MONTHLY_BUDGET_USD", 5, 0, 5) * 1e6,
