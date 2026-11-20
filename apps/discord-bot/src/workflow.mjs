@@ -468,7 +468,7 @@ export function renderDraft(d) {
       (d.recognitionNotices ?? []).join("\n") +
         "\n" +
         (d.step === "review"
-          ? ["точно", "похожие", "не найден", "ручная проверка"]
+          ? ["точно", "автосопоставлено", "похожие", "не найден", "ручная проверка"]
               .map(
                 (status) =>
                   status +

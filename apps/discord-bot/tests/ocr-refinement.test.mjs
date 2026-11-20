@@ -34,7 +34,7 @@ async function sheets() {
   }));
 }
 test("single-cell retries preserve identity, do not reread good cells, and recover an independently read registered nickname", async () => {
-  const original = [...words(0, "Kuzlk"), ...words(1, "Ронин")];
+  const original = [...words(0, "Kuzlk").map(w => ({...w, confidence:80})), ...words(1, "Ронин")];
   let calls = 0;
   const result = await refineRosterWords(original, await sheets(), {
     members,
@@ -65,7 +65,7 @@ test("single-cell retries preserve identity, do not reread good cells, and recov
   );
 });
 test("retry timeouts or exhausted budgets preserve all primary OCR observations", async () => {
-  const original = words(0, "Kuzlk");
+  const original = words(0, "Kuzlk").map(w => ({...w, confidence:80}));
   let calls = 0;
   const failed = await refineRosterWords(original, await sheets(), {
     members,
@@ -115,10 +115,11 @@ test("review hints use every OCR alternative, not just the strongest but incorre
   assert.equal(hints[0].nickname, "Ронин");
   assert.ok(hints.some((m) => m.nickname === "Kuzik"));
 });
-test("near-registry OCR errors, very short guests and dictionary-only guesses stay pending", () => {
+test("clear near-registry OCR auto-matches while short and dictionary-only guesses stay pending", () => {
   const near = recognizeIndependentRoster(words(0, "Kuzlk"), members);
   assert.deepEqual(near.guests, []);
-  assert.equal(near.unresolved.length, 1);
+  assert.equal(near.unresolved.length, 0);
+  assert.equal(near.members[0].id, "1");
   const short = recognizeIndependentRoster(words(0, "See"), []);
   assert.equal(short.unresolved.length, 1);
   const biased = recognizeIndependentRoster(
