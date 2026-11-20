@@ -452,7 +452,6 @@ function controls(d) {
         id("confirm"),
         d.rosterOnly ? "Сохранить состав" : "Сохранить на сайт",
         3,
-        !reviewReady(d, { rosterOnly: d.rosterOnly === true }),
       ),
     ),
     row(
@@ -1516,8 +1515,11 @@ export class ImportWorkflow {
         )
           throw Error("INVALID_INPUT");
         if (action === "confirmRosterOnly") d.rosterOnly = true;
-        if (!reviewReady(d, { rosterOnly: d.rosterOnly === true }))
+        if (!d.analyzed) throw Error("RECOGNITION_REQUIRED");
+        if (!d.roster.members.length || d.roster.unresolved.length)
           throw Error("ROSTER_CONFIRMATION_REQUIRED");
+        if (!d.rosterOnly && d.loot.unresolved.length)
+          throw Error("LOOT_REVIEW_REQUIRED");
         d.step = "confirm";
       } else if (action === "backreview") d.step = "review";
       else if (action === "publish") {
