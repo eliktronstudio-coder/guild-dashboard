@@ -33,7 +33,7 @@ if(d.memberSearchQuery!==''||renderDraft(d).components[0].components[0].options.
 const searchLabels=renderDraft(d).components.flatMap(r=>r.components).map(c=>c.label);
 if(searchLabels.includes('Быстрый поиск ника')||!searchLabels.includes('Все ники')||renderDraft(d).components[0].components[0].options[0].value!=='search')throw Error('INLINE_SEARCH_MISSING');
 await flow.handle(action('memberQuery'));await flow.handle(action('memberPick',[b.id]));
-if(d.roster.members.length!==3)throw Error('ADD_MEMBER_FAILED');
+if(d.roster.members.length!==2)throw Error('ADD_MEMBER_FAILED');
 await flow.handle(action('removeMember'));await flow.handle(action('removePick',['m_'+a.id]));await flow.handle(action('backreview'));
 if(errors.length||d.roster.members.length!==1||d.roster.members[0].id!==b.id||!d.roster.readings.find(r=>r.key==='original').ignored)throw Error('REMOVE_MEMBER_FAILED');
 const labels=renderDraft(d).components.flatMap(r=>r.components).map(c=>c.label);
