@@ -1,0 +1,41 @@
+name: XD Telegram delivery
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7,17,27,37,47,57 * * * *'
+permissions: {}
+concurrency:
+  group: xd-telegram-delivery
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    if: vars.XD_TELEGRAM_DISPATCH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Process pending Telegram deliveries
+        env:
+          XD_APP_ORIGIN: ${{ vars.XD_APP_ORIGIN }}
+          XD_DISPATCH_SECRET: ${{ secrets.XD_TELEGRAM_CRON_SECRET }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.request, urllib.parse, urllib.error, json, sys
+          origin = os.environ.get('XD_APP_ORIGIN', '')
+          secret = os.environ.get('XD_DISPATCH_SECRET', '')
+          parsed = urllib.parse.urlsplit(origin)
+          if parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment or len(secret) < 32:
+              sys.exit('Configure XD_APP_ORIGIN and XD_TELEGRAM_CRON_SECRET first.')
+          # Redirects must never forward the bearer secret to a different host.
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          request = urllib.request.Request(origin + '/api/telegram/dispatch', headers={'Authorization': 'Bearer ' + secret})
+          try:
+              with urllib.request.build_opener(NoRedirect()).open(request, timeout=55) as response:
+                  result = json.loads(response.read(4096))
+              print('Delivered:', int(result['sent']), 'Attempts:', int(result['attempted']))
+          except urllib.error.HTTPError as error:
+              sys.exit('Delivery endpoint returned HTTP ' + str(error.code))
+          except Exception:
+              sys.exit('Delivery endpoint unavailable or returned an invalid response.')
+          PY

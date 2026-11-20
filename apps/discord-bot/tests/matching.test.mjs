@@ -1,0 +1,151 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  rosterText,
+  recognizeRoster,
+  lootText,
+  reviewReady,
+} from "../src/matching.mjs";
+const members = [
+    { id: "1", nickname: "Kuzik" },
+    { id: "2", nickname: "Ронин" },
+    { id: "3", nickname: "Лиса" },
+  ],
+  drops = [
+    { id: "a", name: "Коготь", price_units: "20000000", version: 1 },
+    {
+      id: "b",
+      name: "Эссенция ярости x2000",
+      price_units: "4000000",
+      version: 1,
+    },
+  ];
+test("OCR never silently accepts fuzzy/low-confidence names; explicit guest and correction resolve them", () => {
+  const got = recognizeRoster(
+    [
+      { text: "Kuzik", confidence: 92, line: "1" },
+      { text: "Ронин", confidence: 25, line: "2" },
+      { text: "Kuzlk", confidence: 88, line: "3" },
+      { text: "Маг", confidence: 98, line: "4" },
+    ],
+    members,
+  );
+  assert.deepEqual(
+    got.members.map((m) => m.id),
+    ["1"],
+  );
+  assert.deepEqual(got.unresolved, ["Kuzlk"]);
+  const corrected = rosterText("Kuzik\nРонин\nгость: Новый\n? Лиса", members);
+  assert.deepEqual(
+    corrected.members.map((m) => m.id),
+    ["1", "2"],
+  );
+  assert.deepEqual(corrected.guests, ["Новый"]);
+  assert.deepEqual(corrected.unresolved, ["Лиса"]);
+});
+test("loot quantities do not confuse named essence packs, duplicate rows merge and unknown lines block review", () => {
+  const got = lootText(
+    "Получено: [Коготь]x2\nКоготь х3\nЭссенция ярости x2000\nЭссенция ярости x2000 x2\nНеизвестный x5",
+    drops,
+  );
+  assert.deepEqual(
+    got.items.map((i) => [i.id, i.quantity]),
+    [
+      ["a", 5],
+      ["b", 3],
+    ],
+  );
+  assert.deepEqual(got.unresolved, ["Неизвестный x5"]);
+  assert.equal(lootText("Коготь x0", drops).items.length, 0);
+  assert.equal(lootText("? Коготь", drops).items.length, 0);
+  assert.equal(
+    reviewReady({
+      activity: {},
+      mode: "raid",
+      source: "prime",
+      analyzed: true,
+      roster: { members: [{}], unresolved: [] },
+      loot: { unresolved: ["?"] },
+    }),
+    false,
+  );
+});
+test("raid cells resolve unique clipped and mixed-script nicknames without guessing ambiguous prefixes", () => {
+  const roster = [
+    { id: "a", nickname: "HorizonKnight" },
+    { id: "b", nickname: "Рысь" },
+    { id: "c", nickname: "LongMage" },
+    { id: "d", nickname: "LongMagus" },
+  ];
+  const observations = (region, text, confidence = 88) =>
+    ["gray:eng", "white:eng"].map((pass) => ({
+      region,
+      kind: "raid-cell",
+      line: region + pass,
+      pass,
+      text,
+      confidence,
+    }));
+  const result = recognizeRoster(
+    [
+      ...observations("0", "Hоrizon..."),
+      ...observations("1", "Рысь"),
+      ...observations("2", "LongMa..."),
+    ],
+    roster,
+  );
+  assert.deepEqual(
+    result.members.map((m) => m.id),
+    ["a", "b"],
+  );
+  assert.equal(result.unresolved.length, 1);
+  assert.equal(result.detectedSlots, 3);
+});
+test("fuzzy-only and blank raid cells remain pending; low-confidence exact readings need cross-treatment evidence", () => {
+  const roster = [
+    { id: "a", nickname: "Вуэкко" },
+    { id: "b", nickname: "Kuzik" },
+  ];
+  const word = (region, text, confidence, pass) => ({
+    region,
+    kind: "raid-cell",
+    line: region + pass,
+    pass,
+    text,
+    confidence,
+  });
+  const result = recognizeRoster(
+    [
+      word("0", "Вуэкко", 13, "gray:rus"),
+      word("0", "Вуэкко", 13, "gray:rus+eng"),
+      word("0", "Вузкко", 88, "white:rus"),
+      word("0", "Вузкко", 88, "white:rus+eng"),
+      word("1", "Kuzlk", 90, "gray:eng"),
+      word("1", "Kuzlk", 90, "white:eng"),
+      word("2", "", 0, "gray:eng"),
+    ],
+    roster,
+  );
+  assert.deepEqual(
+    result.members.map((m) => m.id),
+    ["a"],
+  );
+  assert.equal(result.unresolved.length, 2);
+  assert.equal(result.detectedSlots, 3);
+});
+
+test("similar repeated Cyrillic nicknames stay distinct and ambiguous OCR only proposes candidates", async () => {
+  const { registeredMatch, nicknameSuggestions } = await import('../src/matching.mjs');
+  const names = ['Плакипаки', 'Пакиплаки', 'Стакистаки', 'Слакислаки'];
+  const rows = names.map((nickname, i)=>({id:String(i),nickname}));
+  for (const [i,name] of names.entries()) assert.equal(registeredMatch(name,rows).id,String(i));
+  const candidates=nicknameSuggestions('Папикалки',rows);
+  assert.deepEqual(new Set(candidates.map(m=>m.nickname)),new Set(['Плакипаки','Пакиплаки']));
+  assert.equal(registeredMatch('Папикалки',rows),null);
+  assert.equal(registeredMatch('Стягистяги',rows),null);
+  const { recognizeIndependentRoster } = await import('../src/recognition.mjs');
+  const roster=recognizeIndependentRoster([{text:'Папикалки',confidence:96,kind:'raid-cell',slotKey:'cell',engine:'gpt',unbiased:true}],rows);
+  assert.equal(roster.members.length,0);
+  assert.equal(roster.guests.length,0);
+  assert.equal(roster.readings[0].pending,true);
+});
