@@ -9,7 +9,12 @@ async function request(path,options={}){
  if(!r.ok)throw Error('DISCORD_ACCESS_HTTP_'+r.status);
  return r.status===204?null:r.json();
 }
-const me=await request('/users/@me'),channels=await request('/guilds/'+c.server+'/channels');
+const me=await request('/users/@me');
+const targetGuild='1168236346230439998';
+const targetResponse=await fetch('https://discord.com/api/v10/guilds/'+targetGuild+'/members/'+me.id,{headers:{Authorization:'Bot '+c.token},signal:AbortSignal.timeout(20000)});
+console.log('RENAME_SERVER_CHECK',JSON.stringify({configuredServerMatches:c.server===targetGuild,botPresent:targetResponse.ok,discordStatus:targetResponse.status,applicationId:me.id}));
+if(c.server!==targetGuild)throw Error('RENAME_SERVER_DIFFERS_FROM_CONFIGURED_SERVER');
+const channels=await request('/guilds/'+c.server+'/channels');
 const ch=channels.find(x=>x.id==='1211335490024771674');
 if(!ch){
  console.log('RENAME_CHANNEL_DIAGNOSTIC',JSON.stringify({requestedIsServer:c.server==='1211335490024771674',candidates:channels.filter(x=>/ренейм|rename/iu.test(x.name??'')).map(x=>({id:x.id,name:x.name})).slice(0,10)}));
