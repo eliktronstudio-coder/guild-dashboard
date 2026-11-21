@@ -11,7 +11,10 @@ async function request(path,options={}){
 }
 const me=await request('/users/@me'),channels=await request('/guilds/'+c.server+'/channels');
 const ch=channels.find(x=>x.id==='1211335490024771674');
-if(!ch)throw Error('RENAME_CHANNEL_NOT_ACCESSIBLE');
+if(!ch){
+ console.log('RENAME_CHANNEL_DIAGNOSTIC',JSON.stringify({requestedIsServer:c.server==='1211335490024771674',candidates:channels.filter(x=>/ренейм|rename/iu.test(x.name??'')).map(x=>({id:x.id,name:x.name})).slice(0,10)}));
+ throw Error('RENAME_CHANNEL_NOT_ACCESSIBLE');
+}
 const member=await request('/guilds/'+c.server+'/members/'+me.id),roles=await request('/guilds/'+c.server+'/roles');
 let perm=roles.filter(r=>r.id===c.server||member.roles.includes(r.id)).reduce((v,r)=>v|BigInt(r.permissions),0n);
 const required=1024n|65536n|64n;
