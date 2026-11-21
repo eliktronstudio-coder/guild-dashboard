@@ -401,3 +401,113 @@ test("Discord event coefficient overrides persist as real weights and drive sepa
     await c.db.close();
   }
 });
+
+test("Discord renames preserve membership identity, validate scope, reject collisions and replay safely", async () => {
+  const { db, as, scalar, members } = await setup();
+  try {
+    await as(1);
+    await db.query("select public.save_discord_settings($1,$2,true)", [
+      server,
+      channel,
+    ]);
+    const event = randomUUID();
+    await db.exec("reset role");
+    await db.query(
+      "insert into public.events(id,guild_id,title,kind,starts_at,organizer_id,status) values($1,$2,'Рейд','raid',now()-interval '1 day',$3,'completed')",
+      [event, guild, members[1]],
+    );
+    await db.query(
+      "insert into public.event_signups(guild_id,event_id,membership_id) values($1,$2,$3)",
+      [guild, event, members[2]],
+    );
+    await db.exec("set role authenticated");
+    const sql = "select public.rename_discord_member($1,$2,null,$3,$4,$5,$6)";
+    const args = [server, "1211335490024771674", user, message, "Лиса", "Мэт"];
+    await assert.rejects(db.query(sql, args), /permission denied/);
+    await db.exec("reset role");
+    await db.query("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ role: "service_role" }),
+    ]);
+    await db.exec("set role service_role");
+    await assert.rejects(
+      db.query(sql, [server, channel, user, message, "Лиса", "Мэт"]),
+      /DISCORD_CHANNEL_FORBIDDEN/,
+    );
+    await assert.rejects(
+      db.query(sql, [
+        "000000000000000000",
+        args[1],
+        user,
+        message,
+        "Лиса",
+        "Мэт",
+      ]),
+      /DISCORD_CHANNEL_FORBIDDEN/,
+    );
+    await assert.rejects(
+      db.query(sql, [server, args[1], user, message, "Лиса", "Ронин"]),
+      /NICKNAME_UNAVAILABLE/,
+    );
+    const result = await scalar<{ membership_id: string }>(sql, args);
+    assert.equal(result.membership_id, members[2]);
+    assert.equal(
+      (await scalar<{ replayed: boolean }>(sql, args)).replayed,
+      true,
+    );
+    await assert.rejects(
+      db.query(sql, [server, args[1], user, message, "Лиса", "Новый"]),
+      /REQUEST_CONFLICT/,
+    );
+    // An old name can follow the same member after a rename, but never uses fuzzy matching.
+    const next = await scalar<{ membership_id: string }>(sql, [
+      server,
+      args[1],
+      user,
+      "523456789012345678",
+      "Лиса",
+      "Другой",
+    ]);
+    assert.equal(next.membership_id, members[2]);
+    await assert.rejects(
+      db.query(sql, [
+        server,
+        args[1],
+        user,
+        "623456789012345678",
+        "Лис",
+        "Новый",
+      ]),
+      /MEMBER_NOT_UNIQUE/,
+    );
+    await db.exec("reset role");
+    assert.equal(
+      await scalar("select nickname from public.memberships where id=$1", [
+        members[2],
+      ]),
+      "Другой",
+    );
+    assert.equal(
+      await scalar(
+        "select m.nickname from public.event_signups a join public.memberships m on m.id=a.membership_id where a.event_id=$1",
+        [event],
+      ),
+      "Другой",
+    );
+    assert.equal(await scalar("select count(*) from public.memberships"), 4);
+    assert.equal(
+      await scalar(
+        "select count(*) from public.nickname_history where membership_id=$1",
+        [members[2]],
+      ),
+      2,
+    );
+    assert.equal(
+      await scalar(
+        "select nullif(current_setting('xd.discord_actor',true),'')",
+      ),
+      null,
+    );
+  } finally {
+    await db.close();
+  }
+});
