@@ -450,6 +450,19 @@ test("Discord renames preserve membership identity, validate scope, reject colli
     );
     const result = await scalar<{ membership_id: string }>(sql, args);
     assert.equal(result.membership_id, members[2]);
+    const renamedContext = await scalar<{
+      members: { id: string; nickname: string; aliases: string[] }[];
+    }>("select public.discord_import_context($1,$2,null,$3)", [
+      server,
+      channel,
+      user,
+    ]);
+    const renamedMember = renamedContext.members.find(
+      (m) => m.id === members[2],
+    );
+    assert.equal(renamedMember?.nickname, "Мэт");
+    assert.ok(renamedMember?.aliases.includes("Лиса"));
+
     assert.equal(
       (await scalar<{ replayed: boolean }>(sql, args)).replayed,
       true,

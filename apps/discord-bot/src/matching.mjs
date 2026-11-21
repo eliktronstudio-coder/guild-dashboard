@@ -66,6 +66,7 @@ const visual = (value) =>
         і: "i",
       })[c],
   );
+export const nicknameSkeleton = visual;
 function cleanNickname(value) {
   return String(value)
     .trim()
