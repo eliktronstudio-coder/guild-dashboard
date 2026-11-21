@@ -1,0 +1,279 @@
+import OpenAI from "openai";
+import sharp from "sharp";
+import { createHash } from "node:crypto";
+import { parseVision, visionRequest } from "./vision-protocol.mjs";
+export { parseVision } from "./vision-protocol.mjs";
+import { remoteVisionClient } from "./vision-remote.mjs";
+import { raidLabelSheets } from "./images.mjs";
+
+import { visionConfig, visionFailure, visionNotice } from "./vision-budget.mjs";
+export { visionConfig, visionFailure } from "./vision-budget.mjs";
+import { createLootVisionRecognizer } from "./loot-vision.mjs";
+// Returns the same words/text contract as OCR. The model never chooses website IDs.
+export function createVisionRecognizer({
+  store,
+  env = process.env,
+  client,
+  regions = raidLabelSheets,
+  log = console.info,
+  clock = Date.now,
+  remoteClient = remoteVisionClient,
+} = {}) {
+  const recognizeLoot = createLootVisionRecognizer({
+    store,
+    env,
+    client,
+    log,
+    clock,
+    remoteClient,
+  });
+  return async function recognize(buffer, options = {}) {
+    if (!options.roster)
+      return options.loot
+        ? recognizeLoot(buffer, options)
+        : { words: [], text: "", engine: "gpt" };
+    let reservation, response, config;
+    try {
+      if (!env.VISION_SERVICE_URL && !env.OPENAI_API_KEY)
+        throw Error("GPT_NO_KEY");
+      config = visionConfig(env, clock());
+      const remote = env.VISION_SERVICE_URL ? remoteClient(env) : null;
+      const source = await sharp(buffer, { limitInputPixels: 25000000 })
+        .rotate()
+        .removeAlpha()
+        .png()
+        .toBuffer();
+      const layout = await regions(source),
+        imageKey = createHash("sha256").update(source).digest("hex");
+      // Retry crops when coordinates exist; whole-image readings have no crop boxes.
+      const wholeRetry = Boolean(options.retryCells?.some((c) => !c.box));
+      let cells =
+        options.retryCells?.length && !wholeRetry
+          ? options.retryCells.map((c) => ({ slotKey: c.slotKey, box: c.box }))
+          : layout.boxes.map((box, i) => ({
+              box,
+              slotKey: createHash("sha256")
+                .update(imageKey + ":" + i)
+                .digest("hex"),
+            }));
+      const wholeImage =
+        wholeRetry ||
+        ((!cells.length || layout.incomplete === true) && !options.retryCells);
+      if (wholeImage) cells = [];
+      if (!cells.length && !wholeImage) throw Error("GPT_ROSTER_NOT_FOUND");
+      if (cells.length > 150) throw Error("GPT_ROSTER_TOO_LARGE");
+      const key = createHash("sha256")
+          .update(
+            JSON.stringify([
+              wholeImage ? "vision-whole-v3" : "vision-v2",
+              config.model,
+              imageKey,
+              cells,
+              Boolean(options.retryCells),
+            ]),
+          )
+          .digest("hex"),
+        scope = String(options.scope ?? "default");
+      let players = store.visionCached(scope, key, clock(), config.cacheTtl);
+      if (!players) {
+        const images = [];
+        if (!options.retryCells || wholeImage) images.push(source);
+        if (wholeImage) {
+          const meta = await sharp(source).metadata();
+          if (Math.max(meta.width, meta.height) < 800) {
+            const scale = Math.min(4, 1600 / Math.max(meta.width, meta.height));
+            images.push(
+              await sharp(source)
+                .resize({
+                  width: Math.round(meta.width * scale),
+                  height: Math.round(meta.height * scale),
+                  fit: "inside",
+                  kernel: "lanczos3",
+                })
+                .png()
+                .toBuffer(),
+            );
+          }
+        }
+        // Original-color enlarged crops preserve mixed alphabets and colored-panel strokes.
+        for (let start = 0; start < cells.length; start += 25) {
+          const batch = cells.slice(start, start + 25),
+            layers = [];
+          for (const [i, c] of batch.entries()) {
+            const crop = await sharp(source)
+              .extract({
+                left: c.box.left,
+                top: c.box.top,
+                width: c.box.width,
+                height: c.box.height,
+              })
+              .resize({ width: 600, height: 72, fit: "inside" })
+              .png()
+              .toBuffer();
+            const label = Buffer.from(
+              `<svg width="70" height="88"><rect width="70" height="88" fill="white"/><text x="4" y="40" font-size="24">${start + i}</text></svg>`,
+            );
+            layers.push(
+              { input: label, left: 0, top: i * 88 },
+              { input: crop, left: 75, top: i * 88 },
+            );
+          }
+          images.push(
+            await sharp({
+              create: {
+                width: 680,
+                height: batch.length * 88,
+                channels: 3,
+                background: "#ffffff",
+              },
+            })
+              .composite(layers)
+              .png()
+              .toBuffer(),
+          );
+        }
+        reservation = store.visionReserve(scope, key, config, clock());
+        if (reservation.cached) players = reservation.cached;
+        else {
+          const payload = {
+            model: config.model,
+            maxOutput: config.maxOutput,
+            slots: wholeImage ? 150 : cells.length,
+            ...(wholeImage ? { wholeImage: true } : {}),
+            retry: Boolean(options.retryCells),
+            images: images.map(
+              (b) => "data:image/png;base64," + b.toString("base64"),
+            ),
+          };
+          if (env.VISION_SERVICE_URL) {
+            response = await remote(
+              { ...payload, requestId: reservation.id },
+              config.timeout,
+            );
+          } else {
+            const api =
+              client ??
+              new OpenAI({
+                apiKey: env.OPENAI_API_KEY,
+                maxRetries: 0,
+                timeout: config.timeout,
+              });
+            response = await api.responses.create(visionRequest(payload), {
+              timeout: config.timeout,
+              maxRetries: 0,
+            });
+          }
+          players = parseVision(
+            response,
+            wholeImage ? 150 : cells.length,
+            wholeImage,
+          );
+          const usage = response.usage,
+            input = usage?.input_tokens,
+            output = usage?.output_tokens;
+          const cost =
+            Number.isSafeInteger(input) &&
+            input >= 0 &&
+            Number.isSafeInteger(output) &&
+            output >= 0
+              ? Math.ceil(input * 0.75 + output * 4.5)
+              : undefined;
+          store.visionFinish(
+            reservation.id,
+            {
+              result: players,
+              costMicros: cost,
+              inputTokens: input ?? null,
+              outputTokens: output ?? null,
+            },
+            clock(),
+          );
+          log(
+            JSON.stringify({
+              event: "vision_usage",
+              model: config.model,
+              inputTokens: input ?? null,
+              outputTokens: output ?? null,
+              estimatedUSD: (cost ?? config.reserveMicros) / 1e6,
+            }),
+          );
+        }
+      }
+      const words = players.map((p) => ({
+        text: p.visible,
+        confidence: p.uncertain ? 30 : 96,
+        line: String(p.slot),
+        region: String(p.slot),
+        kind: "raid-cell",
+        pass: "gpt:vision",
+        unbiased: true,
+        engine: "gpt",
+        uncertain: p.uncertain,
+        clipped: p.truncated || cells[p.slot]?.box.clipped === true,
+        imageKey,
+        slotKey:
+          cells[p.slot]?.slotKey ??
+          createHash("sha256")
+            .update(imageKey + ":whole:" + p.slot)
+            .digest("hex"),
+        box: cells[p.slot]?.box,
+        group: p.group,
+      }));
+      const loot = options.loot
+        ? await recognizeLoot(buffer, options)
+        : { text: "" };
+      return {
+        words,
+        text: loot.text,
+        ...(options.loot
+          ? { lootItems: loot.lootItems, lootFailed: loot.failed === true }
+          : {}),
+        regionCount: words.length,
+        engine: "gpt",
+        notice:
+          (loot.notice ? loot.notice + "\n" : "") +
+          (wholeImage
+            ? words.length
+              ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Однозначные ники сопоставляются автоматически, спорные требуют проверки."
+              : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную."
+            : "Состав прочитан GPT; однозначные похожие ники сопоставляются автоматически, спорные требуют проверки."),
+      };
+    } catch (error) {
+      const code = visionFailure(error);
+      if (reservation?.id) {
+        const input = (response?.usage ?? error.visionUsage)?.input_tokens,
+          output = (response?.usage ?? error.visionUsage)?.output_tokens;
+        const cost =
+          Number.isSafeInteger(input) && Number.isSafeInteger(output)
+            ? Math.ceil(input * 0.75 + output * 4.5)
+            : [400, 401, 403, 404, 422, 429].includes(error.status)
+              ? 0
+              : undefined;
+        store.visionFinish(
+          reservation.id,
+          {
+            costMicros: cost,
+            inputTokens: input ?? null,
+            outputTokens: output ?? null,
+            error: code,
+          },
+          clock(),
+        );
+      }
+      log(
+        JSON.stringify({
+          event: "vision_failure",
+          code,
+          status: Number.isInteger(error?.status) ? error.status : null,
+        }),
+      );
+      return {
+        words: [],
+        text: "",
+        engine: "unavailable",
+        failed: true,
+        notice: visionNotice(code),
+      };
+    }
+  };
+}

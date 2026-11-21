@@ -1,0 +1,30 @@
+{
+  "source": "Owner-approved third scarlet mock refined with realistic blood drips, conversation 2026-11-18",
+  "assets": [
+    {
+      "name": "seal",
+      "prompt": "Create a production transparent PNG brand asset by editing the supplied XD emblem. Preserve the exact scratched silver XD lettering, jagged crescent grin, circular ring and small top A. Clean any stray yellow or red alpha-edge artifacts from the source; the silver emblem itself stays silver. Add physically realistic dark venous burgundy blood collected only along the lower jagged grin, with a few gravity-shaped irregular short drips and one or two longer thin trails below it; dark oxidized brown-red roots, subtle wet crimson highlights, uneven viscosity, tiny realistic beads. Add a restrained thin deep-crimson accent to part of the outer ring. The effect is dark-fantasy guild branding, not explicit violence. No bodies, injuries, gore, background, letters, mockup or UI. Entire emblem and every drip inside the image with generous fully transparent margin. Silver letters must remain high-contrast and legible. Real alpha background, no checkerboard painted into pixels, no glow, no bright candy-red cartoon drops."
+    },
+    {
+      "name": "divider",
+      "prompt": "Produce ONE production website decorative raster asset with a true transparent alpha background: an extremely wide, shallow strip of realistic dark blood drips hanging from an almost hairline horizontal crimson edge. Target composition aspect ratio 12:1, about 1536 pixels wide and 128 pixels tall; keep the actual artwork in one narrow horizontal ribbon, not a tall composition. Only four to six unevenly spaced drip clusters, each different: oxidized brown-red attachment, deep venous burgundy liquid, small gravity-shaped dark crimson droplets with restrained wet highlights and a few dry thin trails. Most drops short, one longer near middle. Leave the far right 15% almost empty to keep clear of a website button. Keep all drips completely within the image with transparent margin below. No glow, no plastic bright red, no splatter field, no UI, no text, no background scene, no border frame. This is a dark-fantasy game guild website ornament, not violence; no injuries, bodies or gore. The material should look like realistic viscous blood on a thin black metal edge, with the metal/background absent to real transparency."
+    },
+    {
+      "name": "corner",
+      "prompt": "Create ONE isolated production decorative website corner asset on a real transparent alpha background. A sparse organic diagonal brush scrape of dried dark blood/crimson paint occupying the TOP LEFT corner of a square canvas, strongest only along the top and left edges and fading naturally into transparency toward the middle. Oxidized brown-maroon roots, deep dry crimson ridges, rough distressed brush fibers, a few tiny irregular specks. The central 70% of the canvas must remain fully transparent and clear for a working interface. This is a restrained black-metal game-guild graphic corner ornament, not a gore illustration. No bodies, wounds, weapons, symbols, text, UI, background, neon, glow or huge red filled smear. Subtle realistic material, not cartoon red scratches. Leave a small transparent margin so the full artwork can be delivered uncropped."
+    }
+  ],
+  "note": "AI-produced raster decoration, not CSS imitation. Source PNGs kept outside public; WebP delivery generated in isolated GitHub Actions before deployment. No production data/finance mutation.",
+  "delivery": {
+    "format": "WebP",
+    "quality": 88,
+    "padding": "Visible-alpha bounding box (alpha >= 8) removes imperceptible generated padding without changing painted pixels. Resize preserves aspect ratio.",
+    "widths": {
+      "seal": 768,
+      "smallSeal": 192,
+      "divider": 1536,
+      "corner": 384
+    },
+    "placement": "Header ribbon rendered at 480px natural aspect ratio on desktop, 340px mobile; never stretched. Decorative layers do not receive pointer events."
+  }
+}

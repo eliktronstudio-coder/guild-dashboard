@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T19:53:39.648102+00:00",
+  "title": "Design System: XD Guild Command Center",
+  "extensions": {
+    "sourceDocument": "docs/DESIGN.md",
+    "sourceStyles": [
+      "apps/web/src/app/globals.css",
+      "apps/web/src/app/reference-ui.css",
+      "apps/web/src/app/silver-ui.css",
+      "apps/web/src/app/blood-ui.css"
+    ],
+    "shadows": [
+      {
+        "name": "panel",
+        "value": "none",
+        "purpose": "Flat working surfaces and public cards."
+      },
+      {
+        "name": "primary",
+        "value": "none",
+        "purpose": "Flat crimson primary controls."
+      }
+    ],
+    "motion": [
+      {
+        "name": "seal-resolve",
+        "value": "0.45s ease-out",
+        "purpose": "One-time soft-focus resolve; disabled in light theme and reduced motion."
+      },
+      {
+        "name": "focus",
+        "value": "2px solid var(--accent-text); outline-offset: 3px",
+        "purpose": "Keyboard focus treatment."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "intermediate-max",
+        "value": "1023px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "767px"
+      },
+      {
+        "name": "salary-mobile-max",
+        "value": "700px"
+      }
+    ],
+    "assets": {
+      "seal": "apps/web/public/brand/xd-seal-blood.webp",
+      "smallSeal": "apps/web/public/brand/xd-seal-blood-small.webp",
+      "provenance": "apps/web/public/brand/provenance.json",
+      "fonts": [
+        "apps/web/src/app/fonts/cormorant.woff2",
+        "apps/web/src/app/fonts/golos.woff2"
+      ],
+      "divider": "apps/web/public/brand/blood-divider.webp",
+      "corner": "apps/web/public/brand/blood-corner.webp",
+      "bloodProvenance": "apps/web/public/brand/blood-provenance.json",
+      "sourcePngs": ".impeccable/assets/blood/",
+      "delivery": "Alpha >= 8 bounds crop; WebP quality 88; preserve natural aspect ratio."
+    },
+    "validation": {
+      "testsPassed": 181,
+      "build": "Actions passed; later padding/aspect-only change passed local typecheck/build",
+      "routes": 11,
+      "widths": [
+        390,
+        1440
+      ],
+      "themes": [
+        "dark",
+        "light"
+      ],
+      "fixtures": "Isolated synthetic Auth/DB, salary/archive scripts; no production mutations",
+      "screenshots": ".impeccable/review/blood/viewport-*.png",
+      "reviewBoundary": "Fresh independent finish review: ship, no material fixes. Final conversation mock unavailable; no pixel-perfect approval claim.",
+      "actionsRun": "44161070065",
+      "latestBrowserPass": "Same 11-route, both-theme 390/1440 matrix after padding/aspect fix."
+    },
+    "decoration": {
+      "ribbonWidth": {
+        "desktop": "480px",
+        "mobile": "340px"
+      },
+      "contentTopPadding": {
+        "desktop": "68px",
+        "mobile": "52px"
+      },
+      "placement": "Document-scrolling, behind content, pointer-events:none; no canvas or loop.",
+      "lightSealFilter": "brightness(0.32)"
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<button class=\"ds-primary\">Сохранить</button>",
+      "css": ".ds-primary{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--accent,#c71936);color:var(--on-accent,#fff8f4);border:1px solid var(--accent,#c71936);font-weight:600;border-radius:5px;min-height:42px;padding:12px 20px}.ds-primary:hover{background:var(--accent-hover,#b41430);border-color:var(--accent-hover,#b41430)}.ds-primary:focus-visible{outline:2px solid var(--accent-text,#f05c70);outline-offset:3px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<button class=\"ds-secondary\">Сохранить</button>",
+      "css": ".ds-secondary{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--panel,#111315);color:var(--text,#eeeae3);border:1px solid var(--line,#323437);border-radius:5px;min-height:42px;padding:12px 20px}.ds-secondary:hover{background:var(--accent-soft,#c7193614);border-color:var(--accent,#c71936)}.ds-secondary:focus-visible{outline:2px solid var(--accent-text,#f05c70);outline-offset:3px}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<label class=\"ds-label\">Ник<input class=\"ds-input\" placeholder=\"Игровое имя\"></label>",
+      "css": ".ds-label{display:grid;gap:6px;color:var(--text,#eeeae3);font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-input{font-family:var(--font-golos,\"Golos Text\"),sans-serif;background:var(--field,#0b0c0d);color:var(--text,#eeeae3);border:1px solid var(--line,#323437);border-radius:5px;padding:12px 14px}.ds-input::placeholder{color:var(--muted,#aaa9a5)}.ds-input:focus{border-color:var(--accent,#c71936)}.ds-input:focus-visible{outline:2px solid var(--accent-text,#f05c70);outline-offset:3px}"
+    },
+    {
+      "name": "Active Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-active",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<nav><a href=\"#\" class=\"ds-nav\" aria-current=\"page\">Обзор гильдии</a></nav>",
+      "css": ".ds-nav{display:flex;min-height:43px;align-items:center;padding:10px 14px;border-radius:5px;border:1px solid var(--accent,#c71936);background:var(--accent,#c71936);color:var(--on-accent,#fff8f4);text-decoration:none;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-nav:hover{border-color:var(--muted,#aaa9a5)}.ds-nav:focus-visible{outline:2px solid var(--accent-text,#f05c70);outline-offset:3px}"
+    },
+    {
+      "name": "Role Badge",
+      "kind": "chip",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<span class=\"ds-badge\">Участник</span>",
+      "css": ".ds-badge{display:inline-block;padding:3px 7px;border:1px solid var(--line,#323437);border-radius:6px;color:var(--text,#eeeae3);font-size:11px;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}"
+    },
+    {
+      "name": "Working Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Extracted from the silver world with its approved crimson extension.",
+      "html": "<section class=\"ds-panel\"><h2>Личная посещаемость</h2><p>Подтверждённые данные</p></section>",
+      "css": ".ds-panel{padding:24px;border:1px solid var(--line,#323437);border-radius:12px;background:var(--panel,#111315);color:var(--text,#eeeae3);box-shadow:none;font-family:var(--font-golos,\"Golos Text\"),sans-serif;}.ds-panel h2{margin:0 0 18px;font:600 27px/1.2 var(--font-cormorant,\"Cormorant Garamond\"),serif;letter-spacing:-.02em}.ds-panel p{color:var(--muted,#aaa9a5);font-size:14px;line-height:1.5}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The guild’s distressed silver XD seal, extended with restrained crimson",
+    "overview": "**Creative North Star: the guild’s distressed silver XD seal, extended with restrained crimson.** The owner approved the third black/scarlet preview, then realistic dark-burgundy drips along the XD grin and upper divider with sparse dried corner marks. The current authority is [.impeccable/surfaces/blood-accent.md](../.impeccable/surfaces/blood-accent.md), extending the [silver baseline](../.impeccable/surfaces/silver-identity.md). This refines the existing application world and layout. The unavailable final conversation mock prevents a pixel-level comparison; no pixel-perfect approval is claimed.\n\nThe seal carries scratched silver ink and realistic raster blood material. Typography, numbers and working panels remain precise and readable. Auth, permissions, real member data, payroll calculations, saved layouts and protected actions retain their existing behavior.",
+    "keyCharacteristics": [
+      "Obsidian/graphite surfaces, crimson actions and silver financial values",
+      "Neutral ivory/charcoal light theme",
+      "Realistic raster decoration behind working content",
+      "Local typography, tabular values and existing responsive navigation"
+    ],
+    "rules": [
+      {
+        "name": "Silver Money",
+        "body": "Legacy --gold remains silver/charcoal for financial and neutral roles; never redefine it as crimson or historical orange/gold.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do apply the shared silver world and crimson extension across public, member, finance and administration surfaces in both themes.",
+      "Do preserve labels, exact financial values, source actions, Auth/ACL and all later business instructions in PRODUCT.md."
+    ],
+    "donts": [
+      "Don't revive the superseded orange/purple reference, historical concept palettes or fantasy banners as visual authority.",
+      "Don't infer a UI composition approval from the supplied emblem or turn fixture values into production data."
+    ]
+  }
+}
