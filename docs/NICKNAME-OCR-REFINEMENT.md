@@ -1,3 +1,5 @@
+> Historical local-OCR research only. The production Discord worker now uses GPT Vision for roster and loot and does not invoke Tesseract.
+
 # Nickname OCR refinement
 
 The local Tesseract pipeline keeps antialiased white-text intensities when

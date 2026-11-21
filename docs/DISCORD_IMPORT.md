@@ -1,6 +1,6 @@
 # Discord activity import
 
-The bot integrates the established XD web/Supabase stack. It uses Discord.js and local Tesseract OCR (`rus+eng`), without an LLM API, external OCR service or paid model. Treat OCR as a draft: confidence and exact registry matches determine suggestions, never authoritative attendance. A real Discord application/token and server installation are still necessary; deploying code alone does not connect a Discord account.
+The bot integrates the established XD web/Supabase stack. It uses Discord.js and GPT Vision for both roster and loot through the existing authenticated Render transport. Tesseract is not used by the worker or as a fallback; GPT failures leave the draft available for manual correction. See `apps/discord-bot/OPENAI.md` for the shared budget and transport protocol. Treat OCR as a draft: confidence and exact registry matches determine suggestions, never authoritative attendance. A real Discord application/token and server installation are still necessary; deploying code alone does not connect a Discord account.
 
 ## Connect a new bot
 
@@ -24,7 +24,7 @@ The service wrapper delegates only a active administrator who enabled the channe
 
 Apply migrations 023 and 024 before the web release. Generate a strong server-only `DISCORD_IMPORT_SECRET` shared by web and worker, never a `NEXT_PUBLIC_` variable. Worker API routes use constant-time bearer authentication, bounded bodies, private/no-store responses and service-only database functions. The worker receives only its narrowly scoped bridge credential, not the Supabase service key. API runtime responses containing a bot token are never cached.
 
-Install Tesseract and the Russian/English language packages, run the worker with Node >=22.13, install `deploy/xd-discord-bot.service` as a dedicated `xd-discord` OS user, and place its environment in `/etc/xd-discord-bot.env` (root 0600). The bot waits while site configuration is disabled or missing. State is a private SQLite file in `/var/lib/xd-discord-bot`, with 24-hour draft expiry, stable publication IDs and restart recovery. This SQLite file holds only bot drafts, not the application's database. Polling refreshes configuration every 30 seconds. Disabling channel settings stops further imports immediately. Blocking/removing the connection owner or revoking their required permissions also stops imports until an administrator saves the connection again.
+Run the worker with Node >=22.13, install `deploy/xd-discord-bot.service` as a dedicated `xd-discord` OS user, and place its environment in `/etc/xd-discord-bot.env` (root 0600). The bot waits while site configuration is disabled or missing. State is a private SQLite file in `/var/lib/xd-discord-bot`, with 24-hour draft expiry, stable publication IDs and restart recovery. This SQLite file holds only bot drafts, not the application's database. Polling refreshes configuration every 30 seconds. Disabling channel settings stops further imports immediately. Blocking/removing the connection owner or revoking their required permissions also stops imports until an administrator saves the connection again.
 
 `scripts/deploy-discord-timeweb.sh` installs an isolated versioned release, tests it, switches atomically and restarts the worker. The existing web deployment invokes it when the worker service is installed, so future foundation-branch updates deploy both. The web service remains on port 3001 and Supabase; the unrelated old SQLite website is not involved.
 
@@ -36,7 +36,7 @@ Install Tesseract and the Russian/English language packages, run the worker with
 
 ## Small raid-name labels
 
-The roster recognizer detects repeated blue/pink raid panels, removes borders, isolates each name label and builds padded OCR sheets. Grayscale and white-text treatments are read independently with Russian, English and combined models. Bounded local dictionaries use the current member names (and drop names for loot images). High-accuracy Tesseract models are pinned to an upstream commit and verified by SHA-256 by `scripts/install-discord-ocr-models.sh`; they are not bundled into the repository. Each OCR image has a 90-second deadline and Tesseract uses one thread.
+The roster recognizer uses local image geometry only to prepare enlarged nickname regions for GPT. Loot screenshots are transcribed separately by GPT into occurrence-level structured rows. Missing or ambiguous data requires manual review; no local OCR subprocess is called. Legacy image/OCR refinement research is not part of the production worker.
 
 A uniquely matching visible nickname prefix can recover an ellipsized registered name. Visual Cyrillic/Latin lookalikes are handled without accepting ambiguous registry collisions. Fuzzy-only readings stay pending. Low-confidence exact readings require cross-treatment corroboration. Unknown cells remain visible even if OCR read nothing. Review now provides dropdown suggestions and explicit guest/noise actions, while the full roster remains editable. Detecting a cell is not proof of a registered participant: an unregistered or truncated unknown name cannot be reconstructed from a website roster that does not contain it.
 

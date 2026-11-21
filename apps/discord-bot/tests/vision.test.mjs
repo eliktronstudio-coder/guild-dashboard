@@ -50,7 +50,18 @@ async function fixture(extra = {}) {
             .filter((x) => x.type === "input_image")
             .every((x) => x.detail === "original"),
         );
-        return structuredClone(response);
+        return structuredClone(
+          body.text.format.name === "activity_loot"
+            ? {
+                ...response,
+                output_text: JSON.stringify({
+                  items: [
+                    { slot: 0, visible: "Дроп", quantity: 2, uncertain: false },
+                  ],
+                }),
+              }
+            : response,
+        );
       },
     },
   };
@@ -82,7 +93,7 @@ async function fixture(extra = {}) {
     },
   };
 }
-test("Responses Vision uses originals, preserves visible names/group and caches pixels; loot stays local", async () => {
+test("Responses Vision uses originals, preserves visible names/group and caches pixels; loot never invokes local OCR", async () => {
   const f = await fixture();
   try {
     const a = await f.recognize(f.buffer, {
@@ -92,15 +103,17 @@ test("Responses Vision uses originals, preserves visible names/group and caches 
     });
     assert.equal(a.words[0].text, "СмешанныйX");
     assert.equal(a.words[0].group, 2);
-    assert.equal(a.text, "Дроп x2");
-    assert.equal(f.localCalls[0].roster, false);
+    assert.equal(a.text, "");
+    assert.equal(a.lootFailed, false);
+    assert.equal(a.lootItems[0].quantity, 2);
+    assert.equal(f.localCalls.length, 0);
     const differentlyEncoded = await sharp(f.buffer)
       .png({ compressionLevel: 0 })
       .toBuffer();
     await f.recognize(differentlyEncoded, { roster: true, scope: "guild" });
-    assert.equal(f.calls(), 1);
-    await f.recognize(f.buffer, { roster: true, scope: "other" });
     assert.equal(f.calls(), 2);
+    await f.recognize(f.buffer, { roster: true, scope: "other" });
+    assert.equal(f.calls(), 3);
   } finally {
     f.close();
   }
@@ -109,7 +122,7 @@ test("missing key and loot-only do not contact OpenAI", async () => {
   const f = await fixture({ env: {} });
   try {
     const a = await f.recognize(f.buffer, { roster: true });
-    assert.equal(a.engine, "tesseract");
+    assert.equal(a.engine, "unavailable");
     assert.match(a.notice, /не подключён/);
     await f.recognize(f.buffer, { roster: false, loot: true });
     assert.equal(f.calls(), 0);
@@ -117,7 +130,7 @@ test("missing key and loot-only do not contact OpenAI", async () => {
     f.close();
   }
 });
-test("rate limits, timeouts and malformed output fall back without leaking SDK error text", async () => {
+test("rate limits, timeouts and malformed output stop without invoking local OCR or leaking SDK error text", async () => {
   for (const failure of [
     { status: 429, message: "private provider text" },
     { message: "timeout private" },
@@ -135,7 +148,7 @@ test("rate limits, timeouts and malformed output fall back without leaking SDK e
     });
     try {
       const r = await f.recognize(f.buffer, { roster: true });
-      assert.equal(r.engine, "tesseract");
+      assert.equal(r.engine, "unavailable");
       assert.ok(!r.notice.includes("private"));
     } finally {
       f.close();
@@ -265,10 +278,7 @@ test("only exact canonical/registered aliases link IDs; confusables, cropped and
     unbiased: true,
   };
   assert.equal(recognizeIndependentRoster([word], members).members[0].id, "1");
-  for (const change of [
-    { clipped: true },
-    { uncertain: true },
-  ])
+  for (const change of [{ clipped: true }, { uncertain: true }])
     assert.equal(
       recognizeIndependentRoster([{ ...word, ...change }], members).members
         .length,
@@ -322,7 +332,7 @@ test("region rejection explains VPS restriction, uses Tesseract, and makes no au
   });
   try {
     const result = await f.recognize(f.buffer, { roster: true });
-    assert.equal(result.engine, "tesseract");
+    assert.equal(result.engine, "unavailable");
     assert.match(result.notice, /региону сервера/);
     assert.match(result.notice, /403/);
     assert.equal(calls, 1);
@@ -369,7 +379,7 @@ test("misconfigured remote does not fall through to direct OpenAI or reserve a p
   });
   try {
     const r = await f.recognize(f.buffer, { roster: true });
-    assert.equal(r.engine, "tesseract");
+    assert.equal(r.engine, "unavailable");
     assert.match(r.notice, /ещё не настроен/);
     assert.equal(f.calls(), 0);
   } finally {
@@ -443,7 +453,7 @@ test("whole-image response has no synthetic blank slots and rejects duplicate sl
     ),
   );
 });
-test("whole-image request keeps budget protection and free fallback on provider failure", async () => {
+test("whole-image request keeps budget protection and manual recovery without OCR on provider failure", async () => {
   const f = await fixture({
     regions: async () => ({ boxes: [] }),
     client: {
@@ -457,7 +467,7 @@ test("whole-image request keeps budget protection and free fallback on provider 
   try {
     const result = await f.recognize(f.buffer, { roster: true });
     assert.match(result.notice, /лимит частоты/);
-    assert.equal(f.localCalls.length, 1);
+    assert.equal(f.localCalls.length, 0);
   } finally {
     f.close();
   }

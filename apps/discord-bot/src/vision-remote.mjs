@@ -37,24 +37,27 @@ export function remoteVisionClient(
       timestamp = String(clock());
     let response;
     try {
-      response = await fetchImpl(new URL("/v1/roster", url), {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(timeout),
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + env.VISION_SERVICE_SECRET,
-          "X-XD-Timestamp": timestamp,
-          "X-XD-Request-Id": requestId,
-          "X-XD-Signature": signVisionRequest(
-            env.VISION_SERVICE_SECRET,
-            timestamp,
-            requestId,
-            body,
-          ),
+      response = await fetchImpl(
+        new URL(input.kind === "loot" ? "/v1/loot" : "/v1/roster", url),
+        {
+          method: "POST",
+          redirect: "error",
+          signal: AbortSignal.timeout(timeout),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + env.VISION_SERVICE_SECRET,
+            "X-XD-Timestamp": timestamp,
+            "X-XD-Request-Id": requestId,
+            "X-XD-Signature": signVisionRequest(
+              env.VISION_SERVICE_SECRET,
+              timestamp,
+              requestId,
+              body,
+            ),
+          },
+          body,
         },
-        body,
-      });
+      );
     } catch (error) {
       if (error?.name === "TimeoutError" || error?.name === "AbortError")
         throw Object.assign(Error("GPT_TIMEOUT"), {

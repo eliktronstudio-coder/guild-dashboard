@@ -4,122 +4,34 @@ import { createHash } from "node:crypto";
 import { parseVision, visionRequest } from "./vision-protocol.mjs";
 export { parseVision } from "./vision-protocol.mjs";
 import { remoteVisionClient } from "./vision-remote.mjs";
-import { ocr, raidLabelSheets } from "./ocr.mjs";
+import { raidLabelSheets } from "./images.mjs";
 
-const notices = {
-  GPT_ROSTER_NOT_FOUND:
-    "На скриншоте не найдены ячейки состава рейда. Запрос в GPT не отправлялся; используется Tesseract. Выберите изображение состава или загрузите исходный скриншот без уменьшения.",
-  GPT_ROSTER_TOO_LARGE:
-    "На изображении найдено слишком много ячеек. Запрос в GPT не отправлялся; используется Tesseract. Обрежьте изображение до состава одного рейда.",
-  GPT_SERVICE_AUTH:
-    "Сервис распознавания не принял секрет подключения. Используется Tesseract; администратору: проверьте настройки Render и VPS.",
-  GPT_SERVICE_CONFIG:
-    "Сервис распознавания ещё не настроен. Используется Tesseract.",
-  GPT_NO_KEY: "GPT не подключён: используется Tesseract.",
-  GPT_DAILY_LIMIT:
-    "Дневной лимит GPT исчерпан. Используется бесплатный Tesseract.",
-  GPT_MONTHLY_LIMIT:
-    "Месячный бюджет GPT исчерпан. Используется бесплатный Tesseract.",
-  GPT_BUSY: "GPT занят: используется Tesseract.",
-  GPT_REGION_FORBIDDEN:
-    "OpenAI отклонил запрос по региону сервера (403). GPT недоступен на этом VPS; используется Tesseract.",
-  GPT_AUTH:
-    "OpenAI отклонил API-ключ. Администратору: проверьте ключ на VPS. Используется Tesseract.",
-  GPT_QUOTA:
-    "У OpenAI исчерпана квота или не подключена оплата. Используется Tesseract.",
-  GPT_RATE_LIMIT:
-    "Достигнут лимит частоты OpenAI. Используется Tesseract; повторите разбор позже.",
-  GPT_TIMEOUT: "OpenAI не ответил вовремя. Используется Tesseract.",
-  GPT_INVALID_REQUEST:
-    "OpenAI отклонил формат запроса. Используется Tesseract; администратору: проверьте журнал бота.",
-  GPT_MODEL_UNAVAILABLE:
-    "Модель GPT недоступна этому API-проекту. Используется Tesseract.",
-  GPT_ERROR: "GPT временно недоступен: используется Tesseract.",
-};
-// Classify provider errors using fixed identifiers only: never log the SDK message/body.
-export function visionFailure(error) {
-  if (Object.hasOwn(notices, error?.message)) return error.message;
-  if (
-    error?.status === 403 &&
-    error?.code === "unsupported_country_region_territory"
-  )
-    return "GPT_REGION_FORBIDDEN";
-  if (error?.status === 401 || error?.status === 403) return "GPT_AUTH";
-  if (
-    error?.code === "insufficient_quota" ||
-    error?.code === "billing_hard_limit_reached"
-  )
-    return "GPT_QUOTA";
-  if (error?.status === 429) return "GPT_RATE_LIMIT";
-  if (
-    error?.name === "APIConnectionTimeoutError" ||
-    error?.status === 408 ||
-    error?.status === 504
-  )
-    return "GPT_TIMEOUT";
-  if (error?.status === 400 || error?.status === 422)
-    return "GPT_INVALID_REQUEST";
-  if (error?.status === 404) return "GPT_MODEL_UNAVAILABLE";
-  return "GPT_ERROR";
-}
-function number(env, key, fallback, min, max) {
-  const n = Number(env[key] ?? fallback);
-  if (!Number.isFinite(n) || n < min || n > max) throw Error("Invalid " + key);
-  return n;
-}
-export function visionConfig(env = process.env, now = Date.now()) {
-  const model = env.OPENAI_MODEL ?? "gpt-5.4-mini";
-  if (!/^gpt-5\.4-mini(?:-2026-03-17)?$/.test(model))
-    throw Error("Unsupported OPENAI_MODEL pricing");
-  const timeout = number(
-      env,
-      "OPENAI_TIMEOUT_MS",
-      env.VISION_SERVICE_URL ? 120000 : 60000,
-      1000,
-      180000,
-    ),
-    maxOutput = number(env, "OPENAI_MAX_OUTPUT_TOKENS", 8192, 512, 16384);
-  const date = new Intl.DateTimeFormat("en-CA", {
-    timeZone: env.OPENAI_BUDGET_TIMEZONE ?? "Asia/Yekaterinburg",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(now));
-  return {
-    model,
-    timeout,
-    maxOutput,
-    daily:
-      String(env.OPENAI_DAILY_LIMIT ?? "unlimited")
-        .trim()
-        .toLowerCase() === "unlimited"
-        ? null
-        : number(env, "OPENAI_DAILY_LIMIT", 0, 0, 10000),
-    concurrent: number(env, "OPENAI_CONCURRENCY", 2, 1, 2),
-    monthlyMicros: Math.floor(
-      number(env, "OPENAI_MONTHLY_BUDGET_USD", 5, 0, 5) * 1e6,
-    ),
-    reserveMicros: Math.ceil(400000 * 0.75 + maxOutput * 4.5),
-    cacheTtl: number(env, "OPENAI_CACHE_DAYS", 30, 1, 90) * 86400000,
-    leaseMs: timeout + 30000,
-    day: date,
-    month: date.slice(0, 7),
-  };
-}
+import { visionConfig, visionFailure, visionNotice } from "./vision-budget.mjs";
+export { visionConfig, visionFailure } from "./vision-budget.mjs";
+import { createLootVisionRecognizer } from "./loot-vision.mjs";
 // Returns the same words/text contract as OCR. The model never chooses website IDs.
 export function createVisionRecognizer({
   store,
   env = process.env,
   client,
-  local = ocr,
   regions = raidLabelSheets,
   log = console.info,
   clock = Date.now,
   remoteClient = remoteVisionClient,
 } = {}) {
+  const recognizeLoot = createLootVisionRecognizer({
+    store,
+    env,
+    client,
+    log,
+    clock,
+    remoteClient,
+  });
   return async function recognize(buffer, options = {}) {
-    if (!options.roster || options.forceTesseract)
-      return local(buffer, options);
+    if (!options.roster)
+      return options.loot
+        ? recognizeLoot(buffer, options)
+        : { words: [], text: "", engine: "gpt" };
     let reservation, response, config;
     try {
       if (!env.VISION_SERVICE_URL && !env.OPENAI_API_KEY)
@@ -305,18 +217,23 @@ export function createVisionRecognizer({
         group: p.group,
       }));
       const loot = options.loot
-        ? await local(buffer, { ...options, roster: false })
+        ? await recognizeLoot(buffer, options)
         : { text: "" };
       return {
         words,
         text: loot.text,
+        ...(options.loot
+          ? { lootItems: loot.lootItems, lootFailed: loot.failed === true }
+          : {}),
         regionCount: words.length,
         engine: "gpt",
-        notice: wholeImage
-          ? words.length
-            ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения."
-            : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную."
-          : "Состав прочитан GPT; однозначные похожие ники сопоставляются автоматически, спорные требуют проверки.",
+        notice:
+          (loot.notice ? loot.notice + "\n" : "") +
+          (wholeImage
+            ? words.length
+              ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения."
+              : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную."
+            : "Состав прочитан GPT; однозначные похожие ники сопоставляются автоматически, спорные требуют проверки."),
       };
     } catch (error) {
       const code = visionFailure(error);
@@ -342,23 +259,17 @@ export function createVisionRecognizer({
       }
       log(
         JSON.stringify({
-          event: "vision_fallback",
+          event: "vision_failure",
           code,
           status: Number.isInteger(error?.status) ? error.status : null,
         }),
       );
-      // On a disputed-only retry do not rerun OCR for the entire image.
-      if (options.retryCells)
-        return {
-          words: [],
-          text: "",
-          engine: "tesseract",
-          notice: notices[code] + " Спорные ники можно исправить вручную.",
-        };
       return {
-        ...(await local(buffer, options)),
-        engine: "tesseract",
-        notice: notices[code],
+        words: [],
+        text: "",
+        engine: "unavailable",
+        failed: true,
+        notice: visionNotice(code),
       };
     }
   };
