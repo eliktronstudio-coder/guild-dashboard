@@ -405,7 +405,7 @@ test("remote provider regional and quota codes retain actionable fallback catego
   }
 });
 
-test("missing local panels send original image to GPT once, cache it, and require manual review", async () => {
+test("missing local panels preserve confident original-image readings and match from the cache", async () => {
   const f = await fixture({ regions: async () => ({ boxes: [] }) });
   try {
     const result = await f.recognize(f.buffer, {
@@ -416,7 +416,7 @@ test("missing local panels send original image to GPT once, cache it, and requir
     assert.match(result.notice, /по исходному изображению/);
     assert.equal(result.words.length, 1);
     assert.equal(result.words[0].text, "СмешанныйX");
-    assert.equal(result.words[0].uncertain, true);
+    assert.equal(result.words[0].uncertain, false);
     assert.equal(result.words[0].box, undefined);
     assert.ok(result.words[0].slotKey);
     assert.equal(f.calls(), 1);
@@ -430,7 +430,8 @@ test("missing local panels send original image to GPT once, cache it, and requir
     const roster = recognizeIndependentRoster(result.words, [
       { id: "member", nickname: "СмешанныйX" },
     ]);
-    assert.equal(roster.readings[0].pending, true);
+    assert.equal(roster.readings[0].pending, false);
+    assert.equal(roster.members[0].id, "member");
   } finally {
     f.close();
   }
@@ -554,7 +555,13 @@ test("five locally isolated panels never cap a larger roster when the detector f
     });
     assert.equal(result.words.length, 19);
     assert.equal(result.regionCount, 19);
-    assert.ok(result.words.every((w) => w.box === undefined && w.uncertain));
+    const matched = recognizeIndependentRoster(
+      result.words,
+      nineteen.map((p) => ({ id: String(p.slot), nickname: p.visible })),
+    );
+    assert.equal(matched.members.length, 19);
+    assert.equal(matched.unresolved.length, 0);
+    assert.ok(result.words.every((w) => w.box === undefined && !w.uncertain));
     await f.recognize(f.buffer, { roster: true, scope: "merged" });
     assert.equal(calls, 1);
   } finally {
@@ -585,6 +592,79 @@ test("unlimited daily mode accepts a twenty-fifth request and still enforces the
         ),
       /GPT_MONTHLY_LIMIT/,
     );
+  } finally {
+    f.close();
+  }
+});
+
+test("whole-image recognition auto-adds a clear similar name while actual model uncertainty and competing names stay pending", async () => {
+  const values = [
+    {
+      slot: 0,
+      visible: "Potatoo",
+      uncertain: false,
+      truncated: false,
+      group: 1,
+    },
+    {
+      slot: 1,
+      visible: "Cartel",
+      uncertain: false,
+      truncated: false,
+      group: 1,
+    },
+    {
+      slot: 2,
+      visible: "UncertainPlayer",
+      uncertain: true,
+      truncated: false,
+      group: 1,
+    },
+  ];
+  const f = await fixture({
+    regions: async () => ({ boxes: [] }),
+    client: {
+      responses: {
+        create: async () => ({
+          ...response,
+          output_text: JSON.stringify({ players: values }),
+        }),
+      },
+    },
+  });
+  try {
+    const result = await f.recognize(f.buffer, { roster: true });
+    const names = ["Potatooo", "Cartell", "Cartelll", "UncertainPlayer"].map(
+      (nickname, i) => ({ id: String(i), nickname }),
+    );
+    const r = recognizeIndependentRoster(result.words, names);
+    assert.deepEqual(
+      r.members.map((m) => m.nickname),
+      ["Potatooo"],
+    );
+    assert.deepEqual(r.unresolved, ["Cartel", "UncertainPlayer"]);
+    assert.equal(result.words[2].uncertain, true);
+    assert.equal(result.words[2].confidence, 30);
+  } finally {
+    f.close();
+  }
+});
+
+test("retrying whole-image readings without crop coordinates uses the original image and retains stable reading keys", async () => {
+  const f = await fixture({ regions: async () => ({ boxes: [] }) });
+  try {
+    const initial = await f.recognize(f.buffer, { roster: true });
+    const retried = await f.recognize(f.buffer, {
+      roster: true,
+      retryCells: initial.words.map((w) => ({
+        slotKey: w.slotKey,
+        box: w.box,
+      })),
+    });
+    assert.equal(retried.engine, "gpt");
+    assert.equal(retried.words[0].slotKey, initial.words[0].slotKey);
+    assert.equal(retried.words[0].uncertain, false);
+    assert.equal(f.calls(), 2);
   } finally {
     f.close();
   }

@@ -3,6 +3,7 @@ import {
   registeredMatch,
   rosterText,
   nicknameSuggestions,
+  nicknameSkeleton,
 } from "./matching.mjs";
 import {
   gameNickname,
@@ -93,21 +94,34 @@ function exactMember(name, members) {
 // Only a clear raid-cell reading with a strong, isolated registry candidate
 // can be accepted automatically. Keep the original image text for review.
 export function automaticSimilarMember(reading, members) {
-  if (!reading.verifiedCell || reading.uncertain || !reading.unbiased ||
-      reading.confidence < 85 ||
-      (reading.engine !== "gpt" && reading.passes < 2)) return null;
-  const raw = nicknameKey(reading.visible).replace(/[.…_-]+$/u, "");
+  if (
+    !reading.verifiedCell ||
+    reading.uncertain ||
+    !reading.unbiased ||
+    reading.confidence < 85 ||
+    (reading.engine !== "gpt" && reading.passes < 2)
+  )
+    return null;
+  const raw = nicknameSkeleton(reading.visible);
   if (raw.length < 5) return null;
   const candidates = nicknameSuggestions(reading.visible, members);
   const [best, next] = candidates;
-  if (!best || best.matchCost > 1.4 ||
-      (next && next.matchCost - best.matchCost < 1)) return null;
-  const targets = [best.nickname, ...(best.aliases ?? [])].map(nicknameKey);
-  const clearBeginning = targets.some((target) =>
-    target.slice(0, 3) === raw.slice(0, 3) &&
-    (reading.truncated
-      ? target.startsWith(raw) && raw.length / target.length >= 0.75
-      : Math.abs(target.length - raw.length) <= 1));
+  if (
+    !best ||
+    best.matchCost > 1.4 ||
+    (next && next.matchCost - best.matchCost < 1)
+  )
+    return null;
+  const targets = [best.nickname, ...(best.aliases ?? [])].map(
+    nicknameSkeleton,
+  );
+  const clearBeginning = targets.some(
+    (target) =>
+      target.slice(0, 3) === raw.slice(0, 3) &&
+      (reading.truncated
+        ? target.startsWith(raw) && raw.length / target.length >= 0.75
+        : Math.abs(target.length - raw.length) <= 1),
+  );
   return clearBeginning ? members.find((m) => m.id === best.id) : null;
 }
 export function recognizeIndependentRoster(
@@ -124,25 +138,37 @@ export function recognizeIndependentRoster(
     const memory = recall(reading) ?? {};
     let name = null,
       member = null;
-    if (memory.name && !reading.truncated && !reading.uncertain) {
-      name = memory.name;
-      member = exactMember(name, members);
+    const registered = registeredMatch(reading.visible, members);
+    if (
+      registered &&
+      !reading.truncated &&
+      !reading.uncertain &&
+      reading.confidence >= 70 &&
+      reading.unbiased
+    ) {
+      member = registered;
+      name = member.nickname;
+      reading.origin = "registry";
+    } else if (
+      memory.name &&
+      !reading.truncated &&
+      !reading.uncertain &&
+      (member = exactMember(memory.name, members))
+    ) {
+      name = member.nickname;
       reading.origin = "memory";
     } else if (!memory.conflict) {
-      const registered = registeredMatch(reading.visible, members);
-      if (
-        registered &&
-        !reading.truncated &&
-        !reading.uncertain &&
-        reading.confidence >= 70 &&
-        reading.unbiased
-      ) {
-        member = registered;
-        name = member.nickname;
-        reading.origin = "registry";
-      } else if ((member = automaticSimilarMember(reading, members))) {
+      if ((member = automaticSimilarMember(reading, members))) {
         name = member.nickname;
         reading.origin = "automatic-similar";
+      } else if (
+        memory.name &&
+        !reading.truncated &&
+        !reading.uncertain &&
+        nicknameSuggestions(reading.visible, members).length === 0
+      ) {
+        name = gameNickname(memory.name);
+        reading.origin = "memory";
       } else if (
         reading.verifiedCell &&
         !reading.truncated &&
@@ -168,12 +194,12 @@ export function recognizeIndependentRoster(
       reading.origin === "automatic-similar"
         ? "автосопоставлено"
         : reading.truncated || reading.uncertain
-        ? "ручная проверка"
-        : member
-          ? "точно"
-          : reading.suggestions.length
-            ? "похожие"
-            : "не найден";
+          ? "ручная проверка"
+          : member
+            ? "точно"
+            : reading.suggestions.length
+              ? "похожие"
+              : "не найден";
     if (name && (member || guests.length < 50)) {
       reading.name = name;
       reading.memberId = member?.id ?? null;

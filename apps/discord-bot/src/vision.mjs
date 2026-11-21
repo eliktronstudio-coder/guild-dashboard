@@ -45,17 +45,20 @@ export function createVisionRecognizer({
         .toBuffer();
       const layout = await regions(source),
         imageKey = createHash("sha256").update(source).digest("hex");
-      // A retry accepts only previously detected disputed cells, never the full screenshot.
-      let cells = options.retryCells?.length
-        ? options.retryCells.map((c) => ({ slotKey: c.slotKey, box: c.box }))
-        : layout.boxes.map((box, i) => ({
-            box,
-            slotKey: createHash("sha256")
-              .update(imageKey + ":" + i)
-              .digest("hex"),
-          }));
+      // Retry crops when coordinates exist; whole-image readings have no crop boxes.
+      const wholeRetry = Boolean(options.retryCells?.some((c) => !c.box));
+      let cells =
+        options.retryCells?.length && !wholeRetry
+          ? options.retryCells.map((c) => ({ slotKey: c.slotKey, box: c.box }))
+          : layout.boxes.map((box, i) => ({
+              box,
+              slotKey: createHash("sha256")
+                .update(imageKey + ":" + i)
+                .digest("hex"),
+            }));
       const wholeImage =
-        (!cells.length || layout.incomplete === true) && !options.retryCells;
+        wholeRetry ||
+        ((!cells.length || layout.incomplete === true) && !options.retryCells);
       if (wholeImage) cells = [];
       if (!cells.length && !wholeImage) throw Error("GPT_ROSTER_NOT_FOUND");
       if (cells.length > 150) throw Error("GPT_ROSTER_TOO_LARGE");
@@ -74,7 +77,7 @@ export function createVisionRecognizer({
       let players = store.visionCached(scope, key, clock(), config.cacheTtl);
       if (!players) {
         const images = [];
-        if (!options.retryCells) images.push(source);
+        if (!options.retryCells || wholeImage) images.push(source);
         if (wholeImage) {
           const meta = await sharp(source).metadata();
           if (Math.max(meta.width, meta.height) < 800) {
@@ -198,14 +201,14 @@ export function createVisionRecognizer({
       }
       const words = players.map((p) => ({
         text: p.visible,
-        confidence: p.uncertain || wholeImage ? 30 : 96,
+        confidence: p.uncertain ? 30 : 96,
         line: String(p.slot),
         region: String(p.slot),
         kind: "raid-cell",
         pass: "gpt:vision",
         unbiased: true,
         engine: "gpt",
-        uncertain: p.uncertain || wholeImage,
+        uncertain: p.uncertain,
         clipped: p.truncated || cells[p.slot]?.box.clipped === true,
         imageKey,
         slotKey:
@@ -231,7 +234,7 @@ export function createVisionRecognizer({
           (loot.notice ? loot.notice + "\n" : "") +
           (wholeImage
             ? words.length
-              ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Все ники требуют ручного подтверждения."
+              ? "Состав прочитан GPT по исходному изображению без локального выделения ячеек. Однозначные ники сопоставляются автоматически, спорные требуют проверки."
               : "GPT не нашёл ников рейда на изображении. Выберите скриншот состава или введите участников вручную."
             : "Состав прочитан GPT; однозначные похожие ники сопоставляются автоматически, спорные требуют проверки."),
       };
