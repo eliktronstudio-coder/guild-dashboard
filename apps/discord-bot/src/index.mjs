@@ -7,6 +7,7 @@ import {
   ApplicationCommandOptionType,
   PermissionFlagsBits,
 } from "discord.js";
+import { automaticRenames } from "./renames.mjs";
 import { automaticImports } from "./automatic.mjs";
 import { createVisionRecognizer } from "./vision.mjs";
 import { siteClient } from "./site.mjs";
@@ -124,6 +125,16 @@ async function connect(config) {
         ),
     }),
   );
+  const rename = automaticRenames({
+    site,
+    store,
+    server: () => current?.server,
+    onError: () => console.error("Nickname rename or reaction unavailable"),
+  });
+  next.on("messageCreate", rename);
+  next.on("messageUpdate", async (_old, message) => {
+    if (!message.partial) await rename(message);
+  });
   next.on("interactionCreate", async (interaction) => {
     try {
       const channel =

@@ -53,6 +53,30 @@ export async function POST(
     const operation = (await params).operation,
       body = await boundedJson(request),
       context = discordContext(body.context);
+    if (operation === "rename") {
+      if (
+        context.p_channel !== "1211335490024771674" ||
+        context.p_parent ||
+        !/^\d{17,22}$/.test(body.message) ||
+        typeof body.oldName !== "string" ||
+        typeof body.newName !== "string" ||
+        body.oldName.length > 32 ||
+        body.newName.length > 32
+      )
+        return response({ error: "INVALID_RENAME" }, 400);
+      const { data, error } = await discordAdmin().rpc(
+        "rename_discord_member",
+        {
+          ...context,
+          p_message: body.message,
+          p_old: body.oldName,
+          p_new: body.newName,
+        },
+      );
+      return error
+        ? response({ error: "RENAME_REJECTED" }, 409)
+        : response(data);
+    }
     if (operation === "context") {
       const { data, error } = await discordAdmin().rpc(
         "discord_import_context",
