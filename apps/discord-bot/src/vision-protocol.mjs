@@ -49,7 +49,10 @@ export function parseVision(response, slots, wholeImage = false) {
       throw Error("GPT_ERROR");
     seen.add(p.slot);
   }
-  if (wholeImage) return value.players.filter((p) => p.visible.trim()).sort((a, b) => a.slot - b.slot);
+  if (wholeImage)
+    return value.players
+      .filter((p) => p.visible.trim())
+      .sort((a, b) => a.slot - b.slot);
   return Array.from(
     { length: slots },
     (_, slot) =>
@@ -76,7 +79,8 @@ export function visionRequest({
     store: false,
     max_output_tokens: maxOutput,
     instructions: wholeImage
-      ? instructions + " No numbered crops are available. Find the raid roster in the original image yourself. Return only visible player nickname labels, in reading order with unique sequential slots starting at 0. Do not transcribe chat, item names, UI headings or group numbers as nicknames. Do not fill unused slots. Return an empty players array when no raid roster is visible."
+      ? instructions +
+        " No numbered crops are available. Find the raid roster in the original image yourself. Return only visible player nickname labels, in reading order with unique sequential slots starting at 0. Do not transcribe chat, item names, UI headings or group numbers as nicknames. Do not fill unused slots. Return an empty players array when no raid roster is visible."
       : instructions,
     input: [
       {
@@ -84,7 +88,9 @@ export function visionRequest({
         content: [
           {
             type: "input_text",
-            text: wholeImage ? "Locate and transcribe at most 150 raid nickname labels in this original screenshot. There are no numbered crops. If a second image is supplied, it is an enlarged copy of the same screenshot, not another raid: use it to inspect tiny glyphs and do not duplicate players. Never invent unreadable names." : `Read ${slots} numbered slots (0 through ${slots - 1}). ${retry ? "Only disputed crops are supplied." : "First image is the original screenshot; following images are numbered crops."}`,
+            text: wholeImage
+              ? "Locate and transcribe at most 150 raid nickname labels in this original screenshot. There are no numbered crops. If a second image is supplied, it is an enlarged copy of the same screenshot, not another raid: use it to inspect tiny glyphs and do not duplicate players. Never invent unreadable names."
+              : `Read ${slots} numbered slots (0 through ${slots - 1}). ${retry ? "Only disputed crops are supplied." : "First image is the original screenshot; following images are numbered crops."}`,
           },
           ...images.map((image_url) => ({
             type: "input_image",

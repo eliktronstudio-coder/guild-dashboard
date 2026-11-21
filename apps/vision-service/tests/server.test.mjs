@@ -62,10 +62,15 @@ async function setup(create = async () => reply) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const url = "http://127.0.0.1:" + server.address().port;
-  function post(value = input, id = randomUUID(), change = {}) {
+  function post(
+    value = input,
+    id = randomUUID(),
+    change = {},
+    path = "/v1/roster",
+  ) {
     const body = JSON.stringify(value),
       timestamp = String(now);
-    return fetch(url + "/v1/roster", {
+    return fetch(url + path, {
       method: "POST",
       headers: {
         Authorization: "Bearer " + secret,
@@ -96,6 +101,8 @@ test("health is free; readiness requires authentication and uses model metadata 
     assert.deepEqual((await health.json()).capabilities, [
       "whole-image-roster",
       "whole-image-enlarged",
+      "loot-vision-v1",
+      "gpt-only",
     ]);
     assert.equal((await fetch(f.url + "/ready")).status, 401);
     assert.equal(
@@ -338,4 +345,92 @@ test("whole-image mode accepts one enlarged copy but rejects extra images before
   } finally {
     await f.close();
   }
+});
+
+test("signed loot route uses its own strict schema and rejects kind/path confusion", async () => {
+  const lootReply = {
+    ...reply,
+    output_text: JSON.stringify({
+      items: [
+        { slot: 0, visible: "Эссенция ярости", quantity: 1, uncertain: false },
+        { slot: 1, visible: "Эссенция ярости", quantity: 2, uncertain: false },
+      ],
+    }),
+  };
+  const f = await setup(async (body) => {
+    assert.equal(body.text.format.name, "activity_loot");
+    return lootReply;
+  });
+  try {
+    const value = { ...input, kind: "loot" };
+    const r = await f.post(value, randomUUID(), {}, "/v1/loot");
+    assert.equal(r.status, 200);
+    assert.equal(JSON.parse((await r.json()).output_text).items.length, 2);
+    assert.equal((await f.post(value)).status, 400);
+    assert.equal(
+      (await f.post(input, randomUUID(), {}, "/v1/loot")).status,
+      400,
+    );
+    assert.equal(f.calls(), 1);
+  } finally {
+    await f.close();
+  }
+});
+test("malformed loot output is not returned as recognized empty loot", async () => {
+  const f = await setup(async () => ({
+    ...reply,
+    output_text: JSON.stringify({
+      items: [{ slot: 0, visible: "Предмет", quantity: 0, uncertain: false }],
+    }),
+  }));
+  try {
+    const r = await f.post(
+      { ...input, kind: "loot" },
+      randomUUID(),
+      {},
+      "/v1/loot",
+    );
+    assert.equal(r.status, 502);
+  } finally {
+    await f.close();
+  }
+});
+
+test("worker loot transport is signed and never forwards OpenAI credentials", async () => {
+  const request = remoteVisionClient(
+    {
+      VISION_SERVICE_URL: "https://example.onrender.com",
+      VISION_SERVICE_SECRET: secret,
+      OPENAI_API_KEY: "not-forwarded",
+    },
+    {
+      clock: () => now,
+      fetchImpl: async (url, options) => {
+        assert.equal(url.pathname, "/v1/loot");
+        assert.ok(!JSON.stringify(options).includes("not-forwarded"));
+        assert.equal(
+          options.headers["X-XD-Signature"],
+          signVisionRequest(
+            secret,
+            String(now),
+            options.headers["X-XD-Request-Id"],
+            options.body,
+          ),
+        );
+        return new Response(
+          JSON.stringify({
+            status: "completed",
+            output_text: JSON.stringify({ items: [] }),
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+          { status: 200 },
+        );
+      },
+    },
+  );
+  assert.equal(
+    (await request({ ...input, kind: "loot", requestId: randomUUID() }, 1000))
+      .status,
+    "completed",
+  );
 });

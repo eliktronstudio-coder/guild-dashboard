@@ -11,6 +11,8 @@ import { reviewReady, readingSuggestions } from "./matching.mjs";
 import { safeError } from "./site.mjs";
 import {
   recognizeLoot,
+  recognizeVisionLoot,
+  rebuildLoot,
   refreshSimilarLoot,
   ensureLoot,
   lootReading,
@@ -470,6 +472,7 @@ function controls(d) {
           (r) => r.pending && r.engine === "gpt" && r.box,
         ),
       ),
+      ...(d.visionFailed ? [button(id("analyze"), "Повторить распознавание GPT")] : []),
       button(id("uploadLoot"), "Добавить скрины дропа"),
       button(id("backchoose"), "Параметры активности"),
     ),
@@ -715,6 +718,7 @@ export class ImportWorkflow {
           content: "Операция уже выполняется. Дождитесь завершения.",
           flags: 64,
         });
+      if (action === "analyzeTesseract") throw Error("OCR_DISABLED");
       if (d.event) {
         if (!interaction.deferred && !interaction.replied)
           await interaction.deferUpdate();
@@ -1134,15 +1138,8 @@ export class ImportWorkflow {
         }
         d.analyzed = false;
         d.step = "images";
-      } else if (
-        action === "analyze" ||
-        action === "analyzeRoster" ||
-        action === "analyzeTesseract"
-      ) {
-        d.rosterOnly =
-          action === "analyzeTesseract"
-            ? d.rosterOnly === true
-            : action === "analyzeRoster";
+      } else if (action === "analyze" || action === "analyzeRoster") {
+        d.rosterOnly = action === "analyzeRoster";
         await interaction.editReply({
           content:
             "Распознаю состав и скриншоты дропа… При нескольких скринах это может занять несколько минут.",
@@ -1156,6 +1153,9 @@ export class ImportWorkflow {
           d.screensOnly && d.rosterAnalyzed ? (d.recognitionNotices ?? []) : [];
         const knownNames = this.store.knownNicknames?.(d.context.server) ?? [];
         d.knownNicknameChoices = memoryChoices(knownNames);
+        let rosterFailed = false;
+        d.visionFailed = false;
+        const liveVisionItems = [];
         const words = [],
           lootLines = d.rosterOnly || d.screensOnly ? [] : [d.content];
         const cached = d.screensOnly ? (d.processedImages ??= {}) : {};
@@ -1180,7 +1180,6 @@ export class ImportWorkflow {
           }
           const result = await this.ocr(buffer, {
               scope: d.context.server,
-              forceTesseract: action === "analyzeTesseract",
               roster: d.rosterImages.includes(attachment.id),
               loot: !d.rosterOnly && d.lootImages.includes(attachment.id),
               members: d.catalog.members,
@@ -1188,9 +1187,12 @@ export class ImportWorkflow {
               knownNames,
             }),
             image = await this.prepareEvidence(buffer);
+          d.visionFailed ||=
+            result.failed === true || result.lootFailed === true;
           if (result.notice && !d.recognitionNotices.includes(result.notice))
             d.recognitionNotices.push(result.notice);
           if (d.rosterImages.includes(attachment.id)) {
+            rosterFailed ||= result.failed === true;
             words.push(
               ...result.words.map((w) => ({
                 ...w,
@@ -1204,11 +1206,22 @@ export class ImportWorkflow {
             d.evidence.push({ id: randomUUID(), kind: "roster", image });
           }
           if (!d.rosterOnly && d.lootImages.includes(attachment.id)) {
-            if (d.screensOnly)
-              (d.lootImageResults ??= {})[attachment.id] = result.text;
-            else lootLines.push(result.text);
+            const failed = result.failed === true || result.lootFailed === true;
+            if (d.screensOnly) {
+              (d.lootImageResults ??= {})[attachment.id] = failed
+                ? "? Не удалось прочитать скрин дропа — исправьте вручную или повторите распознавание"
+                : result.text;
+              if (!failed && Array.isArray(result.lootItems))
+                (d.lootImageVisionResults ??= {})[attachment.id] =
+                  result.lootItems;
+            } else if (!failed) {
+              if (Array.isArray(result.lootItems))
+                liveVisionItems.push(...result.lootItems);
+              else lootLines.push(result.text);
+            } else lootLines.push("? Не удалось прочитать скрин дропа");
             d.evidence.push({ id: randomUUID(), kind: "loot", image });
           }
+          if (result.failed || result.lootFailed) continue;
           cached[attachment.id] = true;
           if (d.screensOnly) (d.processedImageHashes ??= []).push(imageHash);
         }
@@ -1216,7 +1229,11 @@ export class ImportWorkflow {
           if (d.lootOverride !== undefined) lootLines.push(d.lootOverride);
           lootLines.push(
             ...Object.entries(d.lootImageResults ?? {})
-              .filter(([id]) => !(d.lootOverrideImages ?? []).includes(id))
+              .filter(
+                ([id]) =>
+                  !(d.lootOverrideImages ?? []).includes(id) &&
+                  !d.lootImageVisionResults?.[id],
+              )
               .map(([, text]) => text),
           );
           d.evidence = [...previousEvidence, ...d.evidence]
@@ -1227,14 +1244,25 @@ export class ImportWorkflow {
             .slice(0, 8);
         }
         d.recognitionWords = reuseRoster ? d.recognitionWords : words;
-        if (!reuseRoster)
+        if (!reuseRoster && !rosterFailed)
           d.roster = recognizeIndependentRoster(words, d.catalog.members, {
             recall: (reading) =>
               this.store.recallNickname?.(d.context.server, reading) ?? {},
           });
-        d.rosterAnalyzed = true;
+        d.rosterAnalyzed = !rosterFailed;
         d.rosterFocus = 0;
-        d.loot = recognizeLoot(lootLines.join("\n"), d.catalog.drops);
+        const fromText = recognizeLoot(lootLines.join("\n"), d.catalog.drops);
+        const visionItems = Object.entries(d.lootImageVisionResults ?? {})
+          .filter(([id]) => !(d.lootOverrideImages ?? []).includes(id))
+          .flatMap(([, items]) => items);
+        const fromVision = recognizeVisionLoot(
+          [...visionItems, ...liveVisionItems],
+          d.catalog.drops,
+        );
+        d.loot = rebuildLoot(
+          [...fromText.readings, ...fromVision.readings],
+          d.catalog.drops,
+        );
         d.analyzed = true;
         d.step = d.automaticNeedsChoice ? "choose" : "review";
       } else if (action === "retryVision") {

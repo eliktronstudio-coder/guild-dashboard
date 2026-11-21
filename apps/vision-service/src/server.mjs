@@ -5,6 +5,10 @@ import {
   visionRequest,
   parseVision,
 } from "../../discord-bot/src/vision-protocol.mjs";
+import {
+  lootVisionRequest,
+  parseLootVision,
+} from "../../discord-bot/src/loot-vision-protocol.mjs";
 import { signVisionRequest } from "../../discord-bot/src/vision-remote.mjs";
 
 const equal = (a, b) =>
@@ -33,6 +37,12 @@ function validInput(data) {
   return (
     data &&
     data.version === 1 &&
+    (data.kind === undefined ||
+      (data.kind === "loot" &&
+        data.slots === 1 &&
+        data.retry === false &&
+        data.wholeImage === undefined &&
+        data.images?.length <= 2)) &&
     /^gpt-5\.4-mini(?:-2026-03-17)?$/.test(data.model) &&
     Number.isInteger(data.maxOutput) &&
     data.maxOutput >= 512 &&
@@ -64,6 +74,7 @@ function validInput(data) {
         "retry",
         "images",
         "wholeImage",
+        "kind",
       ].includes(k),
     )
   );
@@ -101,7 +112,12 @@ export function createVisionServer({
       send(res, 200, {
         status: "ok",
         protocol: 1,
-        capabilities: ["whole-image-roster", "whole-image-enlarged"],
+        capabilities: [
+          "whole-image-roster",
+          "whole-image-enlarged",
+          "loot-vision-v1",
+          "gpt-only",
+        ],
         limits: { daily: null, concurrent: 2, monthlyBudgetUSD: 5 },
       });
       return;
@@ -126,7 +142,10 @@ export function createVisionServer({
       }
       return;
     }
-    if (req.method !== "POST" || req.url !== "/v1/roster") {
+    if (
+      req.method !== "POST" ||
+      !["/v1/roster", "/v1/loot"].includes(req.url)
+    ) {
       reject(res, 404, "GPT_ERROR");
       return;
     }
@@ -174,7 +193,11 @@ export function createVisionServer({
         reject(res, 400, "GPT_ERROR");
         return;
       }
-      if (!validInput(input) || input.model !== model) {
+      if (
+        !validInput(input) ||
+        input.model !== model ||
+        (req.url === "/v1/loot") !== (input.kind === "loot")
+      ) {
         reject(res, 400, "GPT_ERROR");
         return;
       }
@@ -216,11 +239,17 @@ export function createVisionServer({
       const entry = { digest, running: true, expires: clock() + 600000 };
       entry.promise = (async () => {
         try {
-          response = await api.responses.create(visionRequest(input), {
-            maxRetries: 0,
-            timeout: 65000,
-          });
-          parseVision(response, input.slots, input.wholeImage === true);
+          response = await api.responses.create(
+            input.kind === "loot"
+              ? lootVisionRequest(input)
+              : visionRequest(input),
+            {
+              maxRetries: 0,
+              timeout: 65000,
+            },
+          );
+          if (input.kind === "loot") parseLootVision(response);
+          else parseVision(response, input.slots, input.wholeImage === true);
           return {
             status: 200,
             value: {

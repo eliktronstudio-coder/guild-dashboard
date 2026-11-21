@@ -1280,3 +1280,115 @@ test("excluding a selected reading removes its known participant without discard
   assert.deepEqual(saved.roster.unresolved, ["Other?"]);
   assert.deepEqual(saved.roster.unresolvedKeys, ["second"]);
 });
+
+test("GPT loot failures are not cached as empty loot; explicit retry and later screenshots preserve corrected quantities", async () => {
+  const member = { id: randomUUID(), nickname: "Ронин" },
+    drop = {
+      id: randomUUID(),
+      name: "Коготь дракона",
+      version: 1,
+      price_units: "10000",
+    };
+  const catalog = { members: [member], drops: [drop], activities: [] };
+  let saved = {
+    id: randomUUID(),
+    owner: "staff",
+    request: randomUUID(),
+    context: {},
+    message: "source",
+    startsAt: "2026-11-01T00:00:00Z",
+    screensOnly: true,
+    rosterAnalyzed: true,
+    processedImages: { roster: true },
+    processedImageHashes: [],
+    attachments: [
+      { id: "roster", name: "r.png", url: "roster" },
+      { id: "loot", name: "l.png", url: "loot" },
+    ],
+    rosterImages: ["roster"],
+    lootImages: ["loot"],
+    catalog,
+    activity: { id: randomUUID(), name: "Анталлон", weight: 100, version: 1 },
+    mode: "raid",
+    source: "prime",
+    step: "review",
+    analyzed: true,
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: { items: [], unresolved: [] },
+    lootRequests: {},
+    evidence: [{ id: randomUUID(), kind: "roster", image: "original" }],
+  };
+  let calls = 0;
+  const publications = [];
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(saved),
+      put: (d) => {
+        saved = structuredClone(d);
+      },
+    },
+    site: async (op, p) => {
+      if (op === "context") return catalog;
+      publications.push(p);
+      return {};
+    },
+    download: async (url) => Buffer.from(url),
+    prepareEvidence: async () => "prepared",
+    ocr: async (buffer) => {
+      calls++;
+      if (calls === 1)
+        return {
+          words: [],
+          text: "",
+          failed: true,
+          engine: "unavailable",
+          notice: "GPT временно недоступен",
+        };
+      return {
+        words: [],
+        text: "",
+        engine: "gpt",
+        lootItems: [
+          {
+            slot: 0,
+            visible: drop.name,
+            quantity: 2,
+            uncertain: false,
+            sourceKey: buffer.toString(),
+          },
+        ],
+      };
+    },
+  });
+  const legacy = interaction(saved.id, "analyzeTesseract");
+  await flow.handle(legacy);
+  assert.ok(legacy.errorPayload ?? legacy.replyPayload);
+  assert.equal(calls, 0);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(saved.visionFailed, true);
+  assert.equal(saved.processedImages.loot, undefined);
+  assert.equal(saved.loot.unresolved.length, 1);
+  const buttons = renderDraft(saved).components.flatMap((r) => r.components);
+  assert.ok(buttons.some((b) => b.label === "Повторить распознавание GPT"));
+  assert.equal(new Set(buttons.map((b) => b.custom_id)).size, buttons.length);
+  const blocked = interaction(saved.id, "confirm");
+  await flow.handle(blocked);
+  assert.ok(blocked.errorPayload);
+  assert.equal(publications.length, 0);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(saved.visionFailed, false);
+  assert.equal(saved.processedImages.loot, true);
+  assert.equal(saved.loot.items[0].quantity, 2);
+  assert.equal(saved.loot.unresolved.length, 0);
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(calls, 2);
+  assert.equal(saved.loot.items[0].quantity, 2);
+  const { resolveLoot } = await import("../src/loot-review.mjs");
+  resolveLoot(saved, saved.loot.readings[0].key, drop.id, 5);
+  saved.attachments.push({ id: "loot2", url: "loot2", name: "next.png" });
+  saved.lootImages.push("loot2");
+  await flow.handle(interaction(saved.id, "analyze"));
+  assert.equal(calls, 3);
+  assert.equal(saved.loot.items[0].quantity, 7);
+  assert.equal(saved.roster.members[0].id, member.id);
+});

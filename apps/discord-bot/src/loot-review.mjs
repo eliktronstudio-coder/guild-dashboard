@@ -235,6 +235,33 @@ export function recognizeLoot(text, drops) {
   }
   return rebuildLoot(readings, drops);
 }
+// GPT already separates occurrences. Never aggregate before variant selection.
+export function recognizeVisionLoot(items, drops) {
+  const readings = items.map((item, index) => {
+    const quantity = item.quantity ?? 1;
+    const reading = recognizeLoot(`${item.visible} x${quantity}`, drops)
+      .readings[0];
+    if (!reading) throw Error("INVALID_INPUT");
+    reading.key = createHash("sha256")
+      .update(
+        `gpt-loot:${item.sourceKey ?? "image"}:${item.slot ?? index}:${index}`,
+      )
+      .digest("hex")
+      .slice(0, 16);
+    reading.raw = `${item.visible} × ${item.quantity ?? "?"}`;
+    reading.visible = item.visible;
+    reading.engine = "gpt";
+    if (item.quantity === null || item.uncertain) {
+      reading.pending = true;
+      reading.quantity = item.quantity;
+      reading.status =
+        item.quantity === null ? "проверьте количество" : "требует проверки";
+      reading.visionUncertain = true;
+    }
+    return reading;
+  });
+  return rebuildLoot(readings, drops);
+}
 export function ensureLoot(d) {
   if (!d.loot.readings)
     d.loot = recognizeLoot(
@@ -250,7 +277,8 @@ export function refreshSimilarLoot(d) {
   ensureLoot(d);
   let changed = false;
   for (const reading of d.loot.readings) {
-    if (!reading.pending || reading.ignored) continue;
+    if (!reading.pending || reading.ignored || reading.visionUncertain)
+      continue;
     if (interfaceNoise(reading.raw)) {
       reading.ignored = true;
       reading.status = "надпись интерфейса";

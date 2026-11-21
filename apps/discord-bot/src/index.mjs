@@ -13,7 +13,7 @@ import { siteClient } from "./site.mjs";
 import { draftStore } from "./store.mjs";
 import { ImportWorkflow } from "./workflow.mjs";
 import { gameNickname } from "./nickname-memory.mjs";
-import { downloadImage, ocr, prepareEvidence } from "./ocr.mjs";
+import { downloadImage, prepareEvidence } from "./images.mjs";
 const origin = process.env.XD_SITE_ORIGIN ?? "https://xd-guild.ru",
   secret = process.env.DISCORD_IMPORT_SECRET ?? "";
 if (secret.length < 32) throw Error("DISCORD_IMPORT_SECRET is not configured");
@@ -23,7 +23,7 @@ const flow = new ImportWorkflow({
   site,
   store,
   download: downloadImage,
-  ocr: createVisionRecognizer({ store, local: ocr }),
+  ocr: createVisionRecognizer({ store }),
   prepareEvidence,
   fetchMessage: async (context, id) => {
     const channel = await client.channels.fetch(context.channel);
