@@ -214,8 +214,12 @@ test("complete Discord conversation publishes a stable reviewed payload and surv
   store.close();
   store = draftStore(dir);
   flow = new ImportWorkflow({ ...dependencies, store });
-  await flow.handle(interaction(draft.id, "publish"));
-  assert.deepEqual(requests[1], requests[0]);
+  const retry = interaction(draft.id, "publish");
+  retry.user.id = "second-publisher";
+  await flow.handle(retry);
+  assert.deepEqual(requests[1].activity, requests[0].activity);
+  assert.equal(requests[1].request, requests[0].request);
+  assert.equal(requests[1].context.user, "second-publisher");
   assert.equal(requests[1].activity.confirmRoster, true);
   assert.deepEqual(requests[1].activity.facts, {});
   assert.ok(store.get(draft.id).event);
@@ -233,7 +237,7 @@ test("complete Discord conversation publishes a stable reviewed payload and surv
   store.close();
   rmSync(dir, { recursive: true });
 });
-test("another user cannot change a draft or release a running publication lock", async () => {
+test("another participant cannot release a running shared-draft publication lock", async () => {
   const d = { id: randomUUID(), owner: "staff" },
     store = { get: () => d },
     flow = new ImportWorkflow({ store });
@@ -242,7 +246,7 @@ test("another user cannot change a draft or release a running publication lock",
   i.user.id = "stranger";
   await flow.handle(i);
   assert.ok(flow.locks.has(d.id));
-  assert.match(i.replyPayload.content, /другим участником/);
+  assert.match(i.replyPayload.content, /уже выполняется/);
 });
 test("correction modals satisfy Discord API limits, including an empty roster", async () => {
   const d = {
@@ -1479,4 +1483,74 @@ test("pending loot never blocks publication and remains in the activity descript
     await flow.handle(interaction(saved.id, "publish"));
     assert.equal(publications.length, 1);
   }
+});
+
+test("participants share metadata, publication and memory audit without changing creator or allowing another channel", async () => {
+  const member = { id: randomUUID(), nickname: "Ронин" };
+  let d = {
+    id: randomUUID(),
+    owner: "creator",
+    request: randomUUID(),
+    context: { server: "guild", channel: "channel", user: "creator" },
+    message: "123456789012345678",
+    startsAt: "2026-11-20T00:00:00Z",
+    step: "review",
+    analyzed: true,
+    activity: { id: randomUUID(), name: "Рейд", version: 1, weight: 100 },
+    mode: "raid",
+    source: "prime",
+    catalog: { members: [member], activities: [], drops: [] },
+    roster: { members: [member], guests: [], unresolved: [] },
+    loot: { items: [], unresolved: [] },
+    lootRequests: {},
+    evidence: [],
+  };
+  const calls = [],
+    memory = [];
+  const flow = new ImportWorkflow({
+    store: {
+      get: () => structuredClone(d),
+      put: (v) => {
+        d = structuredClone(v);
+      },
+      rememberNicknames: (v) => memory.push(v),
+    },
+    site: async (op, p) => {
+      calls.push(structuredClone(p));
+      return { event_id: "event", url: "https://xd-guild.ru/events/event" };
+    },
+  });
+  const act = (name, user) =>
+    Object.assign(interaction(d.id, name), {
+      user: { id: user },
+      guildId: "guild",
+      channelId: "channel",
+    });
+  const wrong = act("confirm", "other");
+  wrong.channelId = "elsewhere";
+  await flow.handle(wrong);
+  assert.match(wrong.replyPayload.content, /канал/);
+  assert.equal(d.step, "review");
+  const wrongServer = act("confirm", "other");
+  wrongServer.guildId = "elsewhere";
+  await flow.handle(wrongServer);
+  assert.match(wrongServer.replyPayload.content, /канал/);
+  const confirm = act("confirm", "editor");
+  await flow.handle(confirm);
+  assert.equal(d.step, "confirm");
+  assert.equal(confirm.errorPayload, undefined);
+  assert.equal(d.context.user, "editor");
+  assert.equal(d.owner, "creator");
+  const publish = act("publish", "publisher");
+  await flow.handle(publish);
+  assert.equal(publish.errorPayload, undefined);
+  assert.equal(d.event.event_id, "event");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].context.user, "publisher");
+  assert.equal(memory[0].actor, "publisher");
+  assert.equal(d.lastEditedBy, "publisher");
+  const repeated = act("publish", "third");
+  await flow.handle(repeated);
+  assert.equal(calls.length, 1);
+  assert.match(repeated.replyPayload.content, /Активность сохранена/);
 });

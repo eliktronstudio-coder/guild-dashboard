@@ -734,12 +734,11 @@ export class ImportWorkflow {
       acquired = false;
     try {
       d = this.store.get(id);
-      if (d.owner !== interaction.user.id)
-        return interaction.reply({
-          content:
-            "Этот черновик открыт другим участником. Начните свой разбор у исходного сообщения.",
-          flags: 64,
-        });
+      if (
+        (interaction.guildId && interaction.guildId !== d.context?.server) ||
+        (interaction.channelId && interaction.channelId !== d.context?.channel)
+      )
+        throw Error("DISCORD_CHANNEL_FORBIDDEN");
       if (this.locks.has(id))
         return interaction.reply({
           content: "Операция уже выполняется. Дождитесь завершения.",
@@ -945,6 +944,8 @@ export class ImportWorkflow {
       }
       this.locks.add(id);
       acquired = true;
+      d.lastEditedBy = interaction.user.id;
+      if (d.context) d.context.user = interaction.user.id;
       await interaction.deferUpdate();
       if (d.event) {
         await interaction.editReply(renderDraft(d));
@@ -1492,7 +1493,7 @@ export class ImportWorkflow {
               scope: d.context.server,
               id: "pick:" + randomUUID(),
               source: d.message,
-              actor: d.owner,
+              actor: interaction.user.id,
               names: [name],
               corrections: [correction],
             });
@@ -1524,7 +1525,7 @@ export class ImportWorkflow {
           scope: d.context.server,
           id: "manual:" + randomUUID(),
           source: d.message,
-          actor: d.owner,
+          actor: interaction.user.id,
           names: [name],
           corrections: correction ? [correction] : [],
         });
@@ -1564,7 +1565,7 @@ export class ImportWorkflow {
             ":" +
             createHash("sha256").update(JSON.stringify(names)).digest("hex"),
           source: d.message,
-          actor: d.owner,
+          actor: interaction.user.id,
           names,
           corrections: confirmedExamples(d),
         });
@@ -1633,14 +1634,17 @@ export class ImportWorkflow {
           };
           this.store.put(d);
         }
-        d.event = await this.site("import", d.publication);
+        d.event = await this.site("import", {
+          ...d.publication,
+          context: { ...d.publication.context, user: interaction.user.id },
+        });
         d.savedAt ??= new Date().toISOString();
         try {
           this.store.rememberNicknames?.({
             scope: d.context.server,
             id: "event:" + d.event.event_id,
             source: d.message,
-            actor: d.owner,
+            actor: interaction.user.id,
             names: confirmedNames(d),
             corrections: confirmedExamples(d),
           });

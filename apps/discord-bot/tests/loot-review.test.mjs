@@ -193,7 +193,7 @@ test("drop workflow searches registry, confirms quantity against a stable row an
   assert.equal(f.published[0].activity.loot[0].id, drops[1].id);
   assert.equal(f.published[0].activity.loot[0].quantity, 4);
 });
-test("registry pagination, empty searches, add/remove and ownership stay within Discord limits", async () => {
+test("registry pagination, empty searches and shared add/remove stay within Discord limits", async () => {
   const f = fixture();
   f.get().catalog.drops = Array.from({ length: 60 }, (_, i) => ({
     id: randomUUID(),
@@ -216,8 +216,9 @@ test("registry pagination, empty searches, add/remove and ownership stay within 
   );
   await f.run("lootAll");
   assert.equal(f.get().lootSearchQuery, "");
-  const foreign = await f.run("addLoot", [], "", "other");
-  assert.ok(foreign.error);
+  const foreign = await f.run("lootAll", [], "", "other");
+  assert.equal(foreign.error, undefined);
+  assert.equal(f.get().lastEditedBy, "other");
   await f.run("reviewLoot");
   await f.run("lootPick", ["skip"]);
   assert.equal(f.get().loot.unresolved.length, 0);
