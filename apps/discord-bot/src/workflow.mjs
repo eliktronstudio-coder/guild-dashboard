@@ -95,6 +95,31 @@ const contextFor = (message, user) => ({
   user,
 });
 const truncate = (v, length) => String(v).slice(0, length);
+function activityDescription(d) {
+  const source = `Импорт из Discord: https://discord.com/channels/${d.context.server}/${d.context.channel}/${d.message}`;
+  if (d.rosterOnly)
+    return (
+      source +
+      "\nСостав сохранён без внесения дропа. Дроп можно добавить позже."
+    );
+  if (!d.loot.unresolved.length) return source;
+  const lines = [];
+  let remaining = 3000;
+  for (const raw of d.loot.unresolved) {
+    const line = "• " + String(raw).replace(/[\r\n]+/gu, " ");
+    if (line.length + 1 > remaining) break;
+    lines.push(line);
+    remaining -= line.length + 1;
+  }
+  return (
+    source +
+    `\n\nНеразобранный дроп: ${d.loot.unresolved.length} строк. Эти предметы не добавлены в инвентарь.\n` +
+    lines.join("\n") +
+    (lines.length < d.loot.unresolved.length
+      ? "\nОстальные строки — на исходных скриншотах Discord."
+      : "")
+  );
+}
 function activityWeight(d) {
   return d.coefficientWeight ?? d.activity?.weight;
 }
@@ -472,7 +497,9 @@ function controls(d) {
           (r) => r.pending && r.engine === "gpt" && r.box,
         ),
       ),
-      ...(d.visionFailed ? [button(id("analyze"), "Повторить распознавание GPT")] : []),
+      ...(d.visionFailed
+        ? [button(id("analyze"), "Повторить распознавание GPT")]
+        : []),
       button(id("uploadLoot"), "Добавить скрины дропа"),
       button(id("backchoose"), "Параметры активности"),
     ),
@@ -553,7 +580,7 @@ export function renderDraft(d) {
     content =
       "Выберите любой прочитанный ник, даже уже распознанный. «Исправить и запомнить» сохраняет полный игровой ник и пример чтения. Наличие аккаунта на сайте не требуется.";
   else if (d.step === "confirm")
-    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " позиций."} Коэффициент: ×${(activityWeight(d) / 100).toLocaleString("ru-RU")}. Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
+    content = `Подтвердите полный состав: ${d.roster.members.length} зарегистрированных игроков и ${d.roster.guests.length} гостей. Остальные подходящие участники сайта будут отмечены отсутствующими; гости не входят в статистику. ${d.rosterOnly ? "Дроп не добавляется; его можно внести позже в карточке активности." : "Дроп: " + d.loot.items.length + " подтверждённых позиций." + (d.loot.unresolved.length ? ` Спорные строки (${d.loot.unresolved.length}) сохранятся в описании активности.` : "")} Коэффициент: ×${(activityWeight(d) / 100).toLocaleString("ru-RU")}. Дата берётся из исходного сообщения. Начисления и выплаты не создаются.`;
   else {
     content = `${d.activity.name} · ${d.mode === "pvp" ? "PvP" : "PvE"} · ${d.source === "prime" ? "Прайм" : "Мини РБ"} · коэффициент ×${(activityWeight(d) / 100).toLocaleString("ru-RU")}\nПроверьте состав и дроп ниже. Полный список — в файле. Обрезанные ники требуют подтверждения; «Из состава» позволяет найти любого зарегистрированного игрока. Если дропа нет, активность сохранится без него.`;
   }
@@ -1554,14 +1581,15 @@ export class ImportWorkflow {
         if (!d.analyzed) throw Error("RECOGNITION_REQUIRED");
         if (!d.roster.members.length || d.roster.unresolved.length)
           throw Error("ROSTER_CONFIRMATION_REQUIRED");
-        if (!d.rosterOnly && d.loot.unresolved.length)
-          throw Error("LOOT_REVIEW_REQUIRED");
         d.step = "confirm";
       } else if (action === "backreview") d.step = "review";
       else if (action === "publish") {
         if (
           d.step !== "confirm" ||
-          !reviewReady(d, { rosterOnly: d.rosterOnly === true })
+          !reviewReady(d, {
+            rosterOnly: d.rosterOnly === true,
+            allowPendingLoot: true,
+          })
         )
           throw Error("ROSTER_CONFIRMATION_REQUIRED");
         // Preserve the identical payload for retries after a lost response.
@@ -1588,7 +1616,7 @@ export class ImportWorkflow {
               confirmRoster: true,
               members: d.roster.members.map((m) => m.id),
               guests: d.roster.guests,
-              description: `Импорт из Discord: https://discord.com/channels/${d.context.server}/${d.context.channel}/${d.message}${d.rosterOnly ? "\nСостав сохранён без внесения дропа. Дроп можно добавить позже." : ""}`,
+              description: activityDescription(d),
               evidence: d.rosterOnly
                 ? d.evidence.filter((e) => e.kind === "roster")
                 : d.evidence,

@@ -79,8 +79,6 @@ export function safeError(error) {
     ROSTER_CONFIRMATION_REQUIRED:
       "Проверьте спорные ники и подтвердите состав хотя бы с одним игроком сайта.",
     RECOGNITION_REQUIRED: "Сначала распознайте скриншоты активности.",
-    LOOT_REVIEW_REQUIRED:
-      "Проверьте спорные предметы и количество через «Проверить / исправить дроп».",
   };
   return (
     messages[error?.code ?? error?.message] ??
