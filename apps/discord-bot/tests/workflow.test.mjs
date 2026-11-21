@@ -596,9 +596,10 @@ test("roster-only publication skips unresolved or selected loot and loot screens
     });
   const blocked = interaction(id, "confirm");
   await flow.handle(blocked);
-  assert.ok(blocked.errorPayload);
-  assert.match(blocked.errorPayload.content, /спорные предметы/);
+  assert.equal(blocked.errorPayload, undefined);
+  assert.equal(saved.step, "confirm");
   assert.equal(publications.length, 0);
+  await flow.handle(interaction(id, "backreview"));
   const controls = renderDraft(saved).components;
   assert.equal(
     controls
@@ -1373,7 +1374,8 @@ test("GPT loot failures are not cached as empty loot; explicit retry and later s
   assert.equal(new Set(buttons.map((b) => b.custom_id)).size, buttons.length);
   const blocked = interaction(saved.id, "confirm");
   await flow.handle(blocked);
-  assert.ok(blocked.errorPayload);
+  assert.equal(blocked.errorPayload, undefined);
+  assert.equal(saved.step, "confirm");
   assert.equal(publications.length, 0);
   await flow.handle(interaction(saved.id, "analyze"));
   assert.equal(saved.visionFailed, false);
@@ -1391,4 +1393,90 @@ test("GPT loot failures are not cached as empty loot; explicit retry and later s
   assert.equal(calls, 3);
   assert.equal(saved.loot.items[0].quantity, 7);
   assert.equal(saved.roster.members[0].id, member.id);
+});
+
+test("pending loot never blocks publication and remains in the activity description without invented inventory", async () => {
+  const member = { id: randomUUID(), nickname: "Ронин" },
+    drop = {
+      id: randomUUID(),
+      name: "Коготь",
+      quantity: 2,
+      version: 1,
+      price_units: "10000",
+    };
+  for (const withKnown of [true, false]) {
+    let saved = {
+      id: randomUUID(),
+      owner: "staff",
+      request: randomUUID(),
+      context: { server: "server", channel: "channel" },
+      message: "source",
+      startsAt: "2026-11-01T00:00:00Z",
+      catalog: { members: [member], drops: [drop] },
+      activity: { id: randomUUID(), name: "Анталлон", weight: 100, version: 1 },
+      mode: "raid",
+      source: "prime",
+      analyzed: true,
+      step: "review",
+      roster: { members: [member], guests: [], unresolved: [] },
+      loot: {
+        items: withKnown ? [drop] : [],
+        unresolved: [
+          "Эссенция ярости — размер не выбран",
+          "Непрочитанный предмет × ?",
+        ],
+      },
+      lootRequests: {},
+      evidence: [{ id: randomUUID(), kind: "loot", image: "source-image" }],
+    };
+    if (!withKnown)
+      saved.loot.unresolved.push(
+        ...Array.from(
+          { length: 400 },
+          (_, i) =>
+            `Спорная строка ${i}: ` + "непрочитанный предмет ".repeat(5),
+        ),
+      );
+    const publications = [];
+    const flow = new ImportWorkflow({
+      store: {
+        get: () => structuredClone(saved),
+        put: (d) => {
+          saved = structuredClone(d);
+        },
+      },
+      site: async (op, p) => {
+        publications.push(p);
+        return {
+          event_id: randomUUID(),
+          url: "https://xd-guild.ru/events/test",
+        };
+      },
+    });
+    const confirm = interaction(saved.id, "confirm");
+    await flow.handle(confirm);
+    assert.equal(confirm.errorPayload, undefined);
+    assert.equal(saved.step, "confirm");
+    await flow.handle(interaction(saved.id, "publish"));
+    assert.equal(publications.length, 1);
+    assert.deepEqual(
+      publications[0].activity.loot.map((i) => [i.id, i.quantity]),
+      withKnown ? [[drop.id, 2]] : [],
+    );
+    assert.match(
+      publications[0].activity.description,
+      /Эссенция ярости — размер не выбран/,
+    );
+    assert.match(
+      publications[0].activity.description,
+      /Непрочитанный предмет × \?/,
+    );
+    assert.equal(publications[0].activity.evidence[0].image, "source-image");
+    assert.equal(saved.loot.unresolved.length, withKnown ? 2 : 402);
+    assert.ok(publications[0].activity.description.length <= 4000);
+    if (!withKnown)
+      assert.match(publications[0].activity.description, /Остальные строки/);
+    await flow.handle(interaction(saved.id, "publish"));
+    assert.equal(publications.length, 1);
+  }
 });
