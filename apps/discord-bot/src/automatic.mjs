@@ -29,6 +29,9 @@ export function automaticImports({ flow, store, allowed, onError = () => {} }) {
       await flow.start(
         {
           user: { id: message.author.id },
+          guildId: message.guildId,
+          channelId: message.channelId,
+          channel: message.channel,
           deferred: true,
           replied: true,
           deferUpdate: async () => {},
