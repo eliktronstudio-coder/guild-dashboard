@@ -27,4 +27,4 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/xd_operations
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/xd_operations ~/.ssh/known_hosts
-          python operations/scripts/recover-requested-rename.py
+          python operations/scripts/apply-requested-aniris-rename.py
